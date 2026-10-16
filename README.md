@@ -1,109 +1,120 @@
-<a href="https://demo-nextjs-with-supabase.vercel.app/">
-  <img alt="Next.js and Supabase Starter Kit - the fastest way to build apps with Next.js and Supabase" src="https://demo-nextjs-with-supabase.vercel.app/opengraph-image.png">
-  <h1 align="center">Next.js and Supabase Starter Kit</h1>
-</a>
+# Highfy Tasks
 
-<p align="center">
- The fastest way to build apps with Next.js and Supabase
-</p>
+Internal web app where every Highfy department tracks its to-dos, keeps weekly
+meeting minutes, and turns meeting action items into tasks. Admin gets a
+dashboard and a daily activity log of who did what. See [SPEC.md](SPEC.md).
 
-<p align="center">
-  <a href="#features"><strong>Features</strong></a> ·
-  <a href="#demo"><strong>Demo</strong></a> ·
-  <a href="#deploy-to-vercel"><strong>Deploy to Vercel</strong></a> ·
-  <a href="#clone-and-run-locally"><strong>Clone and run locally</strong></a> ·
-  <a href="#feedback-and-issues"><strong>Feedback and issues</strong></a>
-  <a href="#more-supabase-examples"><strong>More Examples</strong></a>
-</p>
-<br/>
+Built on Vercel's official [Next.js + Supabase starter](https://github.com/vercel/next.js/tree/canary/examples/with-supabase):
+Next.js (App Router, TypeScript), Supabase (Postgres, Auth, RLS, Storage),
+Tailwind CSS and shadcn/ui. All dates and "today" logic use Asia/Karachi (PKT).
 
-## Features
+## What's in Phase 1
 
-- Works across the entire [Next.js](https://nextjs.org) stack
-  - App Router
-  - Pages Router
-  - Proxy
-  - Client
-  - Server
-  - It just works!
-- supabase-ssr. A package to configure Supabase Auth to use cookies
-- Password-based authentication block installed via the [Supabase UI Library](https://supabase.com/ui/docs/nextjs/password-based-auth)
-- Styling with [Tailwind CSS](https://tailwindcss.com)
-- Components with [shadcn/ui](https://ui.shadcn.com/)
-- Optional deployment with [Supabase Vercel Integration and Vercel deploy](#deploy-your-own)
-  - Environment variables automatically assigned to Vercel project
+| Area | Where |
+|---|---|
+| Sign in with Microsoft, `@highfy.pk` only, pending approval | `/login`, `app/auth/*`, `lib/supabase/proxy.ts`, `/pending` |
+| My Tasks (Overdue / Today / This week / Later / No date) | `/my` |
+| List view with combinable, shareable URL filters and saved views | `/tasks` |
+| Department Kanban board | `/departments/[slug]` |
+| Calendar view | `/tasks/calendar` |
+| Overdue across departments | `/overdue` |
+| Task detail: comments, attachments, history | `/tasks/[id]` |
+| Meetings: archive, full-text search, minutes, decisions, action items, last week's carry-forward | `/meetings`, `/meetings/[id]` |
+| Activity: per person per day with summary, team view per day | `/activity` |
+| CEO dashboard (click any number for the list behind it) | `/admin` |
+| People approval and per-department roles | `/admin/users` |
+| Departments, sub-teams, weekly meeting schedule | `/admin/departments`, `/departments/[slug]/team` |
 
-## Demo
+### Access rules (enforced in the database with RLS)
 
-You can view a fully working demo at [demo-nextjs-with-supabase.vercel.app](https://demo-nextjs-with-supabase.vercel.app/).
+- **Admin**: everything.
+- **Lead** (per department): full control of their department; read-only view of other departments' tasks and meetings. Can add/remove Members and set the meeting schedule.
+- **Member**: only their own departments. Can create tasks, and edit tasks they own, collaborate on or created. Cannot see other departments at all.
+- Only Leads/Admin reassign someone else's task, move tasks between departments, or write minutes.
+- Activity log: Admin sees all, Leads their departments, Members their own. Nobody can edit or delete entries (not even the database owner).
+- The `@highfy.pk` domain is checked in four places: Microsoft single-tenant app, the OAuth callback, every request (proxy), and the database (sign-up is rejected and every policy checks the JWT email).
 
-## Deploy to Vercel
+## Setup
 
-Vercel deployment will guide you through creating a Supabase account and project.
+### 1. Supabase database
 
-After installation of the Supabase integration, all relevant environment variables will be assigned to the project so the deployment is fully functioning.
+Migrations live in `supabase/migrations`, the department seed in `supabase/seed.sql`.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&project-name=nextjs-with-supabase&repository-name=nextjs-with-supabase&demo-title=nextjs-with-supabase&demo-description=This+starter+configures+Supabase+Auth+to+use+cookies%2C+making+the+user%27s+session+available+throughout+the+entire+Next.js+app+-+Client+Components%2C+Server+Components%2C+Route+Handlers%2C+Server+Actions+and+Middleware.&demo-url=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2F&external-id=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&demo-image=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2Fopengraph-image.png)
+Either with the Supabase CLI (needs a direct database connection):
 
-The above will also clone the Starter kit to your GitHub, you can clone that locally and develop locally.
+```bash
+npx supabase link --project-ref jdeseulxkqvokujcopsm
+npx supabase db push --include-seed
+```
 
-If you wish to just develop locally and not deploy to Vercel, [follow the steps below](#clone-and-run-locally).
+or over HTTPS with the Management API (works anywhere):
 
-## Clone and run locally
+```bash
+# .env.local: NEXT_PUBLIC_SUPABASE_URL=... and SUPABASE_ACCESS_TOKEN=sbp_...
+npm run db:push -- --seed
+npm run db:test        # RLS test suite; leaves no data behind
+```
 
-1. You'll first need a Supabase project which can be made [via the Supabase dashboard](https://database.new)
+### 2. Microsoft (Azure) app registration
 
-2. Create a Next.js app using the Supabase Starter template npx command
+In the [Azure portal](https://portal.azure.com) → Microsoft Entra ID → App registrations → **New registration**:
 
-   ```bash
-   npx create-next-app --example with-supabase with-supabase-app
-   ```
+1. **Supported account types**: *Accounts in this organizational directory only (Highfy only - Single tenant)*.
+2. **Redirect URI** (Web): `https://jdeseulxkqvokujcopsm.supabase.co/auth/v1/callback`
+3. Note the **Application (client) ID** and **Directory (tenant) ID**.
+4. **Certificates & secrets** → New client secret → copy the *Value*.
+5. **Token configuration** → Add optional claim → ID token → `email` and `xms_edov` (lets Supabase trust the email address).
 
-   ```bash
-   yarn create next-app --example with-supabase with-supabase-app
-   ```
+### 3. Supabase Auth settings
 
-   ```bash
-   pnpm create next-app --example with-supabase with-supabase-app
-   ```
+Supabase dashboard → Authentication:
 
-3. Use `cd` to change into the app's directory
+- **Sign In / Providers → Azure**: enable; Client ID and Secret from step 2; **Azure Tenant URL** `https://login.microsoftonline.com/<tenant-id>` (this keeps sign-in to Highfy's directory).
+- Turn **off** Email sign-up and other providers.
+- **URL Configuration**: Site URL = your production URL; add `https://<your-domain>/auth/callback`, `https://*-<your-team>.vercel.app/auth/callback` (previews) and `http://localhost:3000/auth/callback` to Redirect URLs.
 
-   ```bash
-   cd with-supabase-app
-   ```
+### 4. Vercel
 
-4. Rename `.env.example` to `.env.local` and update the following:
+Import the GitHub repo in Vercel and add environment variables (Production and Preview):
 
-  ```env
-  NEXT_PUBLIC_SUPABASE_URL=[INSERT SUPABASE PROJECT URL]
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=[INSERT SUPABASE PROJECT API PUBLISHABLE OR ANON KEY]
-  ```
-  > [!NOTE]
-  > This example uses `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, which refers to Supabase's new **publishable** key format.
-  > Both legacy **anon** keys and new **publishable** keys can be used with this variable name during the transition period. Supabase's dashboard may show `NEXT_PUBLIC_SUPABASE_ANON_KEY`; its value can be used in this example.
-  > See the [full announcement](https://github.com/orgs/supabase/discussions/29260) for more information.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- optional `NEXT_PUBLIC_SITE_URL`
 
-  Both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` can be found in [your Supabase project's API settings](https://supabase.com/dashboard/project/_?showConnect=true)
+Never add `SUPABASE_ACCESS_TOKEN` or a service-role key to Vercel; the app doesn't use them.
 
-5. You can now run the Next.js local development server:
+### 5. First login
 
-   ```bash
-   npm run dev
-   ```
+`hanzala@highfy.pk` becomes an active Admin on first sign-in. Everyone else
+lands on "Waiting for approval" until an Admin approves them under **People**
+and adds them to a department (as Member or Lead).
 
-   The starter kit should now be running on [localhost:3000](http://localhost:3000/).
+## Development
 
-6. This template comes with the default shadcn/ui style initialized. If you instead want other ui.shadcn styles, delete `components.json` and [re-install shadcn/ui](https://ui.shadcn.com/docs/installation/next)
+```bash
+npm install
+cp .env.example .env.local   # fill in
+npm run dev
+```
 
-> Check out [the docs for Local Development](https://supabase.com/docs/guides/getting-started/local-development) to also run Supabase locally.
+Checks:
 
-## Feedback and issues
+```bash
+npm run typecheck
+npm run lint
+npm run build
+npm run db:test:local   # migrations + RLS tests on a local Postgres (no Docker needed)
+```
 
-Please file feedback and issues over on the [Supabase GitHub org](https://github.com/supabase/supabase/issues/new/choose).
+`db:test:local` creates a throwaway database, applies a small stand-in for
+Supabase's `auth`/`storage` schemas (`supabase/tests/local/supabase_shim.sql`),
+all migrations and the seed, then runs `supabase/tests/rls_test.sql`.
+Set `PGURL` to a superuser connection string if it isn't
+`postgres://postgres@localhost:5432/postgres`.
 
-## More Supabase examples
+## Notes
 
-- [Next.js Subscription Payments Starter](https://github.com/vercel/nextjs-subscription-payments)
-- [Cookie-based Auth and the Next.js 13 App Router (free course)](https://youtube.com/playlist?list=PL5S4mPUpp4OtMhpnp93EFSo42iQ40XjbF)
-- [Supabase Auth and the Next.js App Router](https://github.com/supabase/supabase/tree/master/examples/auth/nextjs)
+- Deleting a task is a soft delete (`delete_task()`), so the activity log keeps pointing at something.
+- Action items *are* tasks with `meeting_id` set; editing either place edits the same record.
+- Rich text (task descriptions, minutes) is stored as HTML and sanitized on save and again on render.
+- Attachments go to the private `task-attachments` bucket under `<task_id>/…`; storage policies mirror task access.
