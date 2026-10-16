@@ -18,11 +18,11 @@ export default async function LoginPage({
 
   return (
     <main className="flex min-h-svh items-center justify-center p-4">
-      <Card className="card-outlined w-full max-w-sm border-2 border-brand-primary shadow-none">
+      <Card className="card-outlined w-full max-w-sm border border-line shadow-none">
         <CardHeader className="items-center text-center">
           <HighfyLogo className="mb-2 w-36" />
-          <CardTitle className="text-2xl font-bold text-brand-primary">Tasks</CardTitle>
-          <CardDescription className="text-[15px] text-brand-primary-deep">
+          <CardTitle className="text-2xl font-bold text-ink">Tasks</CardTitle>
+          <CardDescription className="text-[15px] text-ink">
             Sign in with your Highfy Microsoft account.
           </CardDescription>
         </CardHeader>
@@ -34,7 +34,7 @@ export default async function LoginPage({
               Sign in with Microsoft
             </Button>
           </form>
-          <p className="mt-4 text-center text-[13px] text-brand-primary-deep/70">
+          <p className="mt-4 text-center text-[13px] text-ink-muted">
             Only @highfy.pk accounts can access this app.
           </p>
         </CardContent>

@@ -19,11 +19,11 @@ import type { TaskStatus } from "@/lib/types";
 export const metadata = { title: "Timeline · Highfy Tasks" };
 
 const BAR: Record<TaskStatus, string> = {
-  todo: "border-2 border-brand-primary bg-white text-brand-primary",
+  todo: "border border-ink/25 bg-white text-ink",
   in_progress: "bg-brand-primary text-white",
-  blocked: "bg-brand-accent text-brand-primary-deep",
-  done: "bg-brand-muted text-brand-primary-deep",
-  cancelled: "border border-brand-muted bg-white text-muted-foreground",
+  blocked: "bg-brand-accent text-ink",
+  done: "bg-subtle text-ink",
+  cancelled: "border border-line bg-white text-muted-foreground",
 };
 
 const ZOOMS = [
@@ -162,7 +162,7 @@ export default async function TimelinePage({
                       className={cn(
                         "shrink-0 border-r py-1 text-center leading-tight",
                         weekend && "bg-muted",
-                        d === today && "bg-brand-accent font-semibold text-brand-primary-deep",
+                        d === today && "bg-brand-accent font-semibold text-ink",
                       )}
                     >
                       <div className="h-3 truncate px-0.5 font-medium">{showMonth ? format(date, "MMM") : ""}</div>
@@ -197,7 +197,7 @@ export default async function TimelinePage({
           </span>
         ))}
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rotate-45 bg-brand-primary" /> Due date only (no start date)
+          <span className="h-2.5 w-2.5 rotate-45 bg-ink" /> Due date only (no start date)
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="h-3 w-0.5 bg-brand-accent" /> Today
@@ -237,7 +237,7 @@ function TimelineRow({
     <div className="group flex border-b last:border-b-0 hover:bg-muted/30">
       <Link
         href={`/tasks/${t.id}`}
-        className="sticky left-0 z-10 flex w-[var(--label-w)] shrink-0 items-center gap-2 border-r bg-white px-3 py-1.5 group-hover:bg-brand-panel"
+        className="sticky left-0 z-10 flex w-[var(--label-w)] shrink-0 items-center gap-2 border-r bg-white px-3 py-1.5 group-hover:bg-subtle"
       >
         <span className={cn("min-w-0 flex-1 truncate text-xs md:text-sm", t.status === "cancelled" && "line-through opacity-60")}>
           {t.title}

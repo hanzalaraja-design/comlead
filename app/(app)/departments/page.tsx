@@ -72,7 +72,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "re
       <dd
         className={
           "text-lg font-semibold " +
-          (tone === "red" ? "text-brand-accent" : "text-brand-primary")
+          (tone === "red" ? "text-brand-accent" : "text-ink")
         }
       >
         {value}

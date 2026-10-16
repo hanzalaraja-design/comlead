@@ -43,11 +43,11 @@ export default async function AdminUsersPage() {
           if (!list.length) return null;
           return (
             <section key={g.key}>
-              <h2 className="kicker mb-1 text-brand-primary">
+              <h2 className="kicker mb-1 text-ink">
                 {g.title} <span className="font-normal text-muted-foreground">· {list.length}</span>
               </h2>
               {"hint" in g && <p className="mb-2 text-xs text-muted-foreground">{g.hint}</p>}
-              <ul className="divide-y divide-brand-panel surface">
+              <ul className="divide-y divide-line surface">
                 {list.map((u) => (
                   <UserRow key={u.id} user={u} memberships={byUser.get(u.id) ?? []} departments={depts} isSelf={u.id === admin.id} />
                 ))}

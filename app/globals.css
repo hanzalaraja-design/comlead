@@ -19,27 +19,35 @@
     --brand-panel: 281 49% 90%;           /* #EAD9F2 light purple panel */
     --brand-surface: 0 0% 100%;           /* #FFFFFF */
     --danger: 0 66.4% 46.7%;              /* #C62828 */
+
+    /* Neutral base: the app is mostly greys; brand colours highlight. */
+    --canvas: 40 14% 95.5%;               /* #F5F4F1 page background */
+    --surface: 0 0% 100%;                 /* cards */
+    --line: 40 10% 90%;                   /* #E8E6E2 hairlines */
+    --subtle: 40 12% 94%;                 /* #F2F1EE hover, table headers, quiet pills */
+    --ink: 30 6% 11%;                     /* #1E1C1A text */
+    --ink-muted: 35 4% 43%;               /* #736F6A secondary text */
     --success: 123 46.2% 33.5%;           /* #2E7D32 */
 
     /* shadcn/ui mapping */
-    --background: var(--brand-bg);
-    --foreground: var(--brand-primary-deep);
-    --card: var(--brand-surface);
-    --card-foreground: var(--brand-primary-deep);
-    --popover: var(--brand-surface);
-    --popover-foreground: var(--brand-primary-deep);
+    --background: var(--canvas);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --popover: var(--surface);
+    --popover-foreground: var(--ink);
     --primary: var(--brand-primary);
     --primary-foreground: 0 0% 100%;
-    --secondary: var(--brand-panel);
-    --secondary-foreground: var(--brand-primary);
-    --muted: var(--brand-panel);
-    --muted-foreground: 287 26.5% 42%;    /* deep plum at ~70% on white */
-    --accent: var(--brand-panel);
-    --accent-foreground: var(--brand-primary);
+    --secondary: var(--subtle);
+    --secondary-foreground: var(--ink);
+    --muted: var(--subtle);
+    --muted-foreground: var(--ink-muted);
+    --accent: var(--subtle);
+    --accent-foreground: var(--ink);
     --destructive: var(--danger);
     --destructive-foreground: 0 0% 100%;
-    --border: var(--brand-panel);
-    --input: var(--brand-panel);
+    --border: var(--line);
+    --input: var(--line);
     --ring: var(--brand-primary);
     --radius: 0.75rem;                     /* 12px: buttons and inputs */
   }
@@ -63,23 +71,24 @@
 
 @layer components {
   /* Section kicker: small, ALL CAPS, tracked. */
+  /* Section title: sentence case, quiet. */
   .kicker {
-    @apply text-xs font-bold uppercase tracking-[0.08em];
+    @apply text-[15px] font-semibold;
   }
   /* Native selects and date inputs styled like the shadcn Input. */
   .field {
-    @apply rounded-[12px] border-[1.5px] border-brand-panel bg-white px-3 text-sm text-brand-primary-deep outline-none focus-visible:ring-2 focus-visible:ring-brand-primary disabled:opacity-60;
+    @apply rounded-[12px] border border-line bg-white px-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 disabled:opacity-60;
   }
   /* Outlined card (default) and filled hero card. */
   .card-outlined {
-    @apply rounded-[20px] border-2 border-brand-primary bg-white;
+    @apply rounded-[20px] border border-line bg-white;
   }
   .card-filled {
     @apply rounded-[20px] bg-brand-primary text-white;
   }
   /* Dense lists and tables: white surface, hairline border. */
   .surface {
-    @apply rounded-[20px] border border-brand-panel bg-white;
+    @apply rounded-[20px] border border-line bg-white;
   }
 }
 

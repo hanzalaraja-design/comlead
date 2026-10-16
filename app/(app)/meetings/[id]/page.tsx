@@ -68,7 +68,7 @@ export default async function MeetingPage({
 
   const carryForward = prev && (
     <section className="surface bg-muted/30 p-4">
-      <h2 className="kicker mb-1 flex items-center gap-2 text-brand-primary">
+      <h2 className="kicker mb-1 flex items-center gap-2 text-ink">
         <History className="h-4 w-4" /> Last week&apos;s action items
       </h2>
       <p className="mb-3 text-xs text-muted-foreground">
@@ -150,7 +150,7 @@ export default async function MeetingPage({
 
       {attendeeIds.length > 0 && (
         <section className="surface p-4 md:p-6">
-          <h2 className="kicker mb-2 text-brand-primary">Attendees</h2>
+          <h2 className="kicker mb-2 text-ink">Attendees</h2>
           <ul className="flex flex-wrap gap-2">
             {attendeeIds.map((uid) => (
               <li key={uid} className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-3 text-sm">
@@ -166,13 +166,13 @@ export default async function MeetingPage({
 
       {meeting.agenda && (
         <section className="surface p-4 md:p-6">
-          <h2 className="kicker mb-2 text-brand-primary">Agenda</h2>
+          <h2 className="kicker mb-2 text-ink">Agenda</h2>
           <p className="whitespace-pre-wrap text-sm">{meeting.agenda}</p>
         </section>
       )}
 
       <section className="surface p-4 md:p-6">
-        <h2 className="kicker mb-2 text-brand-primary">Minutes</h2>
+        <h2 className="kicker mb-2 text-ink">Minutes</h2>
         {meeting.minutes ? (
           <RichTextView html={meeting.minutes} />
         ) : (
@@ -182,7 +182,7 @@ export default async function MeetingPage({
 
       {meeting.decisions.length > 0 && (
         <section className="surface p-4 md:p-6">
-          <h2 className="kicker mb-2 text-brand-primary">Decisions</h2>
+          <h2 className="kicker mb-2 text-ink">Decisions</h2>
           <ul className="list-disc space-y-1 pl-5 text-sm">
             {meeting.decisions.map((d, i) => (
               <li key={i}>{d}</li>
@@ -192,7 +192,7 @@ export default async function MeetingPage({
       )}
 
       <section>
-        <h2 className="kicker mb-2 text-brand-primary">Action items</h2>
+        <h2 className="kicker mb-2 text-ink">Action items</h2>
         {items.length ? (
           <TaskList tasks={items} showDepartment={false} />
         ) : (

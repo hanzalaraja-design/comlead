@@ -38,7 +38,7 @@ export function TeamManager({
 
   return (
     <div className="space-y-4">
-      <ul className="divide-y divide-brand-panel surface">
+      <ul className="divide-y divide-line surface">
         {members.length === 0 && <li className="p-4 text-sm text-muted-foreground">No one yet.</li>}
         {members.map((m) => (
           <li key={m.person.id} className="flex items-center gap-3 px-3 py-2.5">

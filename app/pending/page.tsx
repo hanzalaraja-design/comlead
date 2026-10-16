@@ -15,12 +15,12 @@ export default async function PendingPage() {
 
   return (
     <main className="flex min-h-svh items-center justify-center p-4">
-      <Card className="card-outlined w-full max-w-sm border-2 border-brand-primary shadow-none">
+      <Card className="card-outlined w-full max-w-sm border border-line shadow-none">
         <div className="flex justify-center pt-6">
           <HighfyLogo className="w-28" />
         </div>
         <CardHeader>
-          <CardTitle className="text-xl font-bold text-brand-primary">{disabled ? "Account disabled" : "Waiting for approval"}</CardTitle>
+          <CardTitle className="text-xl font-bold text-ink">{disabled ? "Account disabled" : "Waiting for approval"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm text-muted-foreground">
           <p>

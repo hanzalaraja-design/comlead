@@ -22,14 +22,14 @@ export function TaskList({
 }) {
   return (
     <div className="overflow-hidden surface">
-      <div className="hidden grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] gap-3 bg-brand-panel px-4 py-2.5 text-[13px] font-bold text-brand-primary md:grid">
+      <div className="hidden grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] gap-3 bg-subtle px-4 py-2.5 text-[13px] font-bold text-ink md:grid">
         <span>Status</span>
         <span>Task</span>
         <span>Owner</span>
         <span>Priority</span>
         <span>{showCompleted ? "Completed" : "Due"}</span>
       </div>
-      <ul className="divide-y divide-brand-panel">
+      <ul className="divide-y divide-line">
         {tasks.map((t) => (
           <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} />
         ))}
@@ -48,13 +48,13 @@ function TaskListItem({
   showCompleted: boolean;
 }) {
   return (
-    <li className="relative px-4 py-3 hover:bg-brand-bg/60 md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] md:items-center md:gap-3 md:py-2">
+    <li className="relative px-4 py-3 hover:bg-subtle/60 md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] md:items-center md:gap-3 md:py-2">
       <div className="hidden md:block">
         <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
       </div>
 
       <div className="min-w-0">
-        <Link href={`/tasks/${t.id}`} className="block font-semibold leading-snug text-brand-primary after:absolute after:inset-0">
+        <Link href={`/tasks/${t.id}`} className="block font-semibold leading-snug text-ink after:absolute after:inset-0">
           <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -71,7 +71,7 @@ function TaskListItem({
             </span>
           )}
           {t.status === "blocked" && t.blocked_reason && (
-            <span className="font-medium text-brand-primary-deep">Blocked: {t.blocked_reason}</span>
+            <span className="font-medium text-ink">Blocked: {t.blocked_reason}</span>
           )}
           <TagList tags={t.tags} />
         </div>

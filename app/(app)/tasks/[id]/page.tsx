@@ -135,19 +135,19 @@ export default async function TaskPage({
               <DueLabel date={task.due_date} time={task.due_time} overdue={task.overdue} className="text-sm" />
             </div>
             {task.status === "blocked" && (
-              <p className="rounded-[12px] bg-brand-accent/20 px-3 py-2 text-sm text-brand-primary-deep">
+              <p className="rounded-[12px] bg-brand-accent/20 px-3 py-2 text-sm text-ink">
                 <span className="font-medium">Blocked:</span> {task.blocked_reason || "No reason given"}
               </p>
             )}
             {task.description ? (
               <RichTextView html={task.description} />
             ) : (
-              <p className="text-sm text-brand-primary-deep/70">No description.</p>
+              <p className="text-sm text-ink-muted">No description.</p>
             )}
           </div>
 
           <section className="surface p-4 md:p-6">
-            <h2 className="kicker mb-3 text-brand-primary">Comments</h2>
+            <h2 className="kicker mb-3 text-ink">Comments</h2>
             <TaskComments
               taskId={id}
               canComment={canContribute}
@@ -163,7 +163,7 @@ export default async function TaskPage({
           </section>
 
           <section className="surface p-4 md:p-6">
-            <h2 className="kicker mb-3 text-brand-primary">Files</h2>
+            <h2 className="kicker mb-3 text-ink">Files</h2>
             <TaskAttachments
               taskId={id}
               canUpload={canContribute}
@@ -179,7 +179,7 @@ export default async function TaskPage({
           </section>
 
           <section className="surface p-4 md:p-6">
-            <h2 className="kicker mb-3 text-brand-primary">History</h2>
+            <h2 className="kicker mb-3 text-ink">History</h2>
             {(historyRes.data ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">No history you can see.</p>
             ) : (

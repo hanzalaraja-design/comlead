@@ -81,12 +81,12 @@ export default async function MyTasksPage() {
             if (!items.length) return null;
             return (
               <section key={g.key}>
-                <h2 className="kicker mb-2 flex items-center gap-2 text-brand-primary">
+                <h2 className="kicker mb-2 flex items-center gap-2 text-ink">
                   {g.title}
                   <span
                     className={cn(
                       "rounded-full px-2 py-0.5 tracking-normal",
-                      g.key === "overdue" ? "bg-brand-accent text-brand-primary-deep" : "bg-brand-panel text-brand-primary",
+                      g.key === "overdue" ? "bg-brand-accent text-ink" : "bg-subtle text-ink",
                     )}
                   >
                     {items.length}

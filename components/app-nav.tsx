@@ -63,7 +63,7 @@ function NavLinks({ items, pathname, onNavigate }: { items: NavItem[]; pathname:
               "flex items-center gap-3 rounded-[12px] px-3 py-2 text-[15px] font-medium transition-colors",
               isActive(pathname, item.href)
                 ? "bg-brand-primary font-semibold text-white"
-                : "text-brand-primary hover:bg-white/70",
+                : "text-ink-muted hover:bg-subtle hover:text-ink",
             )}
           >
             <item.icon className="h-4 w-4 shrink-0" />
@@ -93,19 +93,19 @@ function NavBody({
       <NavLinks items={MAIN} pathname={pathname} onNavigate={onNavigate} />
       {isAdmin && (
         <div>
-          <p className="kicker mb-1 px-3 text-brand-primary">Admin</p>
+          <p className="mb-1 px-3 text-xs font-medium text-ink-muted">Admin</p>
           <NavLinks items={ADMIN} pathname={pathname} onNavigate={onNavigate} />
         </div>
       )}
-      <div className="mt-auto space-y-2 border-t border-brand-muted pt-4">
+      <div className="mt-auto space-y-2 border-t border-line pt-4">
         <div className="px-3">
-          <p className="truncate text-sm font-semibold text-brand-primary">{name}</p>
+          <p className="truncate text-sm font-semibold text-ink">{name}</p>
           <p className="truncate text-xs text-muted-foreground">{email}</p>
         </div>
         <form action="/auth/signout" method="post" className="px-1">
           <button
             type="submit"
-            className="flex items-center gap-2 rounded-[12px] px-2 py-1.5 text-sm font-medium text-brand-primary hover:bg-white/70"
+            className="flex items-center gap-2 rounded-[12px] px-2 py-1.5 text-sm font-medium text-ink hover:bg-subtle"
           >
             <LogOut className="h-4 w-4" /> Sign out
           </button>
@@ -122,40 +122,40 @@ export function AppNav({ isAdmin, name, email }: { isAdmin: boolean; name: strin
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col bg-brand-panel p-4 md:flex">
+      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-line bg-white p-4 md:flex">
         <Link href="/my" className="mb-6 flex items-end gap-2 px-3" aria-label="Highfy Tasks home">
           <HighfyLogo className="w-24" />
-          <span className="kicker pb-1 text-brand-primary">Tasks</span>
+          <span className="pb-1 text-sm font-semibold text-ink-muted">Tasks</span>
         </Link>
         <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} />
       </aside>
 
       {/* Phone top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-brand-muted bg-brand-panel/95 px-4 backdrop-blur md:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-white/95 px-4 backdrop-blur md:hidden">
         <Link href="/my" className="flex items-end gap-2" aria-label="Highfy Tasks home">
           <HighfyLogo className="w-[72px]" />
-          <span className="kicker pb-0.5 text-brand-primary">Tasks</span>
+          <span className="pb-0.5 text-sm font-semibold text-ink-muted">Tasks</span>
         </Link>
         <button
           type="button"
           aria-label="Open menu"
           onClick={() => setOpen(true)}
-          className="-mr-2 rounded-[12px] p-2 text-brand-primary hover:bg-white/70"
+          className="-mr-2 rounded-[12px] p-2 text-ink hover:bg-subtle"
         >
           <Menu className="h-5 w-5" />
         </button>
       </header>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-72 bg-brand-panel p-4">
+        <SheetContent side="right" className="w-72 bg-white p-4">
           <SheetHeader className="p-0 pb-2">
-            <SheetTitle className="text-brand-primary">Menu</SheetTitle>
+            <SheetTitle className="text-ink">Menu</SheetTitle>
           </SheetHeader>
           <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
 
       {/* Phone bottom tabs */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-muted bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         <ul className="grid grid-cols-4">
           {MOBILE.map((item) => (
             <li key={item.href}>
@@ -163,7 +163,7 @@ export function AppNav({ isAdmin, name, email }: { isAdmin: boolean; name: strin
                 href={item.href}
                 className={cn(
                   "flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
-                  isActive(pathname, item.href) ? "font-bold text-brand-primary" : "text-brand-primary-deep/60",
+                  isActive(pathname, item.href) ? "font-semibold text-brand-primary" : "text-ink-muted",
                 )}
               >
                 <item.icon className="h-5 w-5" />

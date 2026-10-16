@@ -24,12 +24,12 @@ export default async function AuthErrorPage({
 
   return (
     <main className="flex min-h-svh items-center justify-center p-4">
-      <Card className="card-outlined w-full max-w-sm border-2 border-brand-primary shadow-none">
+      <Card className="card-outlined w-full max-w-sm border border-line shadow-none">
         <div className="flex justify-center pt-6">
           <HighfyLogo className="w-28" />
         </div>
         <CardHeader>
-          <CardTitle className="text-xl font-bold text-brand-primary">{msg.title}</CardTitle>
+          <CardTitle className="text-xl font-bold text-ink">{msg.title}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">{msg.body}</p>

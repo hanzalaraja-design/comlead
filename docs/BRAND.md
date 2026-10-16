@@ -1,5 +1,24 @@
 # Highfy Brand Guide for the Task Tracker (comlead)
 
+> **Revision (Oct 2026): minimalist, mostly grey.** The app is built on a neutral
+> base and uses brand colours only to highlight. Where this note conflicts with
+> the sections below, this note wins.
+>
+> - **Base:** warm off-white page (`--canvas` #F5F4F1), white cards with a 1px
+>   hairline (`--line` #E8E6E2), 20px radius, no coloured outlines.
+> - **Text:** near-black ink (`--ink` #1E1C1A) for headings and body, grey
+>   (`--ink-muted` #736F6A) for meta. Headlines and section titles are ink,
+>   sentence case, semibold; no ALL CAPS kickers.
+> - **Purple** (#7C118C) only for: primary buttons, the active navigation item,
+>   "In progress", links, and the one filled hero card per page.
+> - **Orange** (#FF8F4B) only for attention: overdue, blocked, urgent, today.
+> - **Pills:** To do white with hairline; In progress purple; Blocked orange;
+>   Done and Cancelled quiet grey. Priority: Urgent orange, High near-black,
+>   Medium grey, Low plain grey text.
+> - Sidebar white with a hairline; hover rows and table headers `--subtle`
+>   #F2F1EE.
+> - Logo, crown and League Spartan are unchanged.
+
 Apply this to the whole app. It translates Highfy's deck design system into web UI rules. When something here conflicts with a generic shadcn/Tailwind default, this file wins.
 
 ## 1. Colour tokens

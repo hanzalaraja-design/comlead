@@ -126,7 +126,7 @@ export function TaskFilterBar({
             className={cn(
               "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs",
               filters.overdue
-                ? "border-brand-accent bg-brand-accent font-semibold text-brand-primary-deep"
+                ? "border-brand-accent bg-brand-accent font-semibold text-ink"
                 : "text-muted-foreground hover:bg-accent",
             )}
           >

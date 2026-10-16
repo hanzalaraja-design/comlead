@@ -39,7 +39,7 @@ export default async function OverduePage({
         <div className="space-y-6">
           {groups.map(([id, g]) => (
             <section key={id}>
-              <h2 className="kicker mb-2 text-brand-primary">
+              <h2 className="kicker mb-2 text-ink">
                 {g.name} <span className="font-normal text-muted-foreground">· {g.tasks.length}</span>
               </h2>
               <TaskList tasks={g.tasks} showDepartment={false} />

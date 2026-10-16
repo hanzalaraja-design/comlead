@@ -88,7 +88,7 @@ export default async function MeetingsPage({
       {meetings.length === 0 ? (
         <EmptyState>{sp.q ? "No minutes match that search." : "No meetings recorded yet."}</EmptyState>
       ) : (
-        <ul className="divide-y divide-brand-panel surface">
+        <ul className="divide-y divide-line surface">
           {meetings.map((m) => {
             const open = m.items.filter((i) => i.status !== "done" && i.status !== "cancelled").length;
             return (
@@ -110,7 +110,7 @@ export default async function MeetingsPage({
                       <CheckSquare className="h-3 w-3" /> {m.items.length} action item{m.items.length === 1 ? "" : "s"}
                       {open > 0 && ` · ${open} open`}
                     </span>
-                    {!m.minutes && <span className="rounded-full bg-brand-accent px-2 py-0.5 font-semibold text-brand-primary-deep">No minutes yet</span>}
+                    {!m.minutes && <span className="rounded-full bg-brand-accent px-2 py-0.5 font-semibold text-ink">No minutes yet</span>}
                   </div>
                   {m.minutes && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{snippet(m.minutes)}</p>}
                 </Link>

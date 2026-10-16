@@ -38,11 +38,11 @@ type MeetingWeek = {
 };
 
 const MEETING_STATE: Record<MeetingWeek["state"], { label: string; className: string }> = {
-  held: { label: "Minutes saved", className: "bg-brand-muted text-brand-primary-deep" },
-  no_minutes: { label: "Missing minutes", className: "bg-brand-accent text-brand-primary-deep" },
-  missing: { label: "Not held", className: "bg-brand-accent text-brand-primary-deep" },
-  upcoming: { label: "Upcoming", className: "border border-brand-primary text-brand-primary" },
-  no_schedule: { label: "No schedule set", className: "border border-brand-muted text-brand-primary-deep/70" },
+  held: { label: "Minutes saved", className: "bg-subtle text-ink" },
+  no_minutes: { label: "Missing minutes", className: "bg-brand-accent text-ink" },
+  missing: { label: "Not held", className: "bg-brand-accent text-ink" },
+  upcoming: { label: "Upcoming", className: "border border-line text-ink" },
+  no_schedule: { label: "No schedule set", className: "border border-line text-ink-muted" },
 };
 
 export default async function DashboardPage() {
@@ -99,10 +99,10 @@ export default async function DashboardPage() {
       </div>
 
       <section className="mb-8">
-        <h2 className="kicker mb-3 text-brand-primary">By department</h2>
+        <h2 className="kicker mb-3 text-ink">By department</h2>
         <div className="surface overflow-x-auto">
           <table className="w-full min-w-[32rem] text-sm">
-            <thead className="bg-brand-panel text-[13px] text-brand-primary">
+            <thead className="bg-subtle text-[13px] text-ink">
               <tr>
                 <th className="px-3 py-2 text-left font-bold">Department</th>
                 <th className="px-3 py-2 text-right font-bold">Open</th>
@@ -111,7 +111,7 @@ export default async function DashboardPage() {
                 <th className="px-3 py-2 text-right font-bold">Done this week</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-brand-panel divide-brand-panel">
+            <tbody className="divide-y divide-line divide-line">
               {depts.map((d) => {
                 const l = deptLinks(d.slug);
                 return (
@@ -135,17 +135,17 @@ export default async function DashboardPage() {
 
       <div className="grid gap-8 lg:grid-cols-2">
         <section>
-          <h2 className="kicker mb-3 text-brand-primary">By person</h2>
+          <h2 className="kicker mb-3 text-ink">By person</h2>
           <div className="surface overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-brand-panel text-[13px] text-brand-primary">
+              <thead className="bg-subtle text-[13px] text-ink">
                 <tr>
                   <th className="px-3 py-2 text-left font-bold">Person</th>
                   <th className="px-3 py-2 text-right font-bold">Overdue</th>
                   <th className="px-3 py-2 text-right font-bold">Done this week</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-panel divide-brand-panel">
+              <tbody className="divide-y divide-line divide-line">
                 {persons.length === 0 && (
                   <tr>
                     <td colSpan={3} className="px-3 py-4 text-center text-muted-foreground">
@@ -174,8 +174,8 @@ export default async function DashboardPage() {
         </section>
 
         <section>
-          <h2 className="kicker mb-3 text-brand-primary">Meetings this week</h2>
-          <ul className="surface divide-y divide-brand-panel divide-brand-panel">
+          <h2 className="kicker mb-3 text-ink">Meetings this week</h2>
+          <ul className="surface divide-y divide-line divide-line">
             {meetings.map((m) => {
               const state = MEETING_STATE[m.state];
               const href = m.meeting_id ? `/meetings/${m.meeting_id}` : `/meetings?dept=${m.slug}`;
@@ -206,25 +206,25 @@ export default async function DashboardPage() {
 
 // Orange marks only numbers that need attention (brand guide §1).
 const TONES = {
-  red: "rounded-full bg-brand-accent px-2 py-0.5 text-brand-primary-deep",
-  amber: "text-brand-primary",
-  green: "text-brand-primary",
+  red: "rounded-full bg-brand-accent px-2 py-0.5 text-ink",
+  amber: "text-ink",
+  green: "text-ink",
 };
 
 /** Stat card: kicker, big number, one plain line. The hero card is filled purple. */
 function Tile({ label, value, href, note, hero }: { label: string; value: number; href: string; note: string; hero?: boolean }) {
   return (
     <Link href={href} className={cn("block p-4 transition-opacity hover:opacity-90 md:p-6", hero ? "card-filled" : "card-outlined")}>
-      <p className={cn("kicker", hero ? "text-brand-muted" : "text-brand-primary")}>{label}</p>
+      <p className={cn("kicker", hero ? "text-white/80" : "text-ink")}>{label}</p>
       <p
         className={cn(
           "mt-1 text-[32px] font-bold leading-none tabular-nums md:text-[40px]",
-          hero ? (value ? "text-brand-accent" : "text-white") : "text-brand-primary",
+          hero ? (value ? "text-brand-accent" : "text-white") : "text-ink",
         )}
       >
         {value}
       </p>
-      <p className={cn("mt-2 text-[13px] font-medium", hero ? "text-brand-muted" : "text-brand-primary-deep/70")}>{note}</p>
+      <p className={cn("mt-2 text-[13px] font-medium", hero ? "text-white/75" : "text-ink-muted")}>{note}</p>
     </Link>
   );
 }
@@ -233,11 +233,11 @@ function NumCell({ value, href, tone }: { value: number; href: string; tone?: ke
   return (
     <td className="px-3 py-2 text-right tabular-nums">
       {value ? (
-        <Link href={href} className={cn("font-semibold hover:underline", tone ? TONES[tone] : "text-brand-primary")}>
+        <Link href={href} className={cn("font-semibold hover:underline", tone ? TONES[tone] : "text-ink")}>
           {value}
         </Link>
       ) : (
-        <span className="text-brand-primary-deep/50">0</span>
+        <span className="text-ink-muted/70">0</span>
       )}
     </td>
   );

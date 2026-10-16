@@ -35,7 +35,7 @@ export function DueLabel({
     <span
       className={cn(
         "whitespace-nowrap text-[13px] font-medium",
-        overdue ? "rounded-full bg-brand-accent px-2 py-0.5 font-semibold text-brand-primary-deep" : "text-brand-primary-deep/70",
+        overdue ? "rounded-full bg-brand-accent px-2 py-0.5 font-semibold text-ink" : "text-ink-muted",
         className,
       )}
     >

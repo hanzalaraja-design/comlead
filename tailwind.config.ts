@@ -27,6 +27,13 @@ export default {
           surface: "hsl(var(--brand-surface) / <alpha-value>)",
         },
         danger: "hsl(var(--danger) / <alpha-value>)",
+        canvas: "hsl(var(--canvas) / <alpha-value>)",
+        line: "hsl(var(--line) / <alpha-value>)",
+        subtle: "hsl(var(--subtle) / <alpha-value>)",
+        ink: {
+          DEFAULT: "hsl(var(--ink) / <alpha-value>)",
+          muted: "hsl(var(--ink-muted) / <alpha-value>)",
+        },
         success: "hsl(var(--success) / <alpha-value>)",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",

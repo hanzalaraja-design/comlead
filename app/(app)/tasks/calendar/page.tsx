@@ -103,7 +103,7 @@ export default async function CalendarPage({
                 <div
                   className={cn(
                     "mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs",
-                    day === today ? "bg-brand-accent font-bold text-brand-primary-deep" : !inMonth && "text-muted-foreground",
+                    day === today ? "bg-brand-accent font-bold text-ink" : !inMonth && "text-muted-foreground",
                   )}
                 >
                   {Number(day.slice(8))}
@@ -145,11 +145,11 @@ export default async function CalendarPage({
           .filter((d) => d.slice(0, 7) === monthParam && byDay.has(d))
           .map((day) => (
             <section key={day}>
-              <h2 className={cn("mb-1 text-sm font-semibold", day === today && "text-brand-primary")}>
+              <h2 className={cn("mb-1 text-sm font-semibold", day === today && "text-ink")}>
                 {format(parseISODate(day), "EEE d MMM")}
                 {day === today && " · Today"}
               </h2>
-              <ul className="divide-y divide-brand-panel surface">
+              <ul className="divide-y divide-line surface">
                 {byDay.get(day)!.map((t) => (
                   <li key={t.id}>
                     <Link href={`/tasks/${t.id}`} className="flex items-center gap-2 px-3 py-2.5 text-sm">

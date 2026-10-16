@@ -25,21 +25,21 @@ export const statusLabel = (s: TaskStatus) => STATUSES.find((x) => x.value === s
 export const priorityLabel = (p: TaskPriority) => PRIORITIES.find((x) => x.value === p)?.label ?? p;
 export const sourceLabel = (s: TaskSource) => SOURCES.find((x) => x.value === s)?.label ?? s;
 
-// Pill styles from the brand guide. Orange marks only what needs attention
-// (blocked, urgent, overdue).
+// Pills are mostly grey. Purple marks work in progress; orange marks what
+// needs attention (blocked, urgent, overdue).
 export const STATUS_STYLES: Record<TaskStatus, string> = {
-  todo: "border border-brand-primary bg-white text-brand-primary",
+  todo: "border border-line bg-white text-ink",
   in_progress: "bg-brand-primary text-white",
-  blocked: "bg-brand-accent text-brand-primary-deep",
-  done: "bg-brand-muted text-brand-primary-deep",
-  cancelled: "border border-brand-muted bg-white text-muted-foreground line-through",
+  blocked: "bg-brand-accent text-ink",
+  done: "bg-subtle text-ink-muted",
+  cancelled: "border border-line bg-white text-ink-muted line-through",
 };
 
 export const PRIORITY_STYLES: Record<TaskPriority, string> = {
-  urgent: "bg-brand-accent text-brand-primary-deep",
-  high: "bg-brand-primary text-white",
-  medium: "border border-brand-primary text-brand-primary",
-  low: "bg-brand-muted text-brand-primary-deep",
+  urgent: "bg-brand-accent text-ink",
+  high: "bg-ink text-white",
+  medium: "bg-subtle text-ink",
+  low: "text-ink-muted",
 };
 
 export const OPEN_STATUSES: TaskStatus[] = ["todo", "in_progress", "blocked"];
