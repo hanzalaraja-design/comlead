@@ -24,8 +24,11 @@ export type Viewer = {
 /** The signed-in user and their profile, or null. Cached per request. */
 export const getViewer = cache(async (): Promise<Viewer | null> => {
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth.user;
+  // getClaims() checks the session token's signature locally (no round trip
+  // to Supabase Auth) when the project uses asymmetric JWT signing keys.
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  const user = claims ? { id: claims.sub, email: claims.email as string | undefined } : null;
   if (!user || !isAllowedEmail(user.email)) return null;
 
   const [{ data: profile }, { data: memberships }] = await Promise.all([
