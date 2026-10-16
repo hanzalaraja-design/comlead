@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
-import { ArrowLeft, NotebookPen, Pencil } from "lucide-react";
+import { NotebookPen, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
@@ -80,10 +81,11 @@ export default async function TaskPage({
     const formData = await getTaskFormData(viewer, task.department_id);
     return (
       <div className="mx-auto max-w-2xl">
-        <Link href={`/tasks/${id}`} className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to task
-        </Link>
-        <h1 className="mb-5 text-xl font-semibold">Edit task</h1>
+        <PageHeader
+          breadcrumb={[{ label: "Tasks", href: "/tasks" }, { label: task.title, href: `/tasks/${id}` }, "Edit"]}
+          title="Edit task"
+        />
+        <div className="card-outlined p-4 md:p-6">
         <TaskForm
           task={task}
           collaboratorIds={collaboratorIds}
@@ -94,6 +96,7 @@ export default async function TaskPage({
           canReassign={canReassign}
           canMove={isLead}
         />
+        </div>
       </div>
     );
   }
@@ -102,49 +105,49 @@ export default async function TaskPage({
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <Link
-          href={task.department ? `/departments/${task.department.slug}` : "/tasks"}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> {task.department?.name ?? "Tasks"}
-        </Link>
-        <div className="flex items-center gap-1">
-          {canEdit && (
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/tasks/${id}?edit=1`}>
-                <Pencil className="h-4 w-4" /> Edit
-              </Link>
-            </Button>
-          )}
-          {canDelete && <DeleteTaskButton taskId={id} title={task.title} />}
-        </div>
-      </div>
+      <PageHeader
+        breadcrumb={[
+          { label: "Tasks", href: "/tasks" },
+          ...(task.department ? [{ label: task.department.name, href: `/departments/${task.department.slug}` }] : []),
+          "Task",
+        ]}
+        title={task.title}
+        actions={
+          <>
+            {canEdit && (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/tasks/${id}?edit=1`}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Link>
+              </Button>
+            )}
+            {canDelete && <DeleteTaskButton taskId={id} title={task.title} />}
+          </>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="min-w-0 space-y-6">
-          <div>
-            <h1 className="text-xl font-semibold leading-snug md:text-2xl">{task.title}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="card-outlined space-y-4 p-4 md:p-6">
+            <div className="flex flex-wrap items-center gap-2">
               <StatusSelect taskId={id} status={task.status} disabled={!canEdit} />
               <PriorityBadge priority={task.priority} />
               <DueLabel date={task.due_date} time={task.due_time} overdue={task.overdue} className="text-sm" />
             </div>
             {task.status === "blocked" && (
-              <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+              <p className="rounded-[12px] bg-brand-accent/20 px-3 py-2 text-sm text-ink">
                 <span className="font-medium">Blocked:</span> {task.blocked_reason || "No reason given"}
               </p>
             )}
+            {task.description ? (
+              <RichTextView html={task.description} />
+            ) : (
+              <p className="text-sm text-ink-muted">No description.</p>
+            )}
           </div>
 
-          {task.description ? (
-            <RichTextView html={task.description} />
-          ) : (
-            <p className="text-sm text-muted-foreground">No description.</p>
-          )}
-
-          <section>
-            <h2 className="mb-3 text-sm font-semibold">Comments</h2>
+          <section className="surface p-4 md:p-6">
+            <h2 className="kicker mb-3 text-ink">Comments</h2>
             <TaskComments
               taskId={id}
               canComment={canContribute}
@@ -159,8 +162,8 @@ export default async function TaskPage({
             />
           </section>
 
-          <section>
-            <h2 className="mb-3 text-sm font-semibold">Files</h2>
+          <section className="surface p-4 md:p-6">
+            <h2 className="kicker mb-3 text-ink">Files</h2>
             <TaskAttachments
               taskId={id}
               canUpload={canContribute}
@@ -175,8 +178,8 @@ export default async function TaskPage({
             />
           </section>
 
-          <section>
-            <h2 className="mb-3 text-sm font-semibold">History</h2>
+          <section className="surface p-4 md:p-6">
+            <h2 className="kicker mb-3 text-ink">History</h2>
             {(historyRes.data ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">No history you can see.</p>
             ) : (
@@ -193,7 +196,7 @@ export default async function TaskPage({
           </section>
         </div>
 
-        <aside className="h-fit space-y-4 rounded-lg border p-4 text-sm lg:sticky lg:top-8">
+        <aside className="h-fit space-y-4 surface p-4 text-sm lg:sticky lg:top-8">
           <Detail label="Owner">
             <span className="flex items-center gap-2">
               <PersonAvatar person={task.owner} /> {personName(task.owner)}

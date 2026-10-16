@@ -30,7 +30,7 @@ export type TaskFormProps = {
   canMove: boolean;
 };
 
-const selectClass = "h-10 w-full rounded-md border bg-background px-3 text-sm disabled:opacity-60";
+const selectClass = "h-10 w-full field px-3 text-sm disabled:opacity-60";
 
 export function TaskForm(props: TaskFormProps) {
   const { task } = props;

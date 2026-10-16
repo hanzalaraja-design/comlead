@@ -88,7 +88,7 @@ function DepartmentCard({ dept, subTeams, first, last }: { dept: Department; sub
   const [newSub, setNewSub] = useState("");
 
   return (
-    <li className={`space-y-4 rounded-lg border p-4 ${dept.archived ? "opacity-60" : ""}`}>
+    <li className={`space-y-4 surface p-4 ${dept.archived ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
         <NameField value={dept.name} onSave={(v) => run(() => renameDepartment(dept.id, v), "Renamed")} className="h-9 max-w-xs font-medium" />
         <span className="text-xs text-muted-foreground">/{dept.slug}</span>

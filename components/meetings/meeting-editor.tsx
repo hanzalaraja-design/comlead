@@ -26,7 +26,7 @@ export type ActionItemRow = {
 
 type DraftItem = { key: string; title: string; owner_id: string | null; due_date: string | null; priority: TaskPriority };
 
-const fieldClass = "h-9 rounded-md border bg-background px-2 text-sm";
+const fieldClass = "h-9 field px-2 text-sm";
 
 export function MeetingEditor({
   meeting,
@@ -264,7 +264,7 @@ export function MeetingEditor({
         </Button>
       </div>
 
-      <div className="sticky bottom-16 z-20 -mx-4 flex items-center gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur md:bottom-0 md:mx-0 md:rounded-lg md:border md:px-3">
+      <div className="sticky bottom-16 z-20 -mx-4 flex items-center gap-2 border-t bg-white/95 px-4 py-3 backdrop-blur md:bottom-0 md:mx-0 md:rounded-lg md:border md:px-3">
         <Button onClick={save} disabled={pending || !date} className="min-w-28">
           {pending ? "Saving…" : "Save minutes"}
         </Button>
@@ -274,7 +274,7 @@ export function MeetingEditor({
         {canDelete && (
         <Button
           variant="ghost"
-          className="ml-auto text-red-600 hover:text-red-700"
+          className="ml-auto text-danger hover:text-danger/80"
           disabled={pending}
           onClick={() => {
             if (!confirm("Delete this meeting? Its action items stay as tasks.")) return;

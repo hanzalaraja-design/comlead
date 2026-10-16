@@ -30,16 +30,16 @@ export default async function OverduePage({
 
   return (
     <>
-      <PageHeader title="Overdue" description={`${tasks.length} overdue task${tasks.length === 1 ? "" : "s"}`} />
+      <PageHeader breadcrumb={["Tasks", "Overdue"]} title="Overdue" description={`${tasks.length} overdue task${tasks.length === 1 ? "" : "s"}`} />
       <TaskFilterBar filters={filters} options={options} hide={["overdue", "status"]} />
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-danger">{error}</p>}
       {groups.length === 0 ? (
-        <EmptyState>Nothing overdue. 🎉</EmptyState>
+        <EmptyState>Nothing overdue.</EmptyState>
       ) : (
         <div className="space-y-6">
           {groups.map(([id, g]) => (
             <section key={id}>
-              <h2 className="mb-2 text-sm font-semibold">
+              <h2 className="kicker mb-2 text-ink">
                 {g.name} <span className="font-normal text-muted-foreground">· {g.tasks.length}</span>
               </h2>
               <TaskList tasks={g.tasks} showDepartment={false} />

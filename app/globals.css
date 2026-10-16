@@ -2,59 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Highfy brand tokens (see the brand guide). Components use these through
+ * Tailwind (bg-brand-*, text-brand-*) or the shadcn variables below; never
+ * hard-code hex values in components.
+ * Light theme only for v1. A dark theme would redefine these under .dark.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-  }
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    /* Brand */
+    --brand-bg: 292 71.4% 95.9%;          /* #FAEDFC lavender */
+    --brand-primary: 292 78.3% 30.8%;     /* #7C118C purple */
+    --brand-primary-deep: 287 72.3% 25.5%;/* #5C1270 deep plum */
+    --brand-accent: 23 100% 64.7%;        /* #FF8F4B orange, scarce */
+    --brand-muted: 289 49.3% 86.9%;       /* #E8CDEE muted lavender */
+    --brand-panel: 281 49% 90%;           /* #EAD9F2 light purple panel */
+    --brand-surface: 0 0% 100%;           /* #FFFFFF */
+    --danger: 0 66.4% 46.7%;              /* #C62828 */
+
+    /* Neutral base: the app is mostly greys; brand colours highlight. */
+    --canvas: 40 14% 95.5%;               /* #F5F4F1 page background */
+    --surface: 0 0% 100%;                 /* cards */
+    --line: 40 10% 90%;                   /* #E8E6E2 hairlines */
+    --subtle: 40 12% 94%;                 /* #F2F1EE hover, table headers, quiet pills */
+    --ink: 30 6% 11%;                     /* #1E1C1A text */
+    --ink-muted: 35 4% 43%;               /* #736F6A secondary text */
+    --success: 123 46.2% 33.5%;           /* #2E7D32 */
+
+    /* shadcn/ui mapping */
+    --background: var(--canvas);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --popover: var(--surface);
+    --popover-foreground: var(--ink);
+    --primary: var(--brand-primary);
+    --primary-foreground: 0 0% 100%;
+    --secondary: var(--subtle);
+    --secondary-foreground: var(--ink);
+    --muted: var(--subtle);
+    --muted-foreground: var(--ink-muted);
+    --accent: var(--subtle);
+    --accent-foreground: var(--ink);
+    --destructive: var(--danger);
+    --destructive-foreground: 0 0% 100%;
+    --border: var(--line);
+    --input: var(--line);
+    --ring: var(--brand-primary);
+    --radius: 0.75rem;                     /* 12px: buttons and inputs */
   }
 }
 
@@ -62,8 +57,38 @@
   * {
     @apply border-border;
   }
+  html {
+    color-scheme: light;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-[15px] text-foreground;
+  }
+  /* Lucide icons: 1.75px stroke. */
+  svg.lucide {
+    stroke-width: 1.75;
+  }
+}
+
+@layer components {
+  /* Section kicker: small, ALL CAPS, tracked. */
+  /* Section title: sentence case, quiet. */
+  .kicker {
+    @apply text-[15px] font-semibold;
+  }
+  /* Native selects and date inputs styled like the shadcn Input. */
+  .field {
+    @apply rounded-[12px] border border-line bg-white px-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 disabled:opacity-60;
+  }
+  /* Outlined card (default) and filled hero card. */
+  .card-outlined {
+    @apply rounded-[20px] border border-line bg-white;
+  }
+  .card-filled {
+    @apply rounded-[20px] bg-brand-primary text-white;
+  }
+  /* Dense lists and tables: white surface, hairline border. */
+  .surface {
+    @apply rounded-[20px] border border-line bg-white;
   }
 }
 

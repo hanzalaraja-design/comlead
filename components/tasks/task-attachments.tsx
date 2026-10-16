@@ -95,7 +95,7 @@ export function TaskAttachments({
               <button
                 type="button"
                 aria-label={`Delete ${a.file_name}`}
-                className="text-muted-foreground hover:text-red-600"
+                className="text-muted-foreground hover:text-danger"
                 onClick={() => {
                   if (!confirm(`Delete ${a.file_name}?`)) return;
                   startTransition(async () => {

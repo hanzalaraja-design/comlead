@@ -70,6 +70,7 @@ export default async function ActivityPage({
   return (
     <>
       <PageHeader
+        breadcrumb={["Activity", view === "team" ? "Team" : personName(peopleById.get(person)), date === todayPKT() ? "Today" : formatDate(date, "d MMM yyyy")]}
         title="Activity"
         description={formatDate(date, "EEEE d MMMM yyyy")}
         actions={
@@ -92,7 +93,7 @@ export default async function ActivityPage({
       />
 
       {canSeeOthers && (
-        <nav className="mb-4 inline-flex rounded-lg border p-0.5 text-sm">
+        <nav className="mb-4 inline-flex surface p-0.5 text-sm">
           {(["person", "team"] as const).map((v) => (
             <Link
               key={v}
@@ -116,11 +117,11 @@ export default async function ActivityPage({
         />
       </Suspense>
 
-      {error && <p className="mb-3 text-sm text-red-600">{error.message}</p>}
+      {error && <p className="mb-3 text-sm text-danger">{error.message}</p>}
 
       {view === "person" ? (
         <>
-          <div className="mb-4 flex items-center gap-3 rounded-lg border bg-muted/30 p-4">
+          <div className="mb-4 flex items-center gap-3 surface bg-muted/30 p-4">
             <PersonAvatar person={peopleById.get(person)} className="h-10 w-10 text-sm" />
             <div>
               <p className="font-medium">{personName(peopleById.get(person))}</p>
@@ -142,7 +143,7 @@ export default async function ActivityPage({
             .map(([actor, list]) => {
               const p = peopleById.get(actor);
               return (
-                <section key={actor} className="rounded-lg border">
+                <section key={actor} className="surface">
                   <Link
                     href={link({ view: "person", person: actor === "system" ? undefined : actor })}
                     className="flex items-center gap-3 border-b p-3 hover:bg-muted/40"

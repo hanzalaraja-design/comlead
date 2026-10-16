@@ -37,6 +37,7 @@ export default async function TaskBoardPage({
   return (
     <>
       <PageHeader
+        breadcrumb={[{ label: "Tasks", href: "/tasks" }, "Board"]}
         title="Board"
         description="By status, across the departments you can see. Done shows the last 2 weeks."
         actions={
@@ -49,7 +50,7 @@ export default async function TaskBoardPage({
       />
       <TaskViewTabs active="board" search={filtersToSearch({ ...filters, status: [] })} />
       <TaskFilterBar filters={filters} options={options} hide={["status", "sort"]} />
-      {(open.error || done.error) && <p className="mb-3 text-sm text-red-600">{open.error || done.error}</p>}
+      {(open.error || done.error) && <p className="mb-3 text-sm text-danger">{open.error || done.error}</p>}
       <KanbanBoard tasks={[...open.tasks, ...done.tasks]} canEdit showDepartment />
     </>
   );

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { League_Spartan } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -11,6 +11,8 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "Highfy Tasks",
+  applicationName: "Highfy Tasks",
+  appleWebApp: { capable: true, title: "Highfy Tasks", statusBarStyle: "default" },
   description: "Department to-dos, weekly meeting minutes and activity for Highfy",
   robots: { index: false, follow: false },
 };
@@ -19,10 +21,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#FAEDFC",
 };
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const leagueSpartan = League_Spartan({
+  variable: "--font-league-spartan",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
   subsets: ["latin"],
 });
@@ -33,12 +37,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.className} antialiased`}>
+    <html lang="en" className={leagueSpartan.variable} suppressHydrationWarning>
+      <body className="font-sans antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          // Light theme only for v1 (brand guide §10).
+          forcedTheme="light"
           disableTransitionOnChange
         >
           {children}

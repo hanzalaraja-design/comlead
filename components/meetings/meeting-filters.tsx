@@ -30,7 +30,7 @@ export function MeetingFilters({ departments, people }: { departments: Opt[]; pe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const sel = "h-9 rounded-md border bg-background px-2 text-sm";
+  const sel = "h-9 field px-2 text-sm";
 
   return (
     <div className="mb-4 space-y-2">

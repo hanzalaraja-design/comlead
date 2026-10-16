@@ -21,7 +21,7 @@ export default async function DepartmentsPage() {
 
   return (
     <>
-      <PageHeader title="Departments" />
+      <PageHeader breadcrumb={["Departments", "All departments"]} title="Departments" />
       {!depts?.length ? (
         <EmptyState>You aren&apos;t in a department yet. Ask an Admin to add you.</EmptyState>
       ) : (
@@ -31,7 +31,7 @@ export default async function DepartmentsPage() {
             const role = roleBy.get(d.id);
             return (
               <li key={d.id}>
-                <Link href={`/departments/${d.slug}`} className="block rounded-lg border p-4 hover:bg-muted/40">
+                <Link href={`/departments/${d.slug}`} className="block surface p-4 hover:bg-muted/40">
                   <div className="flex items-center justify-between gap-2">
                     <h2 className="font-semibold">{d.name}</h2>
                     {role && (
@@ -72,7 +72,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "re
       <dd
         className={
           "text-lg font-semibold " +
-          (tone === "red" ? "text-red-600 dark:text-red-400" : tone === "amber" ? "text-amber-600 dark:text-amber-400" : "")
+          (tone === "red" ? "text-brand-accent" : "text-ink")
         }
       >
         {value}

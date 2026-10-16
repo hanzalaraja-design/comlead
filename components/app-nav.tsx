@@ -18,13 +18,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ThemeSwitcher } from "@/components/theme-switcher";
+import { HighfyLogo } from "@/components/brand";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
 const MAIN: NavItem[] = [
-  { href: "/my", label: "My Tasks", icon: CheckSquare },
-  { href: "/tasks", label: "All Tasks", icon: List },
+  { href: "/my", label: "My tasks", icon: CheckSquare },
+  { href: "/tasks", label: "All tasks", icon: List },
   { href: "/overdue", label: "Overdue", icon: TriangleAlert },
   { href: "/departments", label: "Departments", icon: Building2 },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
@@ -39,7 +39,7 @@ const ADMIN: NavItem[] = [
 
 // Bottom bar on phones: the four things people open most.
 const MOBILE: NavItem[] = [
-  { href: "/my", label: "My Tasks", icon: CheckSquare },
+  { href: "/my", label: "My tasks", icon: CheckSquare },
   { href: "/tasks", label: "Tasks", icon: List },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
   { href: "/activity", label: "Activity", icon: Activity },
@@ -60,10 +60,10 @@ function NavLinks({ items, pathname, onNavigate }: { items: NavItem[]; pathname:
             href={item.href}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+              "flex items-center gap-3 rounded-[12px] px-3 py-2 text-[15px] font-medium transition-colors",
               isActive(pathname, item.href)
-                ? "bg-accent font-medium text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                ? "bg-brand-primary font-semibold text-white"
+                : "text-ink-muted hover:bg-subtle hover:text-ink",
             )}
           >
             <item.icon className="h-4 w-4 shrink-0" />
@@ -93,26 +93,23 @@ function NavBody({
       <NavLinks items={MAIN} pathname={pathname} onNavigate={onNavigate} />
       {isAdmin && (
         <div>
-          <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Admin</p>
+          <p className="mb-1 px-3 text-xs font-medium text-ink-muted">Admin</p>
           <NavLinks items={ADMIN} pathname={pathname} onNavigate={onNavigate} />
         </div>
       )}
-      <div className="mt-auto space-y-2 border-t pt-4">
+      <div className="mt-auto space-y-2 border-t border-line pt-4">
         <div className="px-3">
-          <p className="truncate text-sm font-medium">{name}</p>
+          <p className="truncate text-sm font-semibold text-ink">{name}</p>
           <p className="truncate text-xs text-muted-foreground">{email}</p>
         </div>
-        <div className="flex items-center justify-between px-1">
-          <form action="/auth/signout" method="post">
-            <button
-              type="submit"
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
-          </form>
-          <ThemeSwitcher />
-        </div>
+        <form action="/auth/signout" method="post" className="px-1">
+          <button
+            type="submit"
+            className="flex items-center gap-2 rounded-[12px] px-2 py-1.5 text-sm font-medium text-ink hover:bg-subtle"
+          >
+            <LogOut className="h-4 w-4" /> Sign out
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -125,48 +122,48 @@ export function AppNav({ isAdmin, name, email }: { isAdmin: boolean; name: strin
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r bg-muted/30 p-4 md:flex">
-        <Link href="/my" className="mb-6 flex items-center gap-2 px-3 font-semibold">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm text-primary-foreground">H</span>
-          Highfy Tasks
+      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-line bg-white p-4 md:flex">
+        <Link href="/my" className="mb-6 flex items-end gap-2 px-3" aria-label="Highfy Tasks home">
+          <HighfyLogo className="w-24" />
+          <span className="pb-1 text-sm font-semibold text-ink-muted">Tasks</span>
         </Link>
         <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} />
       </aside>
 
       {/* Phone top bar */}
-      <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:hidden">
-        <Link href="/my" className="flex items-center gap-2 font-semibold">
-          <span className="flex h-6 w-6 items-center justify-center rounded bg-primary text-xs text-primary-foreground">H</span>
-          Highfy Tasks
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-white/95 px-4 backdrop-blur md:hidden">
+        <Link href="/my" className="flex items-end gap-2" aria-label="Highfy Tasks home">
+          <HighfyLogo className="w-[72px]" />
+          <span className="pb-0.5 text-sm font-semibold text-ink-muted">Tasks</span>
         </Link>
         <button
           type="button"
           aria-label="Open menu"
           onClick={() => setOpen(true)}
-          className="-mr-2 rounded-md p-2 hover:bg-accent"
+          className="-mr-2 rounded-[12px] p-2 text-ink hover:bg-subtle"
         >
           <Menu className="h-5 w-5" />
         </button>
       </header>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-72 p-4">
+        <SheetContent side="right" className="w-72 bg-white p-4">
           <SheetHeader className="p-0 pb-2">
-            <SheetTitle>Menu</SheetTitle>
+            <SheetTitle className="text-ink">Menu</SheetTitle>
           </SheetHeader>
           <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
 
       {/* Phone bottom tabs */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         <ul className="grid grid-cols-4">
           {MOBILE.map((item) => (
             <li key={item.href}>
               <Link
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 py-2 text-[11px]",
-                  isActive(pathname, item.href) ? "font-medium text-foreground" : "text-muted-foreground",
+                  "flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
+                  isActive(pathname, item.href) ? "font-semibold text-brand-primary" : "text-ink-muted",
                 )}
               >
                 <item.icon className="h-5 w-5" />

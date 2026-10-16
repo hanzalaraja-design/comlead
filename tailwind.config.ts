@@ -2,8 +2,9 @@ import type { Config } from "tailwindcss";
 import animate from "tailwindcss-animate";
 
 export default {
+  // Light theme only for v1: "class" means dark: styles apply only if a .dark class is ever added.
   darkMode: ["class"],
-  content: [
+    content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -12,7 +13,28 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-league-spartan)", "ui-sans-serif", "system-ui", "sans-serif"],
+      },
       colors: {
+        brand: {
+          bg: "hsl(var(--brand-bg) / <alpha-value>)",
+          primary: "hsl(var(--brand-primary) / <alpha-value>)",
+          "primary-deep": "hsl(var(--brand-primary-deep) / <alpha-value>)",
+          accent: "hsl(var(--brand-accent) / <alpha-value>)",
+          muted: "hsl(var(--brand-muted) / <alpha-value>)",
+          panel: "hsl(var(--brand-panel) / <alpha-value>)",
+          surface: "hsl(var(--brand-surface) / <alpha-value>)",
+        },
+        danger: "hsl(var(--danger) / <alpha-value>)",
+        canvas: "hsl(var(--canvas) / <alpha-value>)",
+        line: "hsl(var(--line) / <alpha-value>)",
+        subtle: "hsl(var(--subtle) / <alpha-value>)",
+        ink: {
+          DEFAULT: "hsl(var(--ink) / <alpha-value>)",
+          muted: "hsl(var(--ink-muted) / <alpha-value>)",
+        },
+        success: "hsl(var(--success) / <alpha-value>)",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

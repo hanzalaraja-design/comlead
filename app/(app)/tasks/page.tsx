@@ -34,6 +34,7 @@ export default async function TasksPage({
   return (
     <>
       <PageHeader
+        breadcrumb={["Tasks", "All tasks"]}
         title="All tasks"
         description={`${tasks.length}${truncated ? "+" : ""} task${tasks.length === 1 ? "" : "s"}`}
         actions={
@@ -47,7 +48,7 @@ export default async function TasksPage({
       <TaskViewTabs active="list" search={filtersToSearch(filters)} />
       <SavedViews views={(viewsRes.data ?? []) as SavedView[]} />
       <TaskFilterBar filters={filters} options={options} />
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-danger">{error}</p>}
       {tasks.length ? (
         <TaskList tasks={tasks} showCompleted={filters.sort === "completed"} />
       ) : (

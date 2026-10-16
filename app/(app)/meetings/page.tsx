@@ -65,6 +65,7 @@ export default async function MeetingsPage({
   return (
     <>
       <PageHeader
+        breadcrumb={dept ? [{ label: "Meetings", href: "/meetings" }, dept.name] : ["Meetings", "All departments"]}
         title={dept ? `${dept.name} meetings` : "Meetings"}
         description="Weekly meetings, newest first"
         actions={
@@ -83,11 +84,11 @@ export default async function MeetingsPage({
           people={people.map((p) => ({ value: p.id, label: personName(p) }))}
         />
       </Suspense>
-      {error && <p className="mb-3 text-sm text-red-600">{error.message}</p>}
+      {error && <p className="mb-3 text-sm text-danger">{error.message}</p>}
       {meetings.length === 0 ? (
-        <EmptyState>{sp.q ? "No minutes match that search." : "No meetings yet."}</EmptyState>
+        <EmptyState>{sp.q ? "No minutes match that search." : "No meetings recorded yet."}</EmptyState>
       ) : (
-        <ul className="divide-y rounded-lg border">
+        <ul className="divide-y divide-line surface">
           {meetings.map((m) => {
             const open = m.items.filter((i) => i.status !== "done" && i.status !== "cancelled").length;
             return (
@@ -109,7 +110,7 @@ export default async function MeetingsPage({
                       <CheckSquare className="h-3 w-3" /> {m.items.length} action item{m.items.length === 1 ? "" : "s"}
                       {open > 0 && ` · ${open} open`}
                     </span>
-                    {!m.minutes && <span className="text-amber-600 dark:text-amber-400">No minutes yet</span>}
+                    {!m.minutes && <span className="rounded-full bg-brand-accent px-2 py-0.5 font-semibold text-ink">No minutes yet</span>}
                   </div>
                   {m.minutes && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{snippet(m.minutes)}</p>}
                 </Link>

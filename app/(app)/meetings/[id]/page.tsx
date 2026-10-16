@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
-import { ArrowLeft, History, Pencil } from "lucide-react";
+import { History, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
@@ -66,8 +67,8 @@ export default async function MeetingPage({
   const canEdit = isLead || attendeeIds.includes(viewer.id) || meeting.created_by === viewer.id;
 
   const carryForward = prev && (
-    <section className="rounded-lg border bg-muted/30 p-4">
-      <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+    <section className="surface bg-muted/30 p-4">
+      <h2 className="kicker mb-1 flex items-center gap-2 text-ink">
         <History className="h-4 w-4" /> Last week&apos;s action items
       </h2>
       <p className="mb-3 text-xs text-muted-foreground">
@@ -88,13 +89,17 @@ export default async function MeetingPage({
   if (edit && canEdit) {
     return (
       <div className="mx-auto max-w-4xl space-y-6">
-        <div>
-          <Link href={`/meetings/${id}`} className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Link>
-          <h1 className="text-xl font-semibold md:text-2xl">Edit minutes · {dept?.name}</h1>
-        </div>
+        <PageHeader
+          breadcrumb={[
+            { label: "Meetings", href: "/meetings" },
+            ...(dept ? [{ label: dept.name, href: `/meetings?dept=${dept.slug}` }] : []),
+            { label: formatDate(meeting.meeting_date, "d MMM yyyy"), href: `/meetings/${id}` },
+            "Edit",
+          ]}
+          title="Edit minutes"
+        />
         {carryForward}
+        <div className="card-outlined p-4 md:p-6">
         <MeetingEditor
           meeting={meeting}
           attendeeIds={attendeeIds}
@@ -111,41 +116,41 @@ export default async function MeetingPage({
           subTeams={subTeams.filter((s) => s.department_id === meeting.department_id && !s.archived)}
           canDelete={isLead}
         />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <Link
-          href={dept ? `/meetings?dept=${dept.slug}` : "/meetings"}
-          className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> {dept?.name ?? "Meetings"} meetings
-        </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold md:text-2xl">{meeting.title || `${dept?.name ?? ""} weekly meeting`}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {formatDate(meeting.meeting_date, "EEEE d MMMM yyyy")}
-              {meeting.meeting_time && ` · ${formatTime(meeting.meeting_time)}`}
-              {subTeam && ` · ${subTeam.name}`}
-            </p>
-          </div>
-          {canEdit && (
+      <PageHeader
+        breadcrumb={[
+          { label: "Meetings", href: "/meetings" },
+          ...(dept ? [{ label: dept.name, href: `/meetings?dept=${dept.slug}` }] : []),
+          formatDate(meeting.meeting_date, "d MMM yyyy"),
+        ]}
+        title={meeting.title || `${dept?.name ?? ""} weekly meeting`}
+        description={
+          <>
+            {formatDate(meeting.meeting_date, "EEEE d MMMM yyyy")}
+            {meeting.meeting_time && ` · ${formatTime(meeting.meeting_time)}`}
+            {subTeam && ` · ${subTeam.name}`}
+          </>
+        }
+        actions={
+          canEdit && (
             <Button asChild size="sm">
               <Link href={`/meetings/${id}?edit=1`}>
                 <Pencil className="h-4 w-4" /> Edit minutes
               </Link>
             </Button>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {attendeeIds.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold">Attendees</h2>
+        <section className="surface p-4 md:p-6">
+          <h2 className="kicker mb-2 text-ink">Attendees</h2>
           <ul className="flex flex-wrap gap-2">
             {attendeeIds.map((uid) => (
               <li key={uid} className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-3 text-sm">
@@ -160,14 +165,14 @@ export default async function MeetingPage({
       {carryForward}
 
       {meeting.agenda && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold">Agenda</h2>
+        <section className="surface p-4 md:p-6">
+          <h2 className="kicker mb-2 text-ink">Agenda</h2>
           <p className="whitespace-pre-wrap text-sm">{meeting.agenda}</p>
         </section>
       )}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Minutes</h2>
+      <section className="surface p-4 md:p-6">
+        <h2 className="kicker mb-2 text-ink">Minutes</h2>
         {meeting.minutes ? (
           <RichTextView html={meeting.minutes} />
         ) : (
@@ -176,8 +181,8 @@ export default async function MeetingPage({
       </section>
 
       {meeting.decisions.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold">Decisions</h2>
+        <section className="surface p-4 md:p-6">
+          <h2 className="kicker mb-2 text-ink">Decisions</h2>
           <ul className="list-disc space-y-1 pl-5 text-sm">
             {meeting.decisions.map((d, i) => (
               <li key={i}>{d}</li>
@@ -187,7 +192,7 @@ export default async function MeetingPage({
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold">Action items</h2>
+        <h2 className="kicker mb-2 text-ink">Action items</h2>
         {items.length ? (
           <TaskList tasks={items} showDepartment={false} />
         ) : (

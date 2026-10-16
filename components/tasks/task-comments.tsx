@@ -46,7 +46,7 @@ export function TaskComments({
                   <button
                     type="button"
                     aria-label="Delete comment"
-                    className="ml-auto text-muted-foreground hover:text-red-600"
+                    className="ml-auto text-muted-foreground hover:text-danger"
                     onClick={() =>
                       startTransition(async () => {
                         const res = await deleteComment(c.id, taskId);

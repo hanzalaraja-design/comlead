@@ -13,7 +13,7 @@ export function StatusBadge({ status, className }: { status: TaskStatus; classNa
 
 export function PriorityBadge({ priority, className }: { priority: TaskPriority; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium", PRIORITY_STYLES[priority], className)}>
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold", PRIORITY_STYLES[priority], className)}>
       {priorityLabel(priority)}
     </span>
   );
@@ -32,7 +32,13 @@ export function DueLabel({
 }) {
   if (!date) return <span className={cn("text-xs text-muted-foreground", className)}>No date</span>;
   return (
-    <span className={cn("text-xs", overdue ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground", className)}>
+    <span
+      className={cn(
+        "whitespace-nowrap text-[13px] font-medium",
+        overdue ? "rounded-full bg-brand-accent px-2 py-0.5 font-semibold text-ink" : "text-ink-muted",
+        className,
+      )}
+    >
       {overdue && "Overdue · "}
       {formatDue(date, time)}
     </span>

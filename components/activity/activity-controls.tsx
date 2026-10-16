@@ -33,7 +33,7 @@ export function ActivityControls({
     startTransition(() => router.push(`${pathname}?${next.toString()}`, { scroll: false }));
   }
 
-  const sel = "h-9 rounded-md border bg-background px-2 text-sm";
+  const sel = "h-9 field px-2 text-sm";
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">

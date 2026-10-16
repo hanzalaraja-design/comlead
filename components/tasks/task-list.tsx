@@ -21,15 +21,15 @@ export function TaskList({
   showCompleted?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <div className="hidden grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] gap-3 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground md:grid">
+    <div className="overflow-hidden surface">
+      <div className="hidden grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] gap-3 bg-subtle px-4 py-2.5 text-[13px] font-bold text-ink md:grid">
         <span>Status</span>
         <span>Task</span>
         <span>Owner</span>
         <span>Priority</span>
         <span>{showCompleted ? "Completed" : "Due"}</span>
       </div>
-      <ul className="divide-y">
+      <ul className="divide-y divide-line">
         {tasks.map((t) => (
           <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} />
         ))}
@@ -48,13 +48,13 @@ function TaskListItem({
   showCompleted: boolean;
 }) {
   return (
-    <li className="relative px-3 py-3 hover:bg-muted/30 md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] md:items-center md:gap-3 md:py-2">
+    <li className="relative px-4 py-3 hover:bg-subtle/60 md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] md:items-center md:gap-3 md:py-2">
       <div className="hidden md:block">
         <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
       </div>
 
       <div className="min-w-0">
-        <Link href={`/tasks/${t.id}`} className="block font-medium leading-snug after:absolute after:inset-0">
+        <Link href={`/tasks/${t.id}`} className="block font-semibold leading-snug text-ink after:absolute after:inset-0">
           <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -71,14 +71,14 @@ function TaskListItem({
             </span>
           )}
           {t.status === "blocked" && t.blocked_reason && (
-            <span className="text-red-600 dark:text-red-400">Blocked: {t.blocked_reason}</span>
+            <span className="font-medium text-ink">Blocked: {t.blocked_reason}</span>
           )}
           <TagList tags={t.tags} />
         </div>
       </div>
 
       {/* Phone: one compact meta row */}
-      <div className="mt-2 flex items-center gap-2 md:hidden">
+      <div className="mt-2 flex flex-wrap items-center gap-2 md:hidden">
         <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
         <PriorityBadge priority={t.priority} />
         <DueLabel date={t.due_date} time={t.due_time} overdue={t.overdue} />

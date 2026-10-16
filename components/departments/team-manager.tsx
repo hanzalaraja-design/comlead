@@ -38,7 +38,7 @@ export function TeamManager({
 
   return (
     <div className="space-y-4">
-      <ul className="divide-y rounded-lg border">
+      <ul className="divide-y divide-line surface">
         {members.length === 0 && <li className="p-4 text-sm text-muted-foreground">No one yet.</li>}
         {members.map((m) => (
           <li key={m.person.id} className="flex items-center gap-3 px-3 py-2.5">
@@ -53,7 +53,7 @@ export function TeamManager({
                 value={m.role}
                 disabled={pending}
                 onChange={(e) => run(() => setMemberRole(departmentId, m.person.id, e.target.value as DeptRole), "Role updated")}
-                className="h-8 rounded-md border bg-background px-2 text-xs"
+                className="h-8 field px-2 text-xs"
               >
                 <option value="member">Member</option>
                 <option value="lead">Lead</option>
@@ -66,7 +66,7 @@ export function TeamManager({
                 type="button"
                 aria-label={`Remove ${personName(m.person)}`}
                 disabled={pending}
-                className="rounded p-1 text-muted-foreground hover:text-red-600"
+                className="rounded p-1 text-muted-foreground hover:text-danger"
                 onClick={() => {
                   if (confirm(`Remove ${personName(m.person)} from this department?`)) {
                     run(() => removeMember(departmentId, m.person.id), "Removed");
@@ -97,7 +97,7 @@ export function TeamManager({
             aria-label="Person to add"
             value={adding}
             onChange={(e) => setAdding(e.target.value)}
-            className="h-9 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm"
+            className="h-9 min-w-0 flex-1 field px-2 text-sm"
           >
             <option value="">Add a person…</option>
             {candidates.map((p) => (
@@ -148,7 +148,7 @@ export function ScheduleEditor({
           value={day}
           disabled={!canEdit}
           onChange={(e) => setDay(e.target.value)}
-          className="h-9 rounded-md border bg-background px-2 text-sm"
+          className="h-9 field px-2 text-sm"
         >
           <option value="">Not set</option>
           {WEEKDAYS.map((w, i) => (
@@ -165,7 +165,7 @@ export function ScheduleEditor({
           value={t}
           disabled={!canEdit}
           onChange={(e) => setT(e.target.value)}
-          className="h-9 rounded-md border bg-background px-2 text-sm"
+          className="h-9 field px-2 text-sm"
         />
       </label>
       {canEdit && (
