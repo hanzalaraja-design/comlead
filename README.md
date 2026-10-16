@@ -103,7 +103,29 @@ settings**. Sync runs after each change and nightly (`vercel.json` cron, 02:00 P
 Until those are set, the sync is switched off and the app works as before.
 The app only edits events it created (tracked in `calendar_links`).
 
-### 6. First login
+### 6. Meeting assistant (optional)
+
+The meeting editor can use Claude to:
+
+- **Tidy up**: turn rough notes into structured minutes, and pick out decisions.
+- **Suggest action items**: with owner, due date and priority. Each one has a
+  **Create task** button.
+- **Draft agenda**: built from last week's open action items and the
+  department's overdue or blocked tasks. It runs on its own when a meeting
+  with no agenda or minutes is opened for editing.
+
+Everything it produces is a draft. Nothing changes until someone clicks
+**Use this agenda**, **Replace my notes** or **Create task**, and replaced
+notes can be undone until you save. Only people who can edit the meeting
+(attendees, the department Lead, Admin) see the buttons, and the server checks
+the same rule before every call.
+
+To turn it on, add `ANTHROPIC_API_KEY` in Vercel (Settings, Environment
+Variables, type **Secret**) and redeploy. Without it the buttons are hidden.
+If Claude declines a request, the API retries it once on Anthropic's
+recommended fallback model.
+
+### 7. First login
 
 `hanzala@highfy.pk` becomes an active Admin on first sign-in. Everyone else
 lands on "Waiting for approval" until an Admin approves them under **People**

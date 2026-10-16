@@ -10,6 +10,7 @@ import { MeetingEditor } from "@/components/meetings/meeting-editor";
 import { canLead, getDepartmentMembers, getDepartments, getPeople, getSubTeams, requireViewer } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
+import { isAiConfigured } from "@/lib/ai/claude";
 import { TASK_SELECT, type TaskListRow } from "@/lib/tasks/queries";
 import { formatDate, formatPKT, formatTime } from "@/lib/time";
 import type { Meeting } from "@/lib/types";
@@ -115,6 +116,7 @@ export default async function MeetingPage({
           memberIds={members.filter((m) => m.department_id === meeting.department_id).map((m) => m.user_id)}
           subTeams={subTeams.filter((s) => s.department_id === meeting.department_id && !s.archived)}
           canDelete={isLead}
+          aiEnabled={isAiConfigured()}
         />
         </div>
       </div>

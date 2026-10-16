@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, X } from "lucide-react";
@@ -14,6 +14,16 @@ import { PRIORITIES, personName } from "@/lib/labels";
 import type { Meeting, PersonRef, SubTeam, TaskPriority, TaskStatus } from "@/lib/types";
 import { deleteMeeting, saveMeeting } from "@/app/(app)/meetings/actions";
 import { StatusBadge } from "@/components/tasks/task-badges";
+import { RichTextView } from "@/components/rich-text-view";
+import { AiButton, DraftPanel } from "@/components/meetings/ai-assist";
+import {
+  createSuggestedTask,
+  draftAgenda,
+  suggestActionItems,
+  tidyMinutes,
+  type SuggestedItem,
+  type TidyDraft,
+} from "@/app/(app)/meetings/ai-actions";
 
 export type ActionItemRow = {
   id: string;
@@ -36,6 +46,7 @@ export function MeetingEditor({
   memberIds,
   subTeams,
   canDelete,
+  aiEnabled = false,
 }: {
   meeting: Meeting;
   attendeeIds: string[];
@@ -46,6 +57,8 @@ export function MeetingEditor({
   subTeams: SubTeam[];
   /** Only Leads and Admin may delete a meeting. */
   canDelete: boolean;
+  /** Show the assistant (Claude API key set). Only editors see this editor at all. */
+  aiEnabled?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -61,6 +74,88 @@ export function MeetingEditor({
   const [decisionDraft, setDecisionDraft] = useState("");
   const [existing, setExisting] = useState(actionItems);
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
+
+  // Assistant drafts: held here until the person accepts or discards them.
+  const [aiBusy, setAiBusy] = useState<null | "tidy" | "suggest" | "agenda">(null);
+  const [minutesKey, setMinutesKey] = useState(0);
+  const [tidyDraft, setTidyDraft] = useState<TidyDraft | null>(null);
+  const [agendaDraft, setAgendaDraft] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<SuggestedItem[] | null>(null);
+  const [creating, setCreating] = useState<string | null>(null);
+
+  async function runTidy() {
+    setAiBusy("tidy");
+    const res = await tidyMinutes(meeting.id, minutes);
+    setAiBusy(null);
+    if (res.ok) setTidyDraft(res.data!);
+    else toast.error(res.error);
+  }
+
+  function acceptTidy() {
+    if (!tidyDraft) return;
+    const before = { minutes, decisions };
+    setMinutes(tidyDraft.html);
+    setDecisions((ds) => [...ds, ...tidyDraft.decisions]);
+    setMinutesKey((k) => k + 1);
+    setTidyDraft(null);
+    toast.success("Minutes replaced. Save to keep them.", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setMinutes(before.minutes);
+          setDecisions(before.decisions);
+          setMinutesKey((k) => k + 1);
+        },
+      },
+    });
+  }
+
+  async function runSuggest() {
+    setAiBusy("suggest");
+    const res = await suggestActionItems(meeting.id, minutes, [...existing, ...drafts].map((x) => x.title));
+    setAiBusy(null);
+    if (!res.ok) return toast.error(res.error);
+    setSuggestions(res.data!);
+    if (!res.data!.length) toast("No new action items found in these minutes.");
+  }
+
+  function editSuggestion(key: string, patch: Partial<SuggestedItem>) {
+    setSuggestions((xs) => xs && xs.map((x) => (x.key === key ? { ...x, ...patch } : x)));
+  }
+
+  async function createFromSuggestion(item: SuggestedItem) {
+    if (!item.title.trim()) return toast.error("Give the task a title first.");
+    setCreating(item.key);
+    const res = await createSuggestedTask(meeting.id, {
+      title: item.title,
+      owner_id: item.owner_id,
+      due_date: item.due_date,
+      priority: item.priority,
+    });
+    setCreating(null);
+    if (!res.ok) return toast.error(res.error);
+    setExisting((xs) => [...xs, res.data!]);
+    setSuggestions((xs) => xs && xs.filter((x) => x.key !== item.key));
+    toast.success("Task created.");
+  }
+
+  async function runAgenda() {
+    setAiBusy("agenda");
+    const res = await draftAgenda(meeting.id);
+    setAiBusy(null);
+    if (res.ok) setAgendaDraft(res.data!);
+    else toast.error(res.error);
+  }
+
+  // A fresh weekly meeting gets an agenda drafted as soon as it opens.
+  const autoAgenda = useRef(false);
+  useEffect(() => {
+    if (autoAgenda.current || !aiEnabled || meeting.agenda || meeting.minutes) return;
+    autoAgenda.current = true;
+    void Promise.resolve().then(runAgenda);
+    // Runs once on open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const owners = people.filter((p) => memberIds.includes(p.id) || attendees.includes(p.id));
   const ownerSelect = (value: string | null, onChange: (v: string | null) => void) => (
@@ -159,13 +254,68 @@ export function MeetingEditor({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="m-agenda">Agenda</Label>
+        <div className="flex items-end justify-between gap-2">
+          <Label htmlFor="m-agenda">Agenda</Label>
+          {aiEnabled && (
+            <AiButton onClick={runAgenda} busy={aiBusy === "agenda"} disabled={aiBusy !== null}>
+              {aiBusy === "agenda" ? "Drafting…" : "Draft agenda"}
+            </AiButton>
+          )}
+        </div>
+        {agendaDraft !== null && (
+          <DraftPanel
+            title="Agenda from last week's open items and overdue or blocked tasks"
+            acceptLabel={agenda.trim() ? "Replace agenda" : "Use this agenda"}
+            onAccept={() => {
+              setAgenda(agendaDraft);
+              setAgendaDraft(null);
+            }}
+            onDiscard={() => setAgendaDraft(null)}
+          >
+            <ol className="list-decimal space-y-0.5 pl-5 text-sm text-ink">
+              {agendaDraft.split("\n").map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ol>
+          </DraftPanel>
+        )}
         <Textarea id="m-agenda" value={agenda} onChange={(e) => setAgenda(e.target.value)} rows={4} placeholder="One topic per line" />
       </div>
 
       <div className="space-y-1.5">
-        <Label>Minutes</Label>
-        <RichTextEditor name="minutes" defaultValue={meeting.minutes} onChange={setMinutes} minHeight="12rem" placeholder="What was discussed…" />
+        <div className="flex items-end justify-between gap-2">
+          <Label>Minutes</Label>
+          {aiEnabled && (
+            <AiButton onClick={runTidy} busy={aiBusy === "tidy"} disabled={aiBusy !== null || !minutes}>
+              {aiBusy === "tidy" ? "Tidying…" : "Tidy up"}
+            </AiButton>
+          )}
+        </div>
+        <RichTextEditor
+          key={minutesKey}
+          name="minutes"
+          defaultValue={minutes}
+          onChange={setMinutes}
+          minHeight="12rem"
+          placeholder="What was discussed…"
+        />
+        {tidyDraft && (
+          <DraftPanel title="Tidied minutes" acceptLabel="Replace my notes" onAccept={acceptTidy} onDiscard={() => setTidyDraft(null)}>
+            <div className="rounded-[12px] bg-white p-3">
+              <RichTextView html={tidyDraft.html} className="text-sm" />
+            </div>
+            {tidyDraft.decisions.length > 0 && (
+              <div>
+                <p className="mb-1 text-xs font-medium text-ink-muted">Decisions to add</p>
+                <ul className="list-disc space-y-0.5 pl-5 text-sm text-ink">
+                  {tidyDraft.decisions.map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </DraftPanel>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -199,8 +349,60 @@ export function MeetingEditor({
       </div>
 
       <div className="space-y-2">
-        <Label>Action items</Label>
+        <div className="flex items-end justify-between gap-2">
+          <Label>Action items</Label>
+          {aiEnabled && (
+            <AiButton onClick={runSuggest} busy={aiBusy === "suggest"} disabled={aiBusy !== null || !minutes}>
+              {aiBusy === "suggest" ? "Reading minutes…" : "Suggest action items"}
+            </AiButton>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground">Each action item becomes a task in this department when you save.</p>
+        {suggestions && suggestions.length > 0 && (
+          <DraftPanel title="Suggested action items" discardLabel="Dismiss all" onDiscard={() => setSuggestions(null)}>
+            <ul className="space-y-2">
+              {suggestions.map((item) => (
+                <li key={item.key} className="space-y-2 rounded-[12px] border border-line bg-white p-2">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem_7rem] sm:items-center">
+                    <Input
+                      aria-label="Suggested task"
+                      value={item.title}
+                      onChange={(e) => editSuggestion(item.key, { title: e.target.value })}
+                    />
+                    {ownerSelect(item.owner_id, (v) => editSuggestion(item.key, { owner_id: v }))}
+                    <Input
+                      type="date"
+                      aria-label="Due date"
+                      value={item.due_date ?? ""}
+                      onChange={(e) => editSuggestion(item.key, { due_date: e.target.value || null })}
+                    />
+                    {prioritySelect(item.priority, (v) => editSuggestion(item.key, { priority: v }))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {item.reason && <p className="mr-auto text-xs text-ink-muted">{item.reason}</p>}
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="ml-auto"
+                      disabled={creating !== null}
+                      onClick={() => createFromSuggestion(item)}
+                    >
+                      {creating === item.key ? "Creating…" : "Create task"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSuggestions((xs) => xs && xs.filter((x) => x.key !== item.key))}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </DraftPanel>
+        )}
         <ul className="space-y-2">
           {existing.map((item) => (
             <li key={item.id} className="grid gap-2 rounded-md border p-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem_7rem_6rem] sm:items-center">
