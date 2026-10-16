@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmptyState, PageHeader } from "@/components/page-header";
-import { canLead, getDepartments, requireViewer } from "@/lib/auth";
+import { getDepartments, isMemberOf, requireViewer } from "@/lib/auth";
 import { nowPKT, todayPKT } from "@/lib/time";
 import type { Department } from "@/lib/types";
 import { createMeeting } from "../actions";
@@ -25,14 +25,14 @@ export default async function NewMeetingPage({
 }) {
   const viewer = await requireViewer();
   const { dept: deptSlug, error } = await searchParams;
-  const departments = (await getDepartments()).filter((d) => !d.archived && canLead(viewer, d.id));
+  const departments = (await getDepartments()).filter((d) => !d.archived && isMemberOf(viewer, d.id));
   const selected = departments.find((d) => d.slug === deptSlug) ?? departments[0];
 
   return (
     <div className="mx-auto max-w-lg">
       <PageHeader title="New meeting" description="Last week's action items will be shown at the top." />
       {departments.length === 0 ? (
-        <EmptyState>Only department Leads and Admin can create meetings.</EmptyState>
+        <EmptyState>You need to be in a department to start a meeting. Ask an Admin to add you.</EmptyState>
       ) : (
         <form action={createMeeting} className="space-y-4">
           {error && <p className="text-sm text-red-600">{error === "invalid" ? "Please check the date." : error}</p>}

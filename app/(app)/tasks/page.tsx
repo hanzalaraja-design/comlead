@@ -5,9 +5,10 @@ import { EmptyState, PageHeader } from "@/components/page-header";
 import { SavedViews } from "@/components/tasks/saved-views";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskList } from "@/components/tasks/task-list";
+import { TaskViewTabs } from "@/components/tasks/task-view-tabs";
 import { getDepartments, requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { parseFilters } from "@/lib/tasks/filters";
+import { filtersToSearch, parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { TASK_LIMIT, fetchTasks } from "@/lib/tasks/queries";
 import type { SavedView } from "@/lib/types";
@@ -43,6 +44,7 @@ export default async function TasksPage({
           </Button>
         }
       />
+      <TaskViewTabs active="list" search={filtersToSearch(filters)} />
       <SavedViews views={(viewsRes.data ?? []) as SavedView[]} />
       <TaskFilterBar filters={filters} options={options} />
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}

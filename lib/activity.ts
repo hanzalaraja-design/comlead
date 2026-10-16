@@ -34,6 +34,7 @@ export function describeActivity(e: ActivityEntry, { person }: Lookup): string {
         if (f === "priority") return `priority ${priorityLabel(s(o.priority) as TaskPriority)} → ${priorityLabel(s(n.priority) as TaskPriority)}`;
         if (f === "title") return `title (was “${s(o.title)}”)`;
         if (f === "sub_team_id") return "sub-team";
+        if (f === "start_date") return `start date → ${s(n.start_date) ? formatDue(s(n.start_date), null) : "none"}`;
         if (f === "department_id") return "department";
         if (f === "blocked_reason") return "blocked reason";
         if (f === "meeting_id") return "linked meeting";

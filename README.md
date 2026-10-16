@@ -15,7 +15,8 @@ Tailwind CSS and shadcn/ui. All dates and "today" logic use Asia/Karachi (PKT).
 | Sign in with Microsoft, `@highfy.pk` only, pending approval | `/login`, `app/auth/*`, `lib/supabase/proxy.ts`, `/pending` |
 | My Tasks (Overdue / Today / This week / Later / No date) | `/my` |
 | List view with combinable, shareable URL filters and saved views | `/tasks` |
-| Department Kanban board | `/departments/[slug]` |
+| Status board across departments, and per department | `/tasks/board`, `/departments/[slug]` |
+| Timeline (Gantt): start date → due date, by department or person | `/tasks/timeline` |
 | Calendar view | `/tasks/calendar` |
 | Overdue across departments | `/overdue` |
 | Task detail: comments, attachments, history | `/tasks/[id]` |
@@ -30,7 +31,8 @@ Tailwind CSS and shadcn/ui. All dates and "today" logic use Asia/Karachi (PKT).
 - **Admin**: everything.
 - **Lead** (per department): full control of their department; read-only view of other departments' tasks and meetings. Can add/remove Members and set the meeting schedule.
 - **Member**: only their own departments. Can create tasks, and edit tasks they own, collaborate on or created. Cannot see other departments at all.
-- Only Leads/Admin reassign someone else's task, move tasks between departments, or write minutes.
+- Any department member can start a meeting. **Anyone in the meeting** (attendees, the person who started it, the department's Leads, Admin) can write the minutes, decisions and action items, and reassign action items. Attendees from other departments can open that meeting. Only Leads/Admin delete meetings.
+- Only Leads/Admin reassign someone else's (non-meeting) task or move tasks between departments.
 - Activity log: Admin sees all, Leads their departments, Members their own. Nobody can edit or delete entries (not even the database owner).
 - The `@highfy.pk` domain is checked in four places: Microsoft single-tenant app, the OAuth callback, every request (proxy), and the database (sign-up is rejected and every policy checks the JWT email).
 

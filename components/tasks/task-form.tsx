@@ -188,6 +188,19 @@ export function TaskForm(props: TaskFormProps) {
         )}
 
         <div className="space-y-1.5">
+          <Label htmlFor="start_date">Start date (optional)</Label>
+          <Input
+            id="start_date"
+            name="start_date"
+            type="date"
+            defaultValue={task?.start_date ?? ""}
+            max={dueDate || undefined}
+            className="h-10"
+          />
+        </div>
+        <div className="hidden sm:block" />
+
+        <div className="space-y-1.5">
           <Label htmlFor="due_date">Due date</Label>
           <Input
             id="due_date"

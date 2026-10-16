@@ -67,10 +67,14 @@ export default async function TaskPage({
   const isOwner = task.owner_id === viewer.id;
   const isCollaborator = collaboratorIds.includes(viewer.id);
   const isCreator = task.created_by === viewer.id;
-  const canEdit = isLead || isOwner || isCollaborator || isCreator;
+  // People in the meeting an action item came from can edit and reassign it.
+  const isMeetingEditor = task.meeting_id
+    ? ((await supabase.rpc("can_edit_meeting", { p_meeting_id: task.meeting_id })).data as boolean | null) === true
+    : false;
+  const canEdit = isLead || isOwner || isCollaborator || isCreator || isMeetingEditor;
   const canContribute = isMemberOf(viewer, task.department_id) || isOwner || isCollaborator;
   const canDelete = isLead || (isCreator && (!task.owner_id || isOwner));
-  const canReassign = isLead || isOwner || !task.owner_id;
+  const canReassign = isLead || isOwner || !task.owner_id || isMeetingEditor;
 
   if (edit && canEdit) {
     const formData = await getTaskFormData(viewer, task.department_id);
@@ -219,6 +223,9 @@ export default async function TaskPage({
               </Link>
             )}
           </Detail>
+          {task.start_date && (
+            <Detail label="Start date">{formatDate(task.start_date, "EEE d MMM yyyy")}</Detail>
+          )}
           {task.tags.length > 0 && (
             <Detail label="Tags">
               <TagList tags={task.tags} />

@@ -22,6 +22,11 @@ const taskSchema = z.object({
   owner_id: optionalUuid,
   status: z.enum(["todo", "in_progress", "blocked", "done", "cancelled"]),
   priority: z.enum(["urgent", "high", "medium", "low"]),
+  start_date: z
+    .string()
+    .optional()
+    .transform((v) => v || null)
+    .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
   due_date: z
     .string()
     .optional()
@@ -45,6 +50,8 @@ const taskSchema = z.object({
   blocked_reason: z.string().trim().max(1000).optional(),
   meeting_id: optionalUuid,
   collaborators: z.array(uuid).max(50),
+}).refine((v) => !v.start_date || !v.due_date || v.start_date <= v.due_date, {
+  message: "Start date must be on or before the due date",
 });
 
 function readTaskForm(formData: FormData) {
@@ -56,6 +63,7 @@ function readTaskForm(formData: FormData) {
     owner_id: formData.get("owner_id") ?? undefined,
     status: formData.get("status") ?? "todo",
     priority: formData.get("priority") ?? "medium",
+    start_date: formData.get("start_date") ?? undefined,
     due_date: formData.get("due_date") ?? undefined,
     due_time: formData.get("due_time") ?? undefined,
     tags: formData.get("tags") ?? undefined,
@@ -87,6 +95,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
       owner_id: v.owner_id,
       status: v.status,
       priority: v.priority,
+      start_date: v.start_date,
       due_date: v.due_date,
       due_time: v.due_date ? v.due_time : null,
       tags: v.tags,
@@ -128,6 +137,7 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
       owner_id: v.owner_id,
       status: v.status,
       priority: v.priority,
+      start_date: v.start_date,
       due_date: v.due_date,
       due_time: v.due_date ? v.due_time : null,
       tags: v.tags,

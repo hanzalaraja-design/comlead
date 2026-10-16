@@ -48,6 +48,7 @@ export type Task = {
   owner_id: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  start_date: string | null;
   due_date: string | null;
   due_time: string | null;
   source: TaskSource;

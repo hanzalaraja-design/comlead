@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
+import { TaskViewTabs } from "@/components/tasks/task-view-tabs";
 import { STATUS_STYLES } from "@/lib/labels";
 import { getDepartments, requireViewer } from "@/lib/auth";
 import { filtersToSearch, parseFilters } from "@/lib/tasks/filters";
@@ -76,6 +77,7 @@ export default async function CalendarPage({
           </div>
         }
       />
+      <TaskViewTabs active="calendar" search={filtersToSearch(base)} />
       <TaskFilterBar filters={base} options={options} hide={["sort"]} allowSave={false} preserve={{ month: monthParam }} />
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 

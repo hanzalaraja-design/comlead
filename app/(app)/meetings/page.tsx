@@ -60,7 +60,7 @@ export default async function MeetingsPage({
     items: { id: string; status: string }[];
   }[];
   const deptName = new Map(departments.map((d) => [d.id, d.name]));
-  const canCreate = viewer.isAdmin || viewer.isAnyLead;
+  const canCreate = viewer.isAdmin || viewer.memberDeptIds.length > 0;
 
   return (
     <>
