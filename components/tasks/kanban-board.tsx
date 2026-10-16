@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel, PriorityBadge, TagList } from "@/components/tasks/task-badges";
@@ -26,7 +26,12 @@ export function KanbanBoard({ tasks: initial, canEdit }: { tasks: TaskListRow[];
   const [reason, setReason] = useState("");
   const [, startTransition] = useTransition();
 
-  useEffect(() => setTasks(initial), [initial]);
+  // Take fresh server data after a refresh.
+  const [prevInitial, setPrevInitial] = useState(initial);
+  if (prevInitial !== initial) {
+    setPrevInitial(initial);
+    setTasks(initial);
+  }
 
   function move(id: string, status: TaskStatus, blockedReason?: string) {
     const before = tasks;

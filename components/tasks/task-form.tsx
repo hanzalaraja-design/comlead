@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -44,12 +44,10 @@ export function TaskForm(props: TaskFormProps) {
   const [collaborators, setCollaborators] = useState<string[]>(props.collaboratorIds ?? []);
 
   const subTeams = props.subTeams.filter((s) => s.department_id === departmentId && (!s.archived || s.id === task?.sub_team_id));
-  const ownerOptions = useMemo(() => {
-    const ids = new Set(props.membersByDept[departmentId] ?? []);
-    if (task?.owner_id) ids.add(task.owner_id);
-    if (props.defaultOwnerId) ids.add(props.defaultOwnerId);
-    return props.people.filter((p) => ids.has(p.id));
-  }, [props.membersByDept, props.people, departmentId, task?.owner_id, props.defaultOwnerId]);
+  const ownerIds = new Set(props.membersByDept[departmentId] ?? []);
+  if (task?.owner_id) ownerIds.add(task.owner_id);
+  if (props.defaultOwnerId) ownerIds.add(props.defaultOwnerId);
+  const ownerOptions = props.people.filter((p) => ownerIds.has(p.id));
 
   function onSubmit(formData: FormData) {
     for (const c of collaborators) formData.append("collaborators", c);

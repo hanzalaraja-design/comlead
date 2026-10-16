@@ -44,7 +44,12 @@ export function TaskFilterBar({
   const [, startTransition] = useTransition();
   const [q, setQ] = useState(filters.q ?? "");
 
-  useEffect(() => setQ(filters.q ?? ""), [filters.q]);
+  // Follow the URL when it changes from outside (back button, Clear).
+  const [prevQ, setPrevQ] = useState(filters.q);
+  if (prevQ !== filters.q) {
+    setPrevQ(filters.q);
+    setQ(filters.q ?? "");
+  }
 
   function href(next: Partial<TaskFilters>) {
     const params = new URLSearchParams(filtersToSearch(next).slice(1));
