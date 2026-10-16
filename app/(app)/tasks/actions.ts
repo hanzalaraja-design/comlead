@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireViewer } from "@/lib/auth";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { isBlankHtml, sanitizeRichText } from "@/lib/sanitize";
+import { syncLater } from "@/lib/calendar/schedule";
+import { syncTask } from "@/lib/calendar/sync";
 
 const uuid = z.string().uuid();
 const optionalUuid = z
@@ -116,6 +118,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
   }
 
   revalidateTaskViews(data.id);
+  syncLater(() => syncTask(data.id));
   return { ok: true, data: { id: data.id } };
 }
 
@@ -170,6 +173,7 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
   }
 
   revalidateTaskViews(taskId);
+  syncLater(() => syncTask(taskId));
   return { ok: true };
 }
 
@@ -201,6 +205,7 @@ export async function setTaskStatus(
   if (!data?.length) return { ok: false, error: "You can only update tasks you own, collaborate on or created." };
 
   revalidateTaskViews(taskId);
+  syncLater(() => syncTask(taskId));
   return { ok: true };
 }
 
@@ -211,6 +216,7 @@ export async function deleteTask(taskId: string): Promise<ActionResult> {
   const { error } = await supabase.rpc("delete_task", { p_task_id: taskId });
   if (error) return { ok: false, error: friendlyError(error) };
   revalidateTaskViews(taskId);
+  syncLater(() => syncTask(taskId));
   return { ok: true };
 }
 

@@ -49,7 +49,16 @@ export default async function DepartmentTeamPage({ params }: { params: Promise<{
         <div className="space-y-8">
           <section className="surface p-4 md:p-6">
             <h2 className="kicker mb-3 text-ink">Weekly meeting</h2>
-            <ScheduleEditor departmentId={dept.id} weekday={dept.meeting_weekday} time={dept.meeting_time} canEdit={isLead} />
+            <ScheduleEditor
+              departmentId={dept.id}
+              weekday={dept.meeting_weekday}
+              time={dept.meeting_time}
+              duration={dept.meeting_duration_minutes}
+              canEdit={isLead}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Once Outlook is connected, this is sent to everyone in the department as a weekly invite.
+            </p>
           </section>
           <section className="surface p-4 md:p-6">
             <h2 className="kicker mb-3 text-ink">Sub-teams</h2>

@@ -85,7 +85,25 @@ Import the GitHub repo in Vercel and add environment variables (Production and P
 
 Never add `SUPABASE_ACCESS_TOKEN` or a service-role key to Vercel; the app doesn't use them.
 
-### 5. First login
+### 5. Outlook calendar (optional, Phase 2)
+
+Weekly department meetings are sent as recurring Outlook invites from a shared
+mailbox; people can also switch on "Show my tasks in Outlook" under **My
+settings**. Sync runs after each change and nightly (`vercel.json` cron, 02:00 PKT).
+
+1. Create a shared mailbox, e.g. `tasks@highfy.pk`.
+2. In the Highfy Tasks app registration: **API permissions → Microsoft Graph →
+   Application permissions → Calendars.ReadWrite**, then **Grant admin consent**.
+3. **Certificates & secrets → New client secret.**
+4. Vercel environment variables (server only):
+   `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_CALENDAR_MAILBOX`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, and `NEXT_PUBLIC_SITE_URL`
+   (e.g. `https://tasks.highfy.pk`, used for links in invites).
+
+Until those are set, the sync is switched off and the app works as before.
+The app only edits events it created (tracked in `calendar_links`).
+
+### 6. First login
 
 `hanzala@highfy.pk` becomes an active Admin on first sign-in. Everyone else
 lands on "Waiting for approval" until an Admin approves them under **People**

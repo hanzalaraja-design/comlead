@@ -5,6 +5,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
+import { syncLater } from "@/lib/calendar/schedule";
+import { syncDepartmentSeries, syncDepartmentsForUser, syncUserTasks } from "@/lib/calendar/sync";
 
 const uuid = z.string().uuid();
 
@@ -21,7 +23,13 @@ export async function setUserStatus(userId: string, status: "active" | "disabled
   const admin = await requireAdmin();
   if (!uuid.safeParse(userId).success || !["active", "disabled", "pending"].includes(status)) return { ok: false, error: "Invalid input" };
   if (userId === admin.id && status !== "active") return { ok: false, error: "You can't turn off your own access." };
-  return update("profiles", userId, { status });
+  const res = await update("profiles", userId, { status });
+  // Access changes who gets the weekly invites and task events.
+  if (res.ok) syncLater(async () => {
+    await syncDepartmentsForUser(userId);
+    await syncUserTasks(userId);
+  });
+  return res;
 }
 
 export async function setUserAdmin(userId: string, isAdmin: boolean): Promise<ActionResult> {
@@ -59,12 +67,16 @@ export async function renameDepartment(id: string, name: string): Promise<Action
   const n = name.trim();
   if (!n) return { ok: false, error: "Enter a name." };
   // The slug stays the same so existing links and saved views keep working.
-  return update("departments", id, { name: n });
+  const res = await update("departments", id, { name: n });
+  if (res.ok) syncLater(() => syncDepartmentSeries(id));
+  return res;
 }
 
 export async function setDepartmentArchived(id: string, archived: boolean): Promise<ActionResult> {
   await requireAdmin();
-  return update("departments", id, { archived: !!archived });
+  const res = await update("departments", id, { archived: !!archived });
+  if (res.ok) syncLater(() => syncDepartmentSeries(id));
+  return res;
 }
 
 export async function moveDepartment(id: string, direction: -1 | 1): Promise<ActionResult> {

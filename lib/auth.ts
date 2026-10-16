@@ -77,7 +77,7 @@ export const getDepartments = cache(async (): Promise<Department[]> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("departments")
-    .select("id, name, slug, archived, sort_order, meeting_weekday, meeting_time")
+    .select("id, name, slug, archived, sort_order, meeting_weekday, meeting_time, meeting_duration_minutes")
     .order("sort_order")
     .order("name");
   return (data ?? []) as Department[];

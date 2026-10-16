@@ -112,7 +112,13 @@ function DepartmentCard({ dept, subTeams, first, last }: { dept: Department; sub
 
       <div>
         <p className="mb-1 text-xs font-medium text-muted-foreground">Weekly meeting</p>
-        <ScheduleEditor departmentId={dept.id} weekday={dept.meeting_weekday} time={dept.meeting_time} canEdit />
+        <ScheduleEditor
+          departmentId={dept.id}
+          weekday={dept.meeting_weekday}
+          time={dept.meeting_time}
+          duration={dept.meeting_duration_minutes}
+          canEdit
+        />
       </div>
 
       <div>
