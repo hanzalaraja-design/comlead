@@ -25,6 +25,11 @@ export function calendarMailbox(): string {
 
 let cached: { token: string; expires: number } | null = null;
 
+/** Forget the cached token so the next call signs in again (used by the Admin check). */
+export function resetTokenCache() {
+  cached = null;
+}
+
 async function token(): Promise<string> {
   if (cached && cached.expires > Date.now() + 60_000) return cached.token;
   const res = await fetch(`${LOGIN()}/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`, {
