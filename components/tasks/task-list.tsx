@@ -1,0 +1,106 @@
+import Link from "next/link";
+import { NotebookPen } from "lucide-react";
+import { PersonAvatar } from "@/components/person-avatar";
+import { DueLabel, PriorityBadge, TagList } from "@/components/tasks/task-badges";
+import { StatusSelect } from "@/components/tasks/status-select";
+import { personName } from "@/lib/labels";
+import { formatPKT } from "@/lib/time";
+import type { TaskListRow } from "@/lib/tasks/queries";
+
+/**
+ * One list that works on phones and desktop: on phones each task is a card;
+ * from md up it lines up as table columns.
+ */
+export function TaskList({
+  tasks,
+  showDepartment = true,
+  showCompleted = false,
+}: {
+  tasks: TaskListRow[];
+  showDepartment?: boolean;
+  showCompleted?: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      <div className="hidden grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] gap-3 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground md:grid">
+        <span>Status</span>
+        <span>Task</span>
+        <span>Owner</span>
+        <span>Priority</span>
+        <span>{showCompleted ? "Completed" : "Due"}</span>
+      </div>
+      <ul className="divide-y">
+        {tasks.map((t) => (
+          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function TaskListItem({
+  task: t,
+  showDepartment,
+  showCompleted,
+}: {
+  task: TaskListRow;
+  showDepartment: boolean;
+  showCompleted: boolean;
+}) {
+  return (
+    <li className="relative px-3 py-3 hover:bg-muted/30 md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] md:items-center md:gap-3 md:py-2">
+      <div className="hidden md:block">
+        <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
+      </div>
+
+      <div className="min-w-0">
+        <Link href={`/tasks/${t.id}`} className="block font-medium leading-snug after:absolute after:inset-0">
+          <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
+        </Link>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          {showDepartment && t.department && (
+            <span>
+              {t.department.name}
+              {t.sub_team && ` · ${t.sub_team.name}`}
+            </span>
+          )}
+          {!showDepartment && t.sub_team && <span>{t.sub_team.name}</span>}
+          {t.meeting && (
+            <span className="inline-flex items-center gap-1">
+              <NotebookPen className="h-3 w-3" /> From meeting
+            </span>
+          )}
+          {t.status === "blocked" && t.blocked_reason && (
+            <span className="text-red-600 dark:text-red-400">Blocked: {t.blocked_reason}</span>
+          )}
+          <TagList tags={t.tags} />
+        </div>
+      </div>
+
+      {/* Phone: one compact meta row */}
+      <div className="mt-2 flex items-center gap-2 md:hidden">
+        <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
+        <PriorityBadge priority={t.priority} />
+        <DueLabel date={t.due_date} time={t.due_time} overdue={t.overdue} />
+        <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+          <PersonAvatar person={t.owner} className="h-5 w-5" />
+        </span>
+      </div>
+
+      <div className="hidden items-center gap-2 text-sm md:flex">
+        <PersonAvatar person={t.owner} />
+        <span className="truncate">{personName(t.owner)}</span>
+      </div>
+      <div className="hidden md:block">
+        <PriorityBadge priority={t.priority} />
+      </div>
+      <div className="hidden md:block">
+        {showCompleted ? (
+          <span className="text-xs text-muted-foreground">{formatPKT(t.completed_at, "d MMM, h:mm a")}</span>
+        ) : (
+          <DueLabel date={t.due_date} time={t.due_time} overdue={t.overdue} />
+        )}
+      </div>
+    </li>
+  );
+}
