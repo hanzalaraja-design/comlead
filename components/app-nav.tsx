@@ -6,7 +6,6 @@ import { useState } from "react";
 import {
   Activity,
   Building2,
-  CalendarDays,
   CheckSquare,
   LayoutDashboard,
   List,
@@ -26,7 +25,6 @@ type NavItem = { href: string; label: string; icon: React.ComponentType<{ classN
 const MAIN: NavItem[] = [
   { href: "/my", label: "My Tasks", icon: CheckSquare },
   { href: "/tasks", label: "All Tasks", icon: List },
-  { href: "/tasks/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/overdue", label: "Overdue", icon: TriangleAlert },
   { href: "/departments", label: "Departments", icon: Building2 },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
@@ -48,7 +46,8 @@ const MOBILE: NavItem[] = [
 ];
 
 function isActive(pathname: string, href: string) {
-  if (href === "/admin" || href === "/tasks") return pathname === href;
+  if (href === "/admin") return pathname === href;
+  if (href === "/tasks") return pathname === "/tasks" || /^\/tasks\/(board|calendar|timeline)$/.test(pathname);
   return pathname === href || pathname.startsWith(href + "/");
 }
 

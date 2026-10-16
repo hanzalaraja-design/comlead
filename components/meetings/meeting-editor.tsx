@@ -35,6 +35,7 @@ export function MeetingEditor({
   people,
   memberIds,
   subTeams,
+  canDelete,
 }: {
   meeting: Meeting;
   attendeeIds: string[];
@@ -43,6 +44,8 @@ export function MeetingEditor({
   /** Department members: suggested owners. */
   memberIds: string[];
   subTeams: SubTeam[];
+  /** Only Leads and Admin may delete a meeting. */
+  canDelete: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -268,6 +271,7 @@ export function MeetingEditor({
         <Button variant="ghost" onClick={() => router.push(`/meetings/${meeting.id}`)}>
           Cancel
         </Button>
+        {canDelete && (
         <Button
           variant="ghost"
           className="ml-auto text-red-600 hover:text-red-700"
@@ -283,6 +287,7 @@ export function MeetingEditor({
         >
           <Trash2 className="h-4 w-4" /> Delete
         </Button>
+        )}
       </div>
     </div>
   );

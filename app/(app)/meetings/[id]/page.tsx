@@ -62,6 +62,8 @@ export default async function MeetingPage({
   }
 
   const isLead = canLead(viewer, meeting.department_id);
+  // Anyone in the meeting can write the minutes (the database enforces the same rule).
+  const canEdit = isLead || attendeeIds.includes(viewer.id) || meeting.created_by === viewer.id;
 
   const carryForward = prev && (
     <section className="rounded-lg border bg-muted/30 p-4">
@@ -83,7 +85,7 @@ export default async function MeetingPage({
     </section>
   );
 
-  if (edit && isLead) {
+  if (edit && canEdit) {
     return (
       <div className="mx-auto max-w-4xl space-y-6">
         <div>
@@ -107,6 +109,7 @@ export default async function MeetingPage({
           people={people}
           memberIds={members.filter((m) => m.department_id === meeting.department_id).map((m) => m.user_id)}
           subTeams={subTeams.filter((s) => s.department_id === meeting.department_id && !s.archived)}
+          canDelete={isLead}
         />
       </div>
     );
@@ -130,7 +133,7 @@ export default async function MeetingPage({
               {subTeam && ` · ${subTeam.name}`}
             </p>
           </div>
-          {isLead && (
+          {canEdit && (
             <Button asChild size="sm">
               <Link href={`/meetings/${id}?edit=1`}>
                 <Pencil className="h-4 w-4" /> Edit minutes

@@ -255,9 +255,14 @@ select pg_temp.denied($$insert into storage.objects (bucket_id, name, owner_id)
   'member cannot upload to another department''s task');
 
 -- Writing other things
-select pg_temp.denied($$insert into public.meetings (department_id, meeting_date, created_by)
+select pg_temp.allowed($$insert into public.meetings (department_id, meeting_date, created_by)
   select id, current_date, auth.uid() from public.departments where slug = 'marketing'$$,
-  'member cannot create meetings');
+  'member can start a meeting in own department');
+select pg_temp.denied($$insert into public.meetings (department_id, meeting_date, created_by)
+  select id, current_date, auth.uid() from public.departments where slug = 'content'$$,
+  'member cannot start a meeting in another department');
+select pg_temp.denied($$update public.meetings set minutes = 'x' where id = '00000000-0000-4000-b000-000000000001'$$,
+  'member who is not an attendee cannot edit minutes');
 select pg_temp.denied($$update public.departments set meeting_weekday = 2 where slug = 'marketing'$$,
   'member cannot change the meeting schedule');
 select pg_temp.denied($$update public.profiles set is_admin = true where id = auth.uid()$$,
@@ -402,6 +407,68 @@ select pg_temp.denied($$insert into public.tasks (title, department_id, meeting_
   select 'x', (select id from public.departments where slug = 'marketing'), '00000000-0000-4000-b000-000000000002', auth.uid()$$,
   'action items must belong to the meeting''s department');
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- Meeting attendees write minutes
+-- ---------------------------------------------------------------------------
+
+insert into public.meeting_attendees (meeting_id, user_id) values
+  ('00000000-0000-4000-b000-000000000001', '00000000-0000-4000-a000-000000000003'),  -- Marketing Member
+  ('00000000-0000-4000-b000-000000000001', '00000000-0000-4000-a000-000000000005');  -- no department
+
+select pg_temp.login('00000000-0000-4000-a000-000000000006', 'rlstest.mmember2@highfy.pk');
+set local role authenticated;
+select pg_temp.denied($$update public.meetings set minutes = 'x' where id = '00000000-0000-4000-b000-000000000001'$$,
+  'department member who did not attend cannot edit minutes');
+reset role;
+
+select pg_temp.login('00000000-0000-4000-a000-000000000003', 'rlstest.mmember@highfy.pk');
+set local role authenticated;
+select pg_temp.allowed($$update public.meetings set minutes = '<p>Attendee notes</p>', decisions = array['Go'] where id = '00000000-0000-4000-b000-000000000001'$$,
+  'attendee can write minutes');
+select pg_temp.allowed($$insert into public.task_comments (task_id, author_id, body)
+  select id, auth.uid(), 'from attendee' from public.tasks where title = 'Action item'$$,
+  'attendee can comment on an action item');
+select pg_temp.allowed($$insert into public.tasks (title, department_id, meeting_id, owner_id, created_by)
+  select 'Attendee action item', department_id, id, '00000000-0000-4000-a000-000000000006', auth.uid()
+    from public.meetings where id = '00000000-0000-4000-b000-000000000001'$$,
+  'attendee can add action items');
+select pg_temp.allowed($$update public.tasks set owner_id = '00000000-0000-4000-a000-000000000002' where title = 'Attendee action item'$$,
+  'attendee can reassign an action item from their meeting');
+select pg_temp.denied($$update public.tasks set owner_id = auth.uid() where id = '00000000-0000-4000-c000-000000000003'$$,
+  'attendee still cannot reassign unrelated tasks');
+select pg_temp.denied($$delete from public.meetings where id = '00000000-0000-4000-b000-000000000001'$$,
+  'attendee cannot delete the meeting');
+select pg_temp.denied($$update public.meetings set department_id = (select id from public.departments where slug = 'content') where id = '00000000-0000-4000-b000-000000000001'$$,
+  'attendee cannot move the meeting to another department');
+reset role;
+
+select pg_temp.login('00000000-0000-4000-a000-000000000005', 'rlstest.pending@highfy.pk');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.meetings where id = '00000000-0000-4000-b000-000000000001') = 1,
+  'attendee from outside the department can open the meeting');
+select pg_temp.allowed($$update public.meetings set agenda = 'Guest agenda' where id = '00000000-0000-4000-b000-000000000001'$$,
+  'attendee from outside the department can edit minutes');
+select pg_temp.denied($$select * from public.meetings where id = '00000000-0000-4000-b000-000000000002'$$,
+  'outside attendee still cannot see other meetings');
+select pg_temp.denied($$select * from public.tasks where id = '00000000-0000-4000-c000-000000000001'$$,
+  'outside attendee still cannot see the department''s other tasks');
+reset role;
+
+-- Start date
+do $$
+begin
+  begin
+    update public.tasks set start_date = due_date + 1 where due_date is not null and title = 'T1 marketing task';
+    update public.tasks set start_date = '2026-01-10', due_date = '2026-01-05' where id = '00000000-0000-4000-c000-000000000001';
+    raise exception 'FAIL: start date after due date was accepted';
+  exception when check_violation then
+    raise notice 'ok   - start date cannot be after due date';
+  end;
+end $$;
+update public.tasks set start_date = '2026-01-01', due_date = '2026-01-05' where id = '00000000-0000-4000-c000-000000000001';
+select pg_temp.ok(exists (select 1 from public.activity_log where action = 'task.edited'
+  and task_id = '00000000-0000-4000-c000-000000000001' and new_value ? 'start_date'), 'start date changes are logged');
 
 select 'ALL RLS TESTS PASSED' as result;
 

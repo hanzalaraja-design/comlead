@@ -122,10 +122,6 @@ export async function saveMeeting(meetingId: string, input: SaveMeetingInput): P
     const { error: e } = await supabase.from("meeting_attendees").insert(add.map((user_id) => ({ meeting_id: meetingId, user_id })));
     if (e) return { ok: false, error: friendlyError(e) };
   }
-  if (remove.length) {
-    const { error: e } = await supabase.from("meeting_attendees").delete().eq("meeting_id", meetingId).in("user_id", remove);
-    if (e) return { ok: false, error: friendlyError(e) };
-  }
 
   // Existing action items: only send changed fields so the log stays clean.
   if (v.existingItems.length) {
@@ -167,6 +163,13 @@ export async function saveMeeting(meetingId: string, input: SaveMeetingInput): P
         created_by: viewer.id,
       })),
     );
+    if (e) return { ok: false, error: friendlyError(e) };
+  }
+
+  // Removals last: whoever is saving may be removing themselves, and attendees
+  // are the people allowed to edit the meeting.
+  if (remove.length) {
+    const { error: e } = await supabase.from("meeting_attendees").delete().eq("meeting_id", meetingId).in("user_id", remove);
     if (e) return { ok: false, error: friendlyError(e) };
   }
 

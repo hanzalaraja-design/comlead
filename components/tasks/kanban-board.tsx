@@ -18,7 +18,15 @@ import { setTaskStatus } from "@/app/(app)/tasks/actions";
 const COLUMNS: TaskStatus[] = ["todo", "in_progress", "blocked", "done"];
 
 /** Drag cards between columns on desktop; use the status pill on phones. */
-export function KanbanBoard({ tasks: initial, canEdit }: { tasks: TaskListRow[]; canEdit: boolean }) {
+export function KanbanBoard({
+  tasks: initial,
+  canEdit,
+  showDepartment = false,
+}: {
+  tasks: TaskListRow[];
+  canEdit: boolean;
+  showDepartment?: boolean;
+}) {
   const [tasks, setTasks] = useState(initial);
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<TaskStatus | null>(null);
@@ -105,7 +113,11 @@ export function KanbanBoard({ tasks: initial, canEdit }: { tasks: TaskListRow[];
                     <Link href={`/tasks/${t.id}`} className="block text-sm font-medium leading-snug after:absolute after:inset-0">
                       {t.title}
                     </Link>
-                    {t.sub_team && <p className="mt-1 text-xs text-muted-foreground">{t.sub_team.name}</p>}
+                    {(showDepartment || t.sub_team) && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {[showDepartment ? t.department?.name : null, t.sub_team?.name].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
                     {t.status === "blocked" && t.blocked_reason && (
                       <p className="mt-1 text-xs text-red-600 dark:text-red-400">{t.blocked_reason}</p>
                     )}
