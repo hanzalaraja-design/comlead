@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { HighfyLogo } from "@/components/brand";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const MESSAGES: Record<string, { title: string; body: string }> = {
@@ -23,9 +24,12 @@ export default async function AuthErrorPage({
 
   return (
     <main className="flex min-h-svh items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+      <Card className="card-outlined w-full max-w-sm border-2 border-brand-primary shadow-none">
+        <div className="flex justify-center pt-6">
+          <HighfyLogo className="w-28" />
+        </div>
         <CardHeader>
-          <CardTitle className="text-xl">{msg.title}</CardTitle>
+          <CardTitle className="text-xl font-bold text-brand-primary">{msg.title}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">{msg.body}</p>

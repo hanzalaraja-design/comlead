@@ -30,19 +30,23 @@ export default async function NewMeetingPage({
 
   return (
     <div className="mx-auto max-w-lg">
-      <PageHeader title="New meeting" description="Last week's action items will be shown at the top." />
+      <PageHeader
+        breadcrumb={[{ label: "Meetings", href: "/meetings" }, "New meeting"]}
+        title="New meeting"
+        description="Last week's action items will be shown at the top."
+      />
       {departments.length === 0 ? (
         <EmptyState>You need to be in a department to start a meeting. Ask an Admin to add you.</EmptyState>
       ) : (
-        <form action={createMeeting} className="space-y-4">
-          {error && <p className="text-sm text-red-600">{error === "invalid" ? "Please check the date." : error}</p>}
+        <form action={createMeeting} className="card-outlined space-y-4 p-4 md:p-6">
+          {error && <p className="text-sm text-danger">{error === "invalid" ? "Please check the date." : error}</p>}
           <div className="space-y-1.5">
             <Label htmlFor="department_id">Department</Label>
             <select
               id="department_id"
               name="department_id"
               defaultValue={selected?.id}
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              className="h-10 w-full field px-3 text-sm"
             >
               {departments.map((d) => (
                 <option key={d.id} value={d.id}>

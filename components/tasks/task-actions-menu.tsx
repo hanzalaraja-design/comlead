@@ -24,7 +24,7 @@ export function DeleteTaskButton({ taskId, title }: { taskId: string; title: str
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" disabled={pending}>
+        <Button variant="ghost" size="sm" className="text-danger hover:text-danger/80" disabled={pending}>
           <Trash2 className="h-4 w-4" /> Delete
         </Button>
       </AlertDialogTrigger>

@@ -19,11 +19,11 @@ import type { TaskStatus } from "@/lib/types";
 export const metadata = { title: "Timeline · Highfy Tasks" };
 
 const BAR: Record<TaskStatus, string> = {
-  todo: "bg-slate-400 dark:bg-slate-500",
-  in_progress: "bg-blue-500",
-  blocked: "bg-red-500",
-  done: "bg-green-500",
-  cancelled: "bg-zinc-300 dark:bg-zinc-600",
+  todo: "border-2 border-brand-primary bg-white text-brand-primary",
+  in_progress: "bg-brand-primary text-white",
+  blocked: "bg-brand-accent text-brand-primary-deep",
+  done: "bg-brand-muted text-brand-primary-deep",
+  cancelled: "border border-brand-muted bg-white text-muted-foreground",
 };
 
 const ZOOMS = [
@@ -74,7 +74,7 @@ export default async function TimelinePage({
     const key = group === "dept" ? t.department_id : t.owner_id ?? "none";
     if (!groups.has(key)) {
       groups.set(key, {
-        label: group === "dept" ? t.department?.name ?? "—" : personName(t.owner),
+        label: group === "dept" ? t.department?.name ?? "No department" : personName(t.owner),
         order: group === "dept" ? deptOrder.get(t.department_id) ?? 99 : 0,
         tasks: [],
       });
@@ -101,6 +101,7 @@ export default async function TimelinePage({
   return (
     <>
       <PageHeader
+        breadcrumb={[{ label: "Tasks", href: "/tasks" }, "Timeline"]}
         title="Timeline"
         description={`${formatDate(from, "d MMM")} – ${formatDate(to, "d MMM yyyy")} · ${tasks.length} task${tasks.length === 1 ? "" : "s"}`}
         actions={
@@ -136,13 +137,13 @@ export default async function TimelinePage({
       </div>
 
       <TaskFilterBar filters={filters} options={options} hide={["sort"]} allowSave={false} preserve={viewParams} />
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       {tasks.length === 0 ? (
         <EmptyState>No tasks in this period. Tasks need a due date to appear on the timeline.</EmptyState>
       ) : (
         // Opens with a few days before today in view.
-        <ScrollToToday offset={Math.max(0, (todayIdx - 2) * W)} className="overflow-x-auto rounded-lg border">
+        <ScrollToToday offset={Math.max(0, (todayIdx - 2) * W)} className="overflow-x-auto surface">
           <div style={{ minWidth: `calc(var(--label-w) + ${trackWidth}px)` }} className="[--label-w:9rem] md:[--label-w:16rem]">
             {/* Header: months + days */}
             <div className="sticky top-0 z-20 flex border-b bg-muted/60 text-[10px] text-muted-foreground backdrop-blur">
@@ -161,7 +162,7 @@ export default async function TimelinePage({
                       className={cn(
                         "shrink-0 border-r py-1 text-center leading-tight",
                         weekend && "bg-muted",
-                        d === today && "bg-primary/10 font-semibold text-foreground",
+                        d === today && "bg-brand-accent font-semibold text-brand-primary-deep",
                       )}
                     >
                       <div className="h-3 truncate px-0.5 font-medium">{showMonth ? format(date, "MMM") : ""}</div>
@@ -196,10 +197,10 @@ export default async function TimelinePage({
           </span>
         ))}
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rotate-45 bg-slate-500" /> Due date only (no start date)
+          <span className="h-2.5 w-2.5 rotate-45 bg-brand-primary" /> Due date only (no start date)
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-0.5 bg-primary" /> Today
+          <span className="h-3 w-0.5 bg-brand-accent" /> Today
         </span>
         {truncated && <span>Showing the first 1000 tasks; narrow the filters.</span>}
       </div>
@@ -236,7 +237,7 @@ function TimelineRow({
     <div className="group flex border-b last:border-b-0 hover:bg-muted/30">
       <Link
         href={`/tasks/${t.id}`}
-        className="sticky left-0 z-10 flex w-[var(--label-w)] shrink-0 items-center gap-2 border-r bg-background px-3 py-1.5 group-hover:bg-muted"
+        className="sticky left-0 z-10 flex w-[var(--label-w)] shrink-0 items-center gap-2 border-r bg-white px-3 py-1.5 group-hover:bg-brand-panel"
       >
         <span className={cn("min-w-0 flex-1 truncate text-xs md:text-sm", t.status === "cancelled" && "line-through opacity-60")}>
           {t.title}
@@ -249,7 +250,7 @@ function TimelineRow({
       </Link>
       <div className="relative h-8" style={{ width: dayCount * W }}>
         {todayIdx >= 0 && todayIdx < dayCount && (
-          <div className="absolute inset-y-0 w-0.5 bg-primary/60" style={{ left: todayIdx * W + W / 2 - 1 }} />
+          <div className="absolute inset-y-0 w-0.5 bg-brand-accent" style={{ left: todayIdx * W + W / 2 - 1 }} />
         )}
         {start === null ? (
           due < dayCount && (
@@ -259,7 +260,7 @@ function TimelineRow({
               className={cn(
                 "absolute top-1/2 h-3 w-3 -translate-y-1/2 rotate-45 rounded-[2px]",
                 BAR[t.status],
-                t.overdue && "ring-2 ring-red-500 ring-offset-1 ring-offset-background",
+                t.overdue && "ring-2 ring-brand-accent ring-offset-1 ring-offset-white",
               )}
               style={{ left: due * W + W / 2 - 6 }}
             />
@@ -273,12 +274,12 @@ function TimelineRow({
               BAR[t.status],
               clippedLeft && "rounded-l-none",
               clippedRight && "rounded-r-none",
-              t.overdue && "ring-2 ring-red-500 ring-offset-1 ring-offset-background",
+              t.overdue && "ring-2 ring-brand-accent ring-offset-1 ring-offset-white",
             )}
             style={{ left: left * W + 2, width: Math.max(W - 4, (right - left + 1) * W - 4) }}
           >
             {(right - left + 1) * W > 90 && (
-              <span className="block truncate px-2 text-[11px] leading-5 text-white">{t.title}</span>
+              <span className="block truncate px-2 text-[11px] font-semibold leading-5">{t.title}</span>
             )}
           </Link>
         )}
@@ -289,7 +290,7 @@ function TimelineRow({
 
 function Segmented({ items }: { items: { label: string; href: string; active: boolean }[] }) {
   return (
-    <div className="inline-flex rounded-lg border p-0.5">
+    <div className="inline-flex surface p-0.5">
       {items.map((i) => (
         <Link
           key={i.label}

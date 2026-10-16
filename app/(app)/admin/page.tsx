@@ -38,11 +38,11 @@ type MeetingWeek = {
 };
 
 const MEETING_STATE: Record<MeetingWeek["state"], { label: string; className: string }> = {
-  held: { label: "Minutes saved", className: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200" },
-  no_minutes: { label: "Missing minutes", className: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" },
-  missing: { label: "Not held", className: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200" },
-  upcoming: { label: "Upcoming", className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200" },
-  no_schedule: { label: "No schedule set", className: "bg-muted text-muted-foreground" },
+  held: { label: "Minutes saved", className: "bg-brand-muted text-brand-primary-deep" },
+  no_minutes: { label: "Missing minutes", className: "bg-brand-accent text-brand-primary-deep" },
+  missing: { label: "Not held", className: "bg-brand-accent text-brand-primary-deep" },
+  upcoming: { label: "Upcoming", className: "border border-brand-primary text-brand-primary" },
+  no_schedule: { label: "No schedule set", className: "border border-brand-muted text-brand-primary-deep/70" },
 };
 
 export default async function DashboardPage() {
@@ -85,32 +85,33 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader
+        breadcrumb={["Admin", "Dashboard"]}
         title="Dashboard"
         description={`Week of ${formatDate(weekStart, "d MMM")} – ${formatDate(weekEndPKT(), "d MMM yyyy")} (PKT)`}
       />
-      {error && <p className="mb-3 text-sm text-red-600">{error.message}</p>}
+      {error && <p className="mb-3 text-sm text-danger">{error.message}</p>}
 
-      <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Tile label="Open tasks" value={totals.open} href={all.open} />
-        <Tile label="Overdue" value={totals.overdue} href={all.overdue} tone={totals.overdue ? "red" : undefined} />
-        <Tile label="Blocked" value={totals.blocked} href={all.blocked} tone={totals.blocked ? "amber" : undefined} />
-        <Tile label="Completed this week" value={totals.done} href={all.done} tone="green" />
+      <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-6">
+        <Tile hero label="Overdue" value={totals.overdue} href={all.overdue} note="Across the company, past due and not done." />
+        <Tile label="Open" value={totals.open} href={all.open} note="To do, in progress or blocked." />
+        <Tile label="Blocked" value={totals.blocked} href={all.blocked} note="Waiting on something or someone." />
+        <Tile label="Done this week" value={totals.done} href={all.done} note="Completed since Monday." />
       </div>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold">By department</h2>
-        <div className="overflow-x-auto rounded-lg border">
+        <h2 className="kicker mb-3 text-brand-primary">By department</h2>
+        <div className="surface overflow-x-auto">
           <table className="w-full min-w-[32rem] text-sm">
-            <thead className="bg-muted/40 text-xs text-muted-foreground">
+            <thead className="bg-brand-panel text-[13px] text-brand-primary">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">Department</th>
-                <th className="px-3 py-2 text-right font-medium">Open</th>
-                <th className="px-3 py-2 text-right font-medium">Overdue</th>
-                <th className="px-3 py-2 text-right font-medium">Blocked</th>
-                <th className="px-3 py-2 text-right font-medium">Done this week</th>
+                <th className="px-3 py-2 text-left font-bold">Department</th>
+                <th className="px-3 py-2 text-right font-bold">Open</th>
+                <th className="px-3 py-2 text-right font-bold">Overdue</th>
+                <th className="px-3 py-2 text-right font-bold">Blocked</th>
+                <th className="px-3 py-2 text-right font-bold">Done this week</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-brand-panel divide-brand-panel">
               {depts.map((d) => {
                 const l = deptLinks(d.slug);
                 return (
@@ -134,17 +135,17 @@ export default async function DashboardPage() {
 
       <div className="grid gap-8 lg:grid-cols-2">
         <section>
-          <h2 className="mb-3 text-sm font-semibold">By person</h2>
-          <div className="overflow-x-auto rounded-lg border">
+          <h2 className="kicker mb-3 text-brand-primary">By person</h2>
+          <div className="surface overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs text-muted-foreground">
+              <thead className="bg-brand-panel text-[13px] text-brand-primary">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">Person</th>
-                  <th className="px-3 py-2 text-right font-medium">Overdue</th>
-                  <th className="px-3 py-2 text-right font-medium">Done this week</th>
+                  <th className="px-3 py-2 text-left font-bold">Person</th>
+                  <th className="px-3 py-2 text-right font-bold">Overdue</th>
+                  <th className="px-3 py-2 text-right font-bold">Done this week</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-brand-panel divide-brand-panel">
                 {persons.length === 0 && (
                   <tr>
                     <td colSpan={3} className="px-3 py-4 text-center text-muted-foreground">
@@ -173,8 +174,8 @@ export default async function DashboardPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold">Meetings this week</h2>
-          <ul className="divide-y rounded-lg border">
+          <h2 className="kicker mb-3 text-brand-primary">Meetings this week</h2>
+          <ul className="surface divide-y divide-brand-panel divide-brand-panel">
             {meetings.map((m) => {
               const state = MEETING_STATE[m.state];
               const href = m.meeting_id ? `/meetings/${m.meeting_id}` : `/meetings?dept=${m.slug}`;
@@ -182,13 +183,13 @@ export default async function DashboardPage() {
                 <li key={m.department_id}>
                   <Link href={href} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-muted/40">
                     <div className="min-w-0">
-                      <p className="font-medium">{m.name}</p>
+                      <p className="font-bold">{m.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {m.meeting_date
                           ? formatDate(m.meeting_date, "EEE d MMM")
                           : m.meeting_weekday
                             ? `${weekdayName(m.meeting_weekday)}${m.meeting_time ? ` ${formatTime(m.meeting_time)}` : ""}`
-                            : "—"}
+                            : "Not scheduled"}
                       </p>
                     </div>
                     <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", state.className)}>{state.label}</span>
@@ -203,17 +204,27 @@ export default async function DashboardPage() {
   );
 }
 
+// Orange marks only numbers that need attention (brand guide §1).
 const TONES = {
-  red: "text-red-600 dark:text-red-400",
-  amber: "text-amber-600 dark:text-amber-400",
-  green: "text-green-700 dark:text-green-400",
+  red: "rounded-full bg-brand-accent px-2 py-0.5 text-brand-primary-deep",
+  amber: "text-brand-primary",
+  green: "text-brand-primary",
 };
 
-function Tile({ label, value, href, tone }: { label: string; value: number; href: string; tone?: keyof typeof TONES }) {
+/** Stat card: kicker, big number, one plain line. The hero card is filled purple. */
+function Tile({ label, value, href, note, hero }: { label: string; value: number; href: string; note: string; hero?: boolean }) {
   return (
-    <Link href={href} className="rounded-lg border p-4 hover:bg-muted/40">
-      <p className={cn("text-2xl font-semibold tabular-nums", tone && value ? TONES[tone] : undefined)}>{value}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <Link href={href} className={cn("block p-4 transition-opacity hover:opacity-90 md:p-6", hero ? "card-filled" : "card-outlined")}>
+      <p className={cn("kicker", hero ? "text-brand-muted" : "text-brand-primary")}>{label}</p>
+      <p
+        className={cn(
+          "mt-1 text-[32px] font-bold leading-none tabular-nums md:text-[40px]",
+          hero ? (value ? "text-brand-accent" : "text-white") : "text-brand-primary",
+        )}
+      >
+        {value}
+      </p>
+      <p className={cn("mt-2 text-[13px] font-medium", hero ? "text-brand-muted" : "text-brand-primary-deep/70")}>{note}</p>
     </Link>
   );
 }
@@ -222,11 +233,11 @@ function NumCell({ value, href, tone }: { value: number; href: string; tone?: ke
   return (
     <td className="px-3 py-2 text-right tabular-nums">
       {value ? (
-        <Link href={href} className={cn("font-medium hover:underline", tone && TONES[tone])}>
+        <Link href={href} className={cn("font-semibold hover:underline", tone ? TONES[tone] : "text-brand-primary")}>
           {value}
         </Link>
       ) : (
-        <span className="text-muted-foreground">0</span>
+        <span className="text-brand-primary-deep/50">0</span>
       )}
     </td>
   );

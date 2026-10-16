@@ -33,6 +33,7 @@ export default async function AdminUsersPage() {
   return (
     <>
       <PageHeader
+        breadcrumb={["Admin", "People"]}
         title="People"
         description="New people appear here after their first Microsoft sign-in. Roles are set per department."
       />
@@ -42,11 +43,11 @@ export default async function AdminUsersPage() {
           if (!list.length) return null;
           return (
             <section key={g.key}>
-              <h2 className="mb-1 text-sm font-semibold">
+              <h2 className="kicker mb-1 text-brand-primary">
                 {g.title} <span className="font-normal text-muted-foreground">· {list.length}</span>
               </h2>
               {"hint" in g && <p className="mb-2 text-xs text-muted-foreground">{g.hint}</p>}
-              <ul className="divide-y rounded-lg border">
+              <ul className="divide-y divide-brand-panel surface">
                 {list.map((u) => (
                   <UserRow key={u.id} user={u} memberships={byUser.get(u.id) ?? []} departments={depts} isSelf={u.id === admin.id} />
                 ))}

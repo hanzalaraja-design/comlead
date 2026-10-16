@@ -27,11 +27,14 @@ export default async function DepartmentTeamPage({ params }: { params: Promise<{
 
   return (
     <>
-      <PageHeader title={dept.name} />
+      <PageHeader
+        breadcrumb={[{ label: "Departments", href: "/departments" }, { label: dept.name, href: `/departments/${slug}` }, "Team"]}
+        title={dept.name}
+      />
       <DepartmentTabs slug={slug} active="team" />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section>
-          <h2 className="mb-3 text-sm font-semibold">People</h2>
+          <h2 className="kicker mb-3 text-brand-primary">People</h2>
           <TeamManager
             departmentId={dept.id}
             members={deptMembers}
@@ -44,12 +47,12 @@ export default async function DepartmentTeamPage({ params }: { params: Promise<{
           )}
         </section>
         <div className="space-y-8">
-          <section>
-            <h2 className="mb-3 text-sm font-semibold">Weekly meeting</h2>
+          <section className="surface p-4 md:p-6">
+            <h2 className="kicker mb-3 text-brand-primary">Weekly meeting</h2>
             <ScheduleEditor departmentId={dept.id} weekday={dept.meeting_weekday} time={dept.meeting_time} canEdit={isLead} />
           </section>
-          <section>
-            <h2 className="mb-3 text-sm font-semibold">Sub-teams</h2>
+          <section className="surface p-4 md:p-6">
+            <h2 className="kicker mb-3 text-brand-primary">Sub-teams</h2>
             {subTeams.filter((s) => s.department_id === dept.id && !s.archived).length ? (
               <ul className="flex flex-wrap gap-2">
                 {subTeams

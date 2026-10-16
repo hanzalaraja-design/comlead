@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { HighfyLogo } from "@/components/brand";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getViewer } from "@/lib/auth";
 import { safeNext } from "@/lib/safe-next";
@@ -17,13 +18,13 @@ export default async function LoginPage({
 
   return (
     <main className="flex min-h-svh items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">
-            H
-          </div>
-          <CardTitle className="text-2xl">Highfy Tasks</CardTitle>
-          <CardDescription>Sign in with your Highfy Microsoft account.</CardDescription>
+      <Card className="card-outlined w-full max-w-sm border-2 border-brand-primary shadow-none">
+        <CardHeader className="items-center text-center">
+          <HighfyLogo className="mb-2 w-36" />
+          <CardTitle className="text-2xl font-bold text-brand-primary">Tasks</CardTitle>
+          <CardDescription className="text-[15px] text-brand-primary-deep">
+            Sign in with your Highfy Microsoft account.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form action={signInWithMicrosoft}>
@@ -33,7 +34,7 @@ export default async function LoginPage({
               Sign in with Microsoft
             </Button>
           </form>
-          <p className="mt-4 text-center text-xs text-muted-foreground">
+          <p className="mt-4 text-center text-[13px] text-brand-primary-deep/70">
             Only @highfy.pk accounts can access this app.
           </p>
         </CardContent>

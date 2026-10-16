@@ -86,13 +86,13 @@ export function KanbanBoard({
                 drop(col);
               }}
               className={cn(
-                "flex w-[82vw] shrink-0 snap-start flex-col rounded-lg bg-muted/40 p-2 sm:w-72 md:w-auto",
+                "flex w-[82vw] shrink-0 snap-start flex-col rounded-[20px] bg-brand-panel p-2 sm:w-72 md:w-auto",
                 over === col && "ring-2 ring-primary",
               )}
             >
-              <h2 className="mb-2 flex items-center justify-between px-1 text-sm font-semibold">
+              <h2 className="kicker mb-2 flex items-center justify-between px-2 pt-1 text-brand-primary">
                 {statusLabel(col)}
-                <span className="rounded-full bg-background px-2 text-xs font-normal text-muted-foreground">{items.length}</span>
+                <span className="rounded-full bg-white px-2 text-xs font-normal text-muted-foreground">{items.length}</span>
               </h2>
               <ul className="flex min-h-16 flex-col gap-2">
                 {items.map((t) => (
@@ -105,7 +105,7 @@ export function KanbanBoard({
                       setOver(null);
                     }}
                     className={cn(
-                      "relative rounded-md border bg-background p-3 shadow-sm",
+                      "relative rounded-[12px] border border-brand-panel bg-white p-3",
                       canEdit && "md:cursor-grab",
                       dragId === t.id && "opacity-50",
                     )}
@@ -119,7 +119,7 @@ export function KanbanBoard({
                       </p>
                     )}
                     {t.status === "blocked" && t.blocked_reason && (
-                      <p className="mt-1 text-xs text-red-600 dark:text-red-400">{t.blocked_reason}</p>
+                      <p className="mt-1 text-xs font-medium text-brand-primary-deep">Blocked: {t.blocked_reason}</p>
                     )}
                     <div className="mt-2">
                       <TagList tags={t.tags} />

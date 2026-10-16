@@ -10,6 +10,7 @@ export default async function AdminDepartmentsPage() {
   return (
     <>
       <PageHeader
+        breadcrumb={["Admin", "Departments setup"]}
         title="Departments setup"
         description="Rename, reorder or archive departments, set weekly meeting times and manage sub-teams. Assign Leads under People."
       />

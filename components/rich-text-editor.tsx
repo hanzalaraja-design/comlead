@@ -49,7 +49,7 @@ export function RichTextEditor({
   });
 
   return (
-    <div className="rounded-md border bg-background focus-within:ring-1 focus-within:ring-ring">
+    <div className="rounded-[12px] border-[1.5px] border-brand-panel bg-white focus-within:ring-2 focus-within:ring-brand-primary">
       <Toolbar editor={editor} />
       <EditorContent editor={editor} />
       <input type="hidden" name={name} value={html} />

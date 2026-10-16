@@ -43,6 +43,7 @@ export default async function DepartmentBoardPage({
   return (
     <>
       <PageHeader
+        breadcrumb={[{ label: "Departments", href: "/departments" }, dept.name, "Board"]}
         title={dept.name}
         description={member ? undefined : "View only. You can see this department but not change it."}
         actions={
@@ -57,7 +58,7 @@ export default async function DepartmentBoardPage({
       />
       <DepartmentTabs slug={slug} active="board" />
       <TaskFilterBar filters={base} options={options} hide={["dept", "status", "sort"]} allowSave={false} />
-      {(open.error || done.error) && <p className="mb-3 text-sm text-red-600">{open.error || done.error}</p>}
+      {(open.error || done.error) && <p className="mb-3 text-sm text-danger">{open.error || done.error}</p>}
       <KanbanBoard tasks={[...open.tasks, ...done.tasks]} canEdit={member} />
     </>
   );

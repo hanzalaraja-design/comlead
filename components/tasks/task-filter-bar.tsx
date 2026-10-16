@@ -87,7 +87,7 @@ export function TaskFilterBar({
               aria-label="Sort by"
               value={filters.sort}
               onChange={(e) => apply({ sort: e.target.value as SortKey })}
-              className="h-9 rounded-md border bg-background px-2 text-sm"
+              className="h-9 field px-2 text-sm"
             >
               {SORTS.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -126,7 +126,7 @@ export function TaskFilterBar({
             className={cn(
               "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs",
               filters.overdue
-                ? "border-red-500 bg-red-50 font-medium text-red-700 dark:bg-red-950 dark:text-red-300"
+                ? "border-brand-accent bg-brand-accent font-semibold text-brand-primary-deep"
                 : "text-muted-foreground hover:bg-accent",
             )}
           >

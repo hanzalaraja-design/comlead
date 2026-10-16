@@ -57,6 +57,7 @@ export default async function CalendarPage({
   return (
     <>
       <PageHeader
+        breadcrumb={[{ label: "Tasks", href: "/tasks" }, "Calendar"]}
         title={format(monthStart, "MMMM yyyy")}
         description="Tasks by due date"
         actions={
@@ -79,10 +80,10 @@ export default async function CalendarPage({
       />
       <TaskViewTabs active="calendar" search={filtersToSearch(base)} />
       <TaskFilterBar filters={base} options={options} hide={["sort"]} allowSave={false} preserve={{ month: monthParam }} />
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       {/* Desktop: month grid */}
-      <div className="hidden overflow-hidden rounded-lg border md:block">
+      <div className="hidden overflow-hidden surface md:block">
         <div className="grid grid-cols-7 border-b bg-muted/40 text-xs font-medium text-muted-foreground">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
             <div key={d} className="px-2 py-1.5">
@@ -102,7 +103,7 @@ export default async function CalendarPage({
                 <div
                   className={cn(
                     "mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs",
-                    day === today ? "bg-primary font-semibold text-primary-foreground" : !inMonth && "text-muted-foreground",
+                    day === today ? "bg-brand-accent font-bold text-brand-primary-deep" : !inMonth && "text-muted-foreground",
                   )}
                 >
                   {Number(day.slice(8))}
@@ -116,7 +117,7 @@ export default async function CalendarPage({
                         className={cn(
                           "block truncate rounded px-1.5 py-0.5 text-[11px]",
                           STATUS_STYLES[t.status],
-                          t.overdue && "ring-1 ring-red-500",
+                          t.overdue && "ring-2 ring-brand-accent",
                         )}
                       >
                         {t.due_time && <span className="opacity-70">{formatTime(t.due_time)} </span>}
@@ -144,11 +145,11 @@ export default async function CalendarPage({
           .filter((d) => d.slice(0, 7) === monthParam && byDay.has(d))
           .map((day) => (
             <section key={day}>
-              <h2 className={cn("mb-1 text-sm font-semibold", day === today && "text-primary")}>
+              <h2 className={cn("mb-1 text-sm font-semibold", day === today && "text-brand-primary")}>
                 {format(parseISODate(day), "EEE d MMM")}
                 {day === today && " · Today"}
               </h2>
-              <ul className="divide-y rounded-lg border">
+              <ul className="divide-y divide-brand-panel surface">
                 {byDay.get(day)!.map((t) => (
                   <li key={t.id}>
                     <Link href={`/tasks/${t.id}`} className="flex items-center gap-2 px-3 py-2.5 text-sm">
@@ -162,7 +163,7 @@ export default async function CalendarPage({
             </section>
           ))}
         {!days.some((d) => d.slice(0, 7) === monthParam && byDay.has(d)) && (
-          <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <p className="surface border-dashed p-6 text-center text-sm text-muted-foreground">
             No tasks due this month.
           </p>
         )}

@@ -105,7 +105,7 @@ export function UserRow({
               type="button"
               aria-label="Remove from department"
               disabled={pending}
-              className="rounded-full p-0.5 text-muted-foreground hover:text-red-600"
+              className="rounded-full p-0.5 text-muted-foreground hover:text-danger"
               onClick={() => run(() => removeMember(m.department_id, user.id), "Removed")}
             >
               <X className="h-3 w-3" />
@@ -118,7 +118,7 @@ export function UserRow({
               aria-label="Add to department"
               value={deptToAdd}
               onChange={(e) => setDeptToAdd(e.target.value)}
-              className="h-7 rounded-md border bg-background px-1 text-xs"
+              className="h-7 field px-1 text-xs"
             >
               <option value="">+ Department…</option>
               {available.map((d) => (
@@ -133,7 +133,7 @@ export function UserRow({
                   aria-label="Role"
                   value={roleToAdd}
                   onChange={(e) => setRoleToAdd(e.target.value as DeptRole)}
-                  className="h-7 rounded-md border bg-background px-1 text-xs"
+                  className="h-7 field px-1 text-xs"
                 >
                   <option value="member">Member</option>
                   <option value="lead">Lead</option>
