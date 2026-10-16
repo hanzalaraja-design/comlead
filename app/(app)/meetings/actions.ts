@@ -7,6 +7,9 @@ import { createClient } from "@/lib/supabase/server";
 import { requireViewer } from "@/lib/auth";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { isBlankHtml, sanitizeRichText } from "@/lib/sanitize";
+import { insertMeeting } from "@/lib/meetings";
+import { syncLater } from "@/lib/calendar/schedule";
+import { syncTasksForMeeting } from "@/lib/calendar/sync";
 
 const uuid = z.string().uuid();
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -36,24 +39,11 @@ export async function createMeeting(formData: FormData) {
   if (!parsed.success) redirect("/meetings/new?error=invalid");
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("meetings")
-    .insert({ ...parsed.data, title: parsed.data.title || null, created_by: viewer.id })
-    .select("id")
-    .single();
-  if (error || !data) redirect(`/meetings/new?error=${encodeURIComponent(friendlyError(error))}`);
-
-  // Everyone in the department is an attendee by default; edit as needed.
-  const { data: members } = await supabase
-    .from("department_members")
-    .select("user_id")
-    .eq("department_id", parsed.data.department_id);
-  if (members?.length) {
-    await supabase.from("meeting_attendees").insert(members.map((m) => ({ meeting_id: data.id, user_id: m.user_id })));
-  }
+  const { id, error } = await insertMeeting(supabase, viewer.id, { ...parsed.data, title: parsed.data.title || null });
+  if (!id) redirect(`/meetings/new?error=${encodeURIComponent(friendlyError(error))}`);
 
   revalidatePath("/meetings");
-  redirect(`/meetings/${data.id}?edit=1`);
+  redirect(`/meetings/${id}?edit=1`);
 }
 
 const actionItem = z.object({
@@ -174,6 +164,7 @@ export async function saveMeeting(meetingId: string, input: SaveMeetingInput): P
   }
 
   revalidatePath("/", "layout");
+  syncLater(() => syncTasksForMeeting(meetingId));
   return { ok: true };
 }
 

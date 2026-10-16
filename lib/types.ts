@@ -11,6 +11,7 @@ export type Profile = {
   avatar_url: string | null;
   is_admin: boolean;
   status: UserStatus;
+  outlook_tasks_enabled?: boolean;
   created_at: string;
 };
 
@@ -24,6 +25,7 @@ export type Department = {
   sort_order: number;
   meeting_weekday: number | null;
   meeting_time: string | null;
+  meeting_duration_minutes: number;
 };
 
 export type SubTeam = {

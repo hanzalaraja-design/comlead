@@ -5,7 +5,7 @@ import { hasEnvVars } from "../utils";
 const ALLOWED_DOMAIN = "@highfy.pk";
 
 // Reachable without a session.
-const PUBLIC_PATHS = ["/login", "/auth/"];
+const PUBLIC_PATHS = ["/login", "/auth/", "/api/cron/"];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({

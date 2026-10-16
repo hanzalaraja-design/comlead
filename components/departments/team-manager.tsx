@@ -115,19 +115,24 @@ export function TeamManager({
   );
 }
 
+const DURATIONS = [15, 30, 45, 60, 90, 120];
+
 export function ScheduleEditor({
   departmentId,
   weekday,
   time,
+  duration = 60,
   canEdit,
 }: {
   departmentId: string;
   weekday: number | null;
   time: string | null;
+  duration?: number;
   canEdit: boolean;
 }) {
   const [day, setDay] = useState(weekday ? String(weekday) : "");
   const [t, setT] = useState(time?.slice(0, 5) ?? "");
+  const [len, setLen] = useState(String(duration));
   const [pending, startTransition] = useTransition();
 
   return (
@@ -136,7 +141,7 @@ export function ScheduleEditor({
       onSubmit={(e) => {
         e.preventDefault();
         startTransition(async () => {
-          const res = await setMeetingSchedule(departmentId, day ? Number(day) : null, t || null);
+          const res = await setMeetingSchedule(departmentId, day ? Number(day) : null, t || null, Number(len));
           if (res.ok) toast.success("Schedule saved");
           else toast.error(res.error);
         });
@@ -167,6 +172,16 @@ export function ScheduleEditor({
           onChange={(e) => setT(e.target.value)}
           className="h-9 field px-2 text-sm"
         />
+      </label>
+      <label className="space-y-1 text-xs">
+        <span className="block text-muted-foreground">Length</span>
+        <select value={len} disabled={!canEdit} onChange={(e) => setLen(e.target.value)} className="field h-9">
+          {[...new Set([...DURATIONS, duration])].sort((a, b) => a - b).map((d) => (
+            <option key={d} value={d}>
+              {d < 60 ? `${d} min` : `${d / 60} hr`}
+            </option>
+          ))}
+        </select>
       </label>
       {canEdit && (
         <Button type="submit" size="sm" disabled={pending}>

@@ -470,6 +470,25 @@ update public.tasks set start_date = '2026-01-01', due_date = '2026-01-05' where
 select pg_temp.ok(exists (select 1 from public.activity_log where action = 'task.edited'
   and task_id = '00000000-0000-4000-c000-000000000001' and new_value ? 'start_date'), 'start date changes are logged');
 
+-- ---------------------------------------------------------------------------
+-- Outlook calendar
+-- ---------------------------------------------------------------------------
+
+insert into public.calendar_links (kind, department_id, mailbox, outlook_event_id, synced_hash)
+select 'department_series', id, 'tasks@highfy.pk', 'evt-1', 'h' from public.departments where slug = 'marketing';
+
+select pg_temp.login('00000000-0000-4000-a000-000000000003', 'rlstest.mmember@highfy.pk');
+set local role authenticated;
+select pg_temp.denied('select * from public.calendar_links', 'users cannot read calendar links');
+select pg_temp.denied($$update public.profiles set outlook_tasks_enabled = true where id = auth.uid()$$,
+  'users cannot update their profile directly');
+select public.set_outlook_tasks(true);
+reset role;
+select pg_temp.ok((select outlook_tasks_enabled from public.profiles where id = '00000000-0000-4000-a000-000000000003'),
+  'users can switch their own Outlook task sync on');
+select pg_temp.ok(not (select outlook_tasks_enabled from public.profiles where id = '00000000-0000-4000-a000-000000000006'),
+  'switching it on does not affect anyone else');
+
 select 'ALL RLS TESTS PASSED' as result;
 
 rollback;

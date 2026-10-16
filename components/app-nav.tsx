@@ -102,6 +102,13 @@ function NavBody({
           <p className="truncate text-sm font-semibold text-ink">{name}</p>
           <p className="truncate text-xs text-muted-foreground">{email}</p>
         </div>
+        <Link
+          href="/settings"
+          onClick={onNavigate}
+          className="flex items-center gap-2 rounded-[12px] px-3 py-1.5 text-sm font-medium text-ink-muted hover:bg-subtle hover:text-ink"
+        >
+          <Settings className="h-4 w-4" /> My settings
+        </Link>
         <form action="/auth/signout" method="post" className="px-1">
           <button
             type="submit"
