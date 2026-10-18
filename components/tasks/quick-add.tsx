@@ -50,7 +50,7 @@ export function QuickAdd({
           ref={input}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Add a task. Try: Send quote to Ali tomorrow !"
+          placeholder="Add a task. Try: Send quote to Ali tomorrow!"
           aria-label="New task"
           maxLength={320}
           className="h-10 min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-muted"
