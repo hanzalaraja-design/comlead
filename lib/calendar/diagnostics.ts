@@ -77,8 +77,16 @@ export async function runChecks(): Promise<Check[]> {
 
   try {
     const db = createAdminClient();
-    const { count, error } = await db.from("calendar_links").select("id", { count: "exact", head: true });
-    if (error) throw new Error(error.message);
+    // Not a HEAD request: those come back without the error text.
+    const { count, error, status } = await db.from("calendar_links").select("id", { count: "exact" }).limit(1);
+    if (error) {
+      const text = [error.message, error.code, error.details, error.hint].filter(Boolean).join(" ");
+      if (status === 401 || status === 403 || /api key|jwt/i.test(text))
+        throw new Error("service_role key rejected");
+      if (status === 404 || error.code === "PGRST205" || error.code === "42P01" || /calendar_links/.test(text))
+        throw new Error("calendar_links missing");
+      throw new Error(text || `Supabase answered with status ${status}.`);
+    }
     checks.push({ name: "Database", ok: true, detail: `Connected. ${count ?? 0} Outlook events are being tracked.` });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -86,8 +94,10 @@ export async function runChecks(): Promise<Check[]> {
       name: "Database",
       ok: false,
       detail: /calendar_links/.test(msg)
-        ? "The calendar table is missing. Run highfy-update-3-outlook.sql in the Supabase SQL Editor."
-        : explain(msg),
+        ? "The calendar table is missing. Run the Outlook database update (supabase/migrations/20261016000700_outlook_calendar.sql) in the Supabase SQL Editor."
+        : /service_role/.test(msg)
+          ? "Supabase rejected SUPABASE_SERVICE_ROLE_KEY. Copy the service_role (or secret) key again from Supabase → Project Settings → API Keys, update it in Vercel, then redeploy."
+          : explain(msg) || "Couldn't read the calendar table, and Supabase gave no reason.",
     });
     return checks;
   }
