@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TimeSelect } from "@/components/time-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -207,7 +208,7 @@ export function MeetingEditor({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="m-time">Time</Label>
-          <Input id="m-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-10" />
+          <TimeSelect id="m-time" value={time} onChange={setTime} emptyLabel="No time" />
         </div>
         <div className="space-y-1.5 sm:col-span-2">
           <Label>Attendees</Label>
