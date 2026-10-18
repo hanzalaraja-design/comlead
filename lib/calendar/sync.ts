@@ -70,12 +70,17 @@ type SeriesRow = {
   duration_minutes: number;
   external_emails: string[];
   archived: boolean;
+  created_by: string | null;
 };
 
-async function seriesAttendees(db: Db, seriesId: string, external: string[]) {
-  const [{ data: people }, { data: depts }] = await Promise.all([
+/** Everyone the invite goes to: the organiser, invited people, members of invited teams, outside guests. */
+async function seriesAttendees(db: Db, seriesId: string, external: string[], organiserId: string | null) {
+  const [{ data: people }, { data: depts }, { data: organiser }] = await Promise.all([
     db.from("meeting_series_people").select("profiles!inner(email, full_name, status)").eq("series_id", seriesId),
     db.from("meeting_series_departments").select("department_id").eq("series_id", seriesId),
+    organiserId
+      ? db.from("profiles").select("email, full_name, status").eq("id", organiserId)
+      : Promise.resolve({ data: [] as { email: string; full_name: string | null; status: string }[] }),
   ]);
   const deptIds = (depts ?? []).map((d) => d.department_id as string);
   const { data: members } = deptIds.length
@@ -83,7 +88,8 @@ async function seriesAttendees(db: Db, seriesId: string, external: string[]) {
     : { data: [] };
   type P = { profiles: { email: string; full_name: string | null; status: string } };
   const byEmail = new Map<string, string>();
-  for (const row of [...((people ?? []) as unknown as P[]), ...((members ?? []) as unknown as P[])]) {
+  const organiserRows = ((organiser ?? []) as P["profiles"][]).map((profiles) => ({ profiles }));
+  for (const row of [...organiserRows, ...((people ?? []) as unknown as P[]), ...((members ?? []) as unknown as P[])]) {
     if (row.profiles.status === "active") byEmail.set(row.profiles.email.toLowerCase(), row.profiles.full_name ?? row.profiles.email);
   }
   for (const e of external) if (!byEmail.has(e.toLowerCase())) byEmail.set(e.toLowerCase(), e);
@@ -96,7 +102,7 @@ export function syncSeries(seriesId: string) {
     const [{ data: series }, { data: links }] = await Promise.all([
       db
         .from("meeting_series")
-        .select("id, title, kind, frequency, start_date, meeting_time, duration_minutes, external_emails, archived")
+        .select("id, title, kind, frequency, start_date, meeting_time, duration_minutes, external_emails, archived, created_by")
         .eq("id", seriesId)
         .maybeSingle(),
       db.from("calendar_links").select("id, mailbox, outlook_event_id, synced_hash").eq("kind", "meeting_series").eq("series_id", seriesId),
@@ -112,7 +118,7 @@ export function syncSeries(seriesId: string) {
       return; // A past one-off keeps its event as it was.
     }
 
-    const attendees = await seriesAttendees(db, s.id, s.kind === "external" ? s.external_emails : []);
+    const attendees = await seriesAttendees(db, s.id, s.kind === "external" ? s.external_emails : [], s.created_by);
     const time = String(s.meeting_time).slice(0, 5);
     const minutesUrl = `${siteUrl()}/meetings/series/${s.id}`;
     const shape = { ...s, time, first: s.frequency === "once" ? s.start_date : first, attendees: attendees.map((a) => a.email), minutesUrl };
@@ -176,6 +182,19 @@ export function syncSeries(seriesId: string) {
       synced_hash: fingerprint,
     });
   });
+}
+
+/** For the meeting's edit page: who the invite goes to, and whether it's in Outlook yet. */
+export async function seriesOutlookStatus(seriesId: string) {
+  if (!isCalendarConfigured()) return null;
+  const db = createAdminClient();
+  const [{ data: s }, { data: links }] = await Promise.all([
+    db.from("meeting_series").select("kind, external_emails, created_by").eq("id", seriesId).maybeSingle(),
+    db.from("calendar_links").select("id, updated_at").eq("kind", "meeting_series").eq("series_id", seriesId),
+  ]);
+  if (!s) return null;
+  const invitees = await seriesAttendees(db, seriesId, s.kind === "external" ? (s.external_emails as string[]) : [], s.created_by as string | null);
+  return { invitees, sent: !!links?.length, sentAt: (links?.[0]?.updated_at as string | undefined) ?? null };
 }
 
 async function cancelSeries(db: Db, link: Link, comment: string) {

@@ -183,6 +183,7 @@ export function SeriesForm({
 
       <div className="space-y-1.5">
         <Label>Invite people</Label>
+        <p className="text-xs text-ink-muted">You&apos;re always invited to meetings you set up.</p>
         <MultiSelect
           label="People"
           className="h-10 w-full justify-between rounded-[12px]"
