@@ -79,7 +79,7 @@ export default async function CalendarPage({
         }
       />
       <TaskViewTabs active="calendar" search={filtersToSearch(base)} />
-      <TaskFilterBar filters={base} options={options} hide={["sort"]} allowSave={false} preserve={{ month: monthParam }} />
+      <TaskFilterBar filters={base} options={options} hide={["sort"]} preserve={{ month: monthParam }} />
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       {/* Desktop: month grid */}
@@ -103,7 +103,7 @@ export default async function CalendarPage({
                 <div
                   className={cn(
                     "mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs",
-                    day === today ? "bg-brand-accent font-bold text-ink" : !inMonth && "text-muted-foreground",
+                    day === today ? "bg-info-soft font-bold text-info-ink" : !inMonth && "text-muted-foreground",
                   )}
                 >
                   {Number(day.slice(8))}
@@ -117,7 +117,7 @@ export default async function CalendarPage({
                         className={cn(
                           "block truncate rounded px-1.5 py-0.5 text-[11px]",
                           STATUS_STYLES[t.status],
-                          t.overdue && "ring-2 ring-brand-accent",
+                          t.overdue && "ring-2 ring-danger",
                         )}
                       >
                         {t.due_time && <span className="opacity-70">{formatTime(t.due_time)} </span>}

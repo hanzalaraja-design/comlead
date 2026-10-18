@@ -13,27 +13,28 @@ Tailwind CSS and shadcn/ui. All dates and "today" logic use Asia/Karachi (PKT).
 | Area | Where |
 |---|---|
 | Sign in with Microsoft, `@highfy.pk` only, pending approval | `/login`, `app/auth/*`, `lib/supabase/proxy.ts`, `/pending` |
-| My Tasks (Overdue / Today / This week / Later / No date) | `/my` |
-| List view with combinable, shareable URL filters and saved views | `/tasks` |
+| My tasks: one inbox for tasks assigned to you, tasks you collaborate on and @mentions; quick add (type and press Enter); weekly progress ring | `/my` |
+| List view with combinable, shareable URL filters (less-used ones under "More") | `/tasks` |
 | Status board across departments, and per department | `/tasks/board`, `/departments/[slug]` |
-| Timeline (Gantt): start date → due date, by department or person | `/tasks/timeline` |
 | Calendar view | `/tasks/calendar` |
 | Overdue across departments | `/overdue` |
-| Task detail: comments, attachments, history | `/tasks/[id]` |
-| Meetings: archive, full-text search, minutes, decisions, action items, last week's carry-forward | `/meetings`, `/meetings/[id]` |
+| Task detail: comments with @mentions, attachments, history | `/tasks/[id]` |
+| Meetings: set up one-off, weekly, fortnightly or monthly meetings (internal or external), sent to Outlook; upcoming list; archive and search; agenda, minutes, action items, last time's carry-forward | `/meetings`, `/meetings/new`, `/meetings/series/[id]`, `/meetings/[id]` |
 | Activity: per person per day with summary, team view per day | `/activity` |
-| CEO dashboard (click any number for the list behind it) | `/admin` |
-| People approval and per-department roles | `/admin/users` |
-| Departments, sub-teams, weekly meeting schedule | `/admin/departments`, `/departments/[slug]/team` |
+| CEO dashboard with department leaderboard (click any number for the list behind it) | `/admin` |
+| People approval, per-team roles, departments and project teams | `/admin/users`, `/departments/[slug]/team` |
 
 ### Access rules (enforced in the database with RLS)
 
-- **Admin**: everything.
-- **Lead** (per department): full control of their department; read-only view of other departments' tasks and meetings. Can add/remove Members and set the meeting schedule.
-- **Member**: only their own departments. Can create tasks, and edit tasks they own, collaborate on or created. Cannot see other departments at all.
-- Any department member can start a meeting. **Anyone in the meeting** (attendees, the person who started it, the department's Leads, Admin) can write the minutes, decisions and action items, and reassign action items. Attendees from other departments can open that meeting. Only Leads/Admin delete meetings.
-- Only Leads/Admin reassign someone else's (non-meeting) task or move tasks between departments.
-- Activity log: Admin sees all, Leads their departments, Members their own. Nobody can edit or delete entries (not even the database owner).
+- **Admin** (company-wide): everything.
+- **Dept admin** (per department, stored as role `lead`): full control of that department. Can add/remove Members.
+- **Member** (per department): can create tasks, and edit tasks they own, collaborate on or created.
+- Work is organised in **teams**: a team is either a **department** or a **project team** (people from several departments working together). Both work the same way. There are no sub-teams.
+- People see **only the teams they belong to**, plus any task they own or collaborate on. A person can be in any number of teams, as Member in some and Dept admin in others.
+- **@mentions** add the tagged person as a collaborator (so they can open the task) and put it in their inbox.
+- **Meetings**: any department member can set one up for their department and invite other departments, people and (for external meetings) outside email addresses. Whoever set it up and the department's admins can change or cancel it. Everyone invited can open its agenda and minutes; anyone in the meeting can write them and add action items.
+- Only Dept admins/Admin reassign someone else's (non-meeting) task or move tasks between departments.
+- Activity log: Admin sees all, Dept admins their departments, Members their own. Nobody can edit or delete entries (not even the database owner).
 - The `@highfy.pk` domain is checked in four places: Microsoft single-tenant app, the OAuth callback, every request (proxy), and the database (sign-up is rejected and every policy checks the JWT email).
 
 ## Setup
@@ -87,8 +88,8 @@ Never add `SUPABASE_ACCESS_TOKEN` or a service-role key to Vercel; the app doesn
 
 ### 5. Outlook calendar (optional, Phase 2)
 
-Weekly department meetings are sent as recurring Outlook invites from a shared
-mailbox; people can also switch on "Show my tasks in Outlook" under **My
+Meetings set up under **Meetings** are sent as Outlook invites (recurring or
+one-off) from a shared mailbox, and kept in step when they change or are cancelled; people can also switch on "Show my tasks in Outlook" under **My
 settings**. Sync runs after each change and nightly (`vercel.json` cron, 02:00 PKT).
 
 1. Create a shared mailbox, e.g. `tasks@highfy.pk`.
@@ -107,7 +108,7 @@ The app only edits events it created (tracked in `calendar_links`).
 
 The meeting editor can use Claude to:
 
-- **Tidy up**: turn rough notes into structured minutes, and pick out decisions.
+- **Tidy up**: turn rough notes into structured minutes.
 - **Suggest action items**: with owner, due date and priority. Each one has a
   **Create task** button.
 - **Draft agenda**: built from last week's open action items and the
@@ -117,7 +118,7 @@ The meeting editor can use Claude to:
 Everything it produces is a draft. Nothing changes until someone clicks
 **Use this agenda**, **Replace my notes** or **Create task**, and replaced
 notes can be undone until you save. Only people who can edit the meeting
-(attendees, the department Lead, Admin) see the buttons, and the server checks
+(attendees, the department admin, Admin) see the buttons, and the server checks
 the same rule before every call.
 
 To turn it on, add `ANTHROPIC_API_KEY` in Vercel (Settings, Environment
@@ -129,7 +130,7 @@ recommended fallback model.
 
 `hanzala@highfy.pk` becomes an active Admin on first sign-in. Everyone else
 lands on "Waiting for approval" until an Admin approves them under **People**
-and adds them to a department (as Member or Lead).
+and adds them to a department (as Member or Dept admin).
 
 ## Development
 

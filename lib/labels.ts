@@ -29,15 +29,15 @@ export const sourceLabel = (s: TaskSource) => SOURCES.find((x) => x.value === s)
 // needs attention (blocked, urgent, overdue).
 export const STATUS_STYLES: Record<TaskStatus, string> = {
   todo: "border border-line bg-white text-ink",
-  in_progress: "bg-brand-primary text-white",
-  blocked: "bg-brand-accent text-ink",
-  done: "bg-subtle text-ink-muted",
+  in_progress: "bg-info-soft text-info-ink",
+  blocked: "bg-warning-soft text-warning-ink",
+  done: "bg-success-soft text-success-ink",
   cancelled: "border border-line bg-white text-ink-muted line-through",
 };
 
 export const PRIORITY_STYLES: Record<TaskPriority, string> = {
-  urgent: "bg-brand-accent text-ink",
-  high: "bg-ink text-white",
+  urgent: "bg-danger-soft text-danger-ink",
+  high: "bg-warning-soft text-warning-ink",
   medium: "bg-subtle text-ink",
   low: "text-ink-muted",
 };

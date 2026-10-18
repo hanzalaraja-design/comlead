@@ -24,7 +24,6 @@ export default async function NewTaskPage({
         <div className="card-outlined p-4 md:p-6">
         <TaskForm
           departments={data.departments}
-          subTeams={data.subTeams}
           people={data.people}
           membersByDept={data.membersByDept}
           defaultDepartmentId={defaultDept}

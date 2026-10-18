@@ -6,7 +6,7 @@ export function DepartmentTabs({ slug, active }: { slug: string; active: "board"
     { key: "board", label: "Board", href: `/departments/${slug}` },
     { key: "list", label: "List", href: `/tasks?dept=${slug}` },
     { key: "meetings", label: "Meetings", href: `/meetings?dept=${slug}` },
-    { key: "team", label: "Team & schedule", href: `/departments/${slug}/team` },
+    { key: "team", label: "People", href: `/departments/${slug}/team` },
   ] as const;
   return (
     <nav className="-mx-4 mb-4 flex gap-1 overflow-x-auto border-b px-4 md:mx-0 md:px-0">

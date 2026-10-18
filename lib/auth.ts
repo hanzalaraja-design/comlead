@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Department, DeptRole, Profile, SubTeam } from "@/lib/types";
+import type { Department, DeptRole, Profile } from "@/lib/types";
 
 export const ALLOWED_DOMAIN = "highfy.pk";
 
@@ -64,11 +64,14 @@ export async function requireAdmin(): Promise<Viewer> {
   return viewer;
 }
 
-export function canLead(viewer: Viewer, departmentId: string): boolean {
+/** Personal tasks (no department) belong to their owner only, Admin included. */
+export function canLead(viewer: Viewer, departmentId: string | null): boolean {
+  if (!departmentId) return false;
   return viewer.isAdmin || viewer.leadDeptIds.includes(departmentId);
 }
 
-export function isMemberOf(viewer: Viewer, departmentId: string): boolean {
+export function isMemberOf(viewer: Viewer, departmentId: string | null): boolean {
+  if (!departmentId) return false;
   return viewer.isAdmin || viewer.memberDeptIds.includes(departmentId);
 }
 
@@ -77,17 +80,12 @@ export const getDepartments = cache(async (): Promise<Department[]> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("departments")
-    .select("id, name, slug, archived, sort_order, meeting_weekday, meeting_time, meeting_duration_minutes")
+    .select("id, name, slug, archived, sort_order, meeting_weekday, meeting_time, meeting_duration_minutes, kind")
     .order("sort_order")
     .order("name");
   return (data ?? []) as Department[];
 });
 
-export const getSubTeams = cache(async (): Promise<SubTeam[]> => {
-  const supabase = await createClient();
-  const { data } = await supabase.from("sub_teams").select("id, department_id, name, archived").order("name");
-  return (data ?? []) as SubTeam[];
-});
 
 /** Active people, for owner / attendee pickers. */
 export const getPeople = cache(async () => {

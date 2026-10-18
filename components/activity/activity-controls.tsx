@@ -48,7 +48,7 @@ export function ActivityControls({
         </select>
       )}
       {view === "team" && departments.length > 1 && (
-        <select aria-label="Department" value={dept} onChange={(e) => set("dept", e.target.value)} className={sel}>
+        <select aria-label="Team" value={dept} onChange={(e) => set("dept", e.target.value)} className={sel}>
           <option value="">All departments</option>
           {departments.map((d) => (
             <option key={d.value} value={d.value}>

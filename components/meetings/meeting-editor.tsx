@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/multi-select";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { PRIORITIES, personName } from "@/lib/labels";
-import type { Meeting, PersonRef, SubTeam, TaskPriority, TaskStatus } from "@/lib/types";
+import type { Meeting, PersonRef, TaskPriority, TaskStatus } from "@/lib/types";
 import { deleteMeeting, saveMeeting } from "@/app/(app)/meetings/actions";
 import { StatusBadge } from "@/components/tasks/task-badges";
 import { RichTextView } from "@/components/rich-text-view";
@@ -44,7 +44,6 @@ export function MeetingEditor({
   actionItems,
   people,
   memberIds,
-  subTeams,
   canDelete,
   aiEnabled = false,
 }: {
@@ -54,7 +53,6 @@ export function MeetingEditor({
   people: PersonRef[];
   /** Department members: suggested owners. */
   memberIds: string[];
-  subTeams: SubTeam[];
   /** Only Leads and Admin may delete a meeting. */
   canDelete: boolean;
   /** Show the assistant (Claude API key set). Only editors see this editor at all. */
@@ -66,12 +64,9 @@ export function MeetingEditor({
   const [title, setTitle] = useState(meeting.title ?? "");
   const [date, setDate] = useState(meeting.meeting_date);
   const [time, setTime] = useState(meeting.meeting_time?.slice(0, 5) ?? "");
-  const [subTeam, setSubTeam] = useState(meeting.sub_team_id ?? "");
   const [attendees, setAttendees] = useState(attendeeIds);
   const [agenda, setAgenda] = useState(meeting.agenda ?? "");
   const [minutes, setMinutes] = useState(meeting.minutes ?? "");
-  const [decisions, setDecisions] = useState<string[]>(meeting.decisions);
-  const [decisionDraft, setDecisionDraft] = useState("");
   const [existing, setExisting] = useState(actionItems);
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
 
@@ -93,17 +88,15 @@ export function MeetingEditor({
 
   function acceptTidy() {
     if (!tidyDraft) return;
-    const before = { minutes, decisions };
+    const before = minutes;
     setMinutes(tidyDraft.html);
-    setDecisions((ds) => [...ds, ...tidyDraft.decisions]);
     setMinutesKey((k) => k + 1);
     setTidyDraft(null);
     toast.success("Minutes replaced. Save to keep them.", {
       action: {
         label: "Undo",
         onClick: () => {
-          setMinutes(before.minutes);
-          setDecisions(before.decisions);
+          setMinutes(before);
           setMinutesKey((k) => k + 1);
         },
       },
@@ -178,25 +171,15 @@ export function MeetingEditor({
     </select>
   );
 
-  function addDecision() {
-    const d = decisionDraft.trim();
-    if (!d) return;
-    setDecisions((ds) => [...ds, d]);
-    setDecisionDraft("");
-  }
-
   function save() {
-    const pendingDecision = decisionDraft.trim();
     startTransition(async () => {
       const res = await saveMeeting(meeting.id, {
         title: title || null,
         meeting_date: date,
         meeting_time: time || null,
-        sub_team_id: subTeam || null,
         attendees,
         agenda: agenda || null,
         minutes: minutes || null,
-        decisions: pendingDecision ? [...decisions, pendingDecision] : decisions,
         existingItems: existing.map(({ id, title, owner_id, due_date, priority }) => ({ id, title, owner_id, due_date, priority })),
         newItems: drafts
           .filter((d) => d.title.trim())
@@ -225,19 +208,6 @@ export function MeetingEditor({
           <Label htmlFor="m-time">Time</Label>
           <Input id="m-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-10" />
         </div>
-        {subTeams.length > 0 && (
-          <div className="space-y-1.5">
-            <Label htmlFor="m-sub">Sub-team</Label>
-            <select id="m-sub" value={subTeam} onChange={(e) => setSubTeam(e.target.value)} className={`${fieldClass} h-10 w-full`}>
-              <option value="">Whole department</option>
-              {subTeams.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
         <div className="space-y-1.5 sm:col-span-2">
           <Label>Attendees</Label>
           <div>
@@ -304,48 +274,8 @@ export function MeetingEditor({
             <div className="rounded-[12px] bg-white p-3">
               <RichTextView html={tidyDraft.html} className="text-sm" />
             </div>
-            {tidyDraft.decisions.length > 0 && (
-              <div>
-                <p className="mb-1 text-xs font-medium text-ink-muted">Decisions to add</p>
-                <ul className="list-disc space-y-0.5 pl-5 text-sm text-ink">
-                  {tidyDraft.decisions.map((d, i) => (
-                    <li key={i}>{d}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </DraftPanel>
         )}
-      </div>
-
-      <div className="space-y-2">
-        <Label>Decisions</Label>
-        <ul className="space-y-1">
-          {decisions.map((d, i) => (
-            <li key={i} className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
-              <span className="flex-1">{d}</span>
-              <button type="button" aria-label="Remove decision" onClick={() => setDecisions((ds) => ds.filter((_, j) => j !== i))}>
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="flex gap-2">
-          <Input
-            value={decisionDraft}
-            onChange={(e) => setDecisionDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addDecision();
-              }
-            }}
-            placeholder="Add a decision"
-          />
-          <Button type="button" variant="outline" onClick={addDecision}>
-            Add
-          </Button>
-        </div>
       </div>
 
       <div className="space-y-2">

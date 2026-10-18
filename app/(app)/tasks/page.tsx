@@ -2,16 +2,13 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/page-header";
-import { SavedViews } from "@/components/tasks/saved-views";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskViewTabs } from "@/components/tasks/task-view-tabs";
 import { getDepartments, requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
 import { filtersToSearch, parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { TASK_LIMIT, fetchTasks } from "@/lib/tasks/queries";
-import type { SavedView } from "@/lib/types";
 
 export const metadata = { title: "All tasks · Highfy Tasks" };
 
@@ -22,13 +19,7 @@ export default async function TasksPage({
 }) {
   const viewer = await requireViewer();
   const filters = parseFilters(await searchParams);
-  const supabase = await createClient();
-
-  const [departments, options, viewsRes] = await Promise.all([
-    getDepartments(),
-    getFilterOptions(),
-    supabase.from("saved_views").select("id, name, path, created_at").order("name"),
-  ]);
+  const [departments, options] = await Promise.all([getDepartments(), getFilterOptions()]);
   const { tasks, truncated, error } = await fetchTasks(filters, { viewerId: viewer.id, departments });
 
   return (
@@ -46,7 +37,6 @@ export default async function TasksPage({
         }
       />
       <TaskViewTabs active="list" search={filtersToSearch(filters)} />
-      <SavedViews views={(viewsRes.data ?? []) as SavedView[]} />
       <TaskFilterBar filters={filters} options={options} />
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
       {tasks.length ? (

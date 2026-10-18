@@ -1,20 +1,6 @@
-import { PageHeader } from "@/components/page-header";
-import { DepartmentsSetup } from "@/components/admin/departments-setup";
-import { getDepartments, getSubTeams, requireAdmin } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Departments setup · Highfy Tasks" };
-
-export default async function AdminDepartmentsPage() {
-  await requireAdmin();
-  const [departments, subTeams] = await Promise.all([getDepartments(), getSubTeams()]);
-  return (
-    <>
-      <PageHeader
-        breadcrumb={["Admin", "Departments setup"]}
-        title="Departments setup"
-        description="Rename, reorder or archive departments, set weekly meeting times and manage sub-teams. Assign Leads under People."
-      />
-      <DepartmentsSetup departments={departments} subTeams={subTeams} />
-    </>
-  );
+/** Departments are managed at the bottom of People now. */
+export default function AdminDepartmentsPage() {
+  redirect("/admin/users#departments");
 }

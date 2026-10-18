@@ -41,7 +41,7 @@ export function OutlookPanel({ initial }: { initial: Check[] }) {
       <section className="surface p-4 md:p-6">
         <h2 className="kicker mb-1">Sync everything now</h2>
         <p className="mb-4 text-[13px] text-ink-muted">
-          Sends or updates every department&apos;s weekly invite and the task events of people who switched them on. The same thing
+          Sends or updates the Outlook invite for every meeting set up here, and the task events of people who switched them on. The same thing
           runs every night at 2am.
         </p>
         <Button disabled={pending || !allOk} onClick={() => startTransition(async () => setSync(await syncEverythingNow()))}>
@@ -51,7 +51,7 @@ export function OutlookPanel({ initial }: { initial: Check[] }) {
         {sync && (
           <div className="mt-4 space-y-2 text-sm">
             <p>
-              Checked {sync.departments} departments and {sync.tasks} tasks.{" "}
+              Checked {sync.departments} meetings and {sync.tasks} tasks.{" "}
               {sync.errors.length ? `${sync.errors.length} problem${sync.errors.length === 1 ? "" : "s"}:` : "No problems."}
             </p>
             {sync.errors.length > 0 && (

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { PRIORITY_STYLES, STATUS_STYLES, priorityLabel, statusLabel } from "@/lib/labels";
-import { formatDue } from "@/lib/time";
+import { addDaysISO, formatDue, todayPKT } from "@/lib/time";
 import type { TaskPriority, TaskStatus } from "@/lib/types";
 
 export function StatusBadge({ status, className }: { status: TaskStatus; className?: string }) {
@@ -31,11 +31,17 @@ export function DueLabel({
   className?: string;
 }) {
   if (!date) return <span className={cn("text-xs text-muted-foreground", className)}>No date</span>;
+  const today = todayPKT();
+  const soon = !overdue && date <= addDaysISO(today, 1);
   return (
     <span
       className={cn(
         "whitespace-nowrap text-[13px] font-medium",
-        overdue ? "rounded-full bg-brand-accent px-2 py-0.5 font-semibold text-ink" : "text-ink-muted",
+        overdue
+          ? "rounded-full bg-danger-soft px-2 py-0.5 font-semibold text-danger-ink"
+          : soon
+            ? "rounded-full bg-warning-soft px-2 py-0.5 font-semibold text-warning-ink"
+            : "text-ink-muted",
         className,
       )}
     >

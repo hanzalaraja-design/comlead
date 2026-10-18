@@ -5,12 +5,11 @@ import type { Department, TaskRow } from "@/lib/types";
 import type { TaskFilters } from "./filters";
 
 export const TASK_SELECT = `
-  id, title, description, department_id, sub_team_id, owner_id, status, priority,
-  start_date, due_date, due_time, source, meeting_id, tags, blocked_reason, created_by,
+  id, title, description, department_id, owner_id, status, priority,
+  due_date, due_time, source, meeting_id, tags, blocked_reason, created_by,
   created_at, updated_at, completed_at, overdue,
   owner:profiles!tasks_owner_id_fkey(id, email, full_name, avatar_url),
   department:departments(id, name, slug),
-  sub_team:sub_teams(id, name),
   meeting:meetings!tasks_meeting_id_fkey(id, title, meeting_date)
 `;
 
@@ -52,7 +51,6 @@ export async function fetchTasks(
     // Unknown / invisible slug → nothing.
     q = q.in("department_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
   }
-  if (filters.sub.length) q = q.in("sub_team_id", filters.sub);
   if (filters.meeting) q = q.eq("meeting_id", filters.meeting);
   if (filters.tags.length) q = q.overlaps("tags", filters.tags);
   if (filters.overdue) q = q.eq("overdue", true);

@@ -1,78 +1,45 @@
-import { addDays, format, startOfWeek } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { EmptyState, PageHeader } from "@/components/page-header";
-import { getDepartments, isMemberOf, requireViewer } from "@/lib/auth";
-import { nowPKT, todayPKT } from "@/lib/time";
-import type { Department } from "@/lib/types";
-import { createMeeting } from "../actions";
+import { SeriesForm } from "@/components/meetings/series-form";
+import { getPeople, requireViewer } from "@/lib/auth";
+import { departmentsForSetup } from "@/lib/meetings";
+import { todayPKT } from "@/lib/time";
 
 export const metadata = { title: "New meeting · Highfy Tasks" };
 
-/** This week's scheduled day if it hasn't passed, else today. */
-function suggestedDate(d: Department | undefined): string {
-  const today = todayPKT();
-  if (!d?.meeting_weekday) return today;
-  const scheduled = format(addDays(startOfWeek(nowPKT(), { weekStartsOn: 1 }), d.meeting_weekday - 1), "yyyy-MM-dd");
-  return scheduled >= today ? scheduled : today;
-}
-
-export default async function NewMeetingPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ dept?: string; error?: string }>;
-}) {
+export default async function NewMeetingPage({ searchParams }: { searchParams: Promise<{ dept?: string }> }) {
   const viewer = await requireViewer();
-  const { dept: deptSlug, error } = await searchParams;
-  const departments = (await getDepartments()).filter((d) => !d.archived && isMemberOf(viewer, d.id));
-  const selected = departments.find((d) => d.slug === deptSlug) ?? departments[0];
+  const [{ dept }, departments, people] = await Promise.all([searchParams, departmentsForSetup(viewer), getPeople()]);
+  const mine = departments.filter((d) => d.mine);
+  const home = mine.find((d) => d.id === dept) ?? mine[0];
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto max-w-2xl">
       <PageHeader
         breadcrumb={[{ label: "Meetings", href: "/meetings" }, "New meeting"]}
         title="New meeting"
-        description="Last week's action items will be shown at the top."
+        description="Set it once. It goes to everyone's Outlook, and the agenda and minutes live here."
       />
-      {departments.length === 0 ? (
-        <EmptyState>You need to be in a department to start a meeting. Ask an Admin to add you.</EmptyState>
+      {!home ? (
+        <EmptyState>You need to be in a department to set up a meeting. Ask an Admin to add you.</EmptyState>
       ) : (
-        <form action={createMeeting} className="card-outlined space-y-4 p-4 md:p-6">
-          {error && <p className="text-sm text-danger">{error === "invalid" ? "Please check the date." : error}</p>}
-          <div className="space-y-1.5">
-            <Label htmlFor="department_id">Department</Label>
-            <select
-              id="department_id"
-              name="department_id"
-              defaultValue={selected?.id}
-              className="h-10 w-full field px-3 text-sm"
-            >
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="title">Title</Label>
-            <Input id="title" name="title" defaultValue={selected ? `${selected.name} weekly` : ""} className="h-10" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="meeting_date">Date</Label>
-              <Input id="meeting_date" name="meeting_date" type="date" required defaultValue={suggestedDate(selected)} className="h-10" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="meeting_time">Time</Label>
-              <Input id="meeting_time" name="meeting_time" type="time" defaultValue={selected?.meeting_time?.slice(0, 5) ?? ""} className="h-10" />
-            </div>
-          </div>
-          <Button type="submit" className="w-full sm:w-auto">
-            Create and write minutes
-          </Button>
-        </form>
+        <SeriesForm
+          id={null}
+          departments={departments}
+          people={people}
+          canCancel={false}
+          initial={{
+            title: "",
+            department_id: home.id,
+            kind: "internal",
+            frequency: "weekly",
+            start_date: todayPKT(),
+            meeting_time: "11:00",
+            duration_minutes: 60,
+            department_ids: [home.id],
+            user_ids: [],
+            external_emails: [],
+          }}
+        />
       )}
     </div>
   );

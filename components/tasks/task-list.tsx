@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { NotebookPen } from "lucide-react";
 import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel, PriorityBadge, TagList } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
-import { personName } from "@/lib/labels";
-import { formatPKT } from "@/lib/time";
+import { OPEN_STATUSES, personName } from "@/lib/labels";
+import { CompleteButton } from "@/components/tasks/complete-button";
+import { formatPKT, todayPKT } from "@/lib/time";
 import type { TaskListRow } from "@/lib/tasks/queries";
 
 /**
@@ -15,23 +17,27 @@ export function TaskList({
   tasks,
   showDepartment = true,
   showCompleted = false,
+  showOwner = true,
 }: {
   tasks: TaskListRow[];
   showDepartment?: boolean;
   showCompleted?: boolean;
+  /** Off on My tasks, where every task is yours. */
+  showOwner?: boolean;
 }) {
+  const cols = showOwner ? "md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem]" : "md:grid-cols-[7.5rem_minmax(0,1fr)_8rem_9rem]";
   return (
     <div className="overflow-hidden surface">
-      <div className="hidden grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] gap-3 bg-subtle px-4 py-2.5 text-[13px] font-bold text-ink md:grid">
+      <div className={cn("hidden gap-3 bg-subtle px-4 py-2.5 text-[13px] font-bold text-ink md:grid", cols)}>
         <span>Status</span>
         <span>Task</span>
-        <span>Owner</span>
+        {showOwner && <span>Owner</span>}
         <span>Priority</span>
         <span>{showCompleted ? "Completed" : "Due"}</span>
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} />
+          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} />
         ))}
       </ul>
     </div>
@@ -42,29 +48,49 @@ function TaskListItem({
   task: t,
   showDepartment,
   showCompleted,
+  showOwner,
+  cols,
 }: {
   task: TaskListRow;
   showDepartment: boolean;
   showCompleted: boolean;
+  showOwner: boolean;
+  cols: string;
 }) {
+  const today = todayPKT();
   return (
-    <li className="relative px-4 py-3 hover:bg-subtle/60 md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] md:items-center md:gap-3 md:py-2">
+    <li
+      className={cn(
+        "relative px-4 py-3 hover:bg-subtle/60 md:grid md:items-center md:gap-3 md:py-2",
+        cols,
+        t.overdue && "before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-danger",
+        t.status === "done" && "opacity-70",
+      )}
+    >
       <div className="hidden md:block">
         <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
       </div>
 
       <div className="min-w-0">
-        <Link href={`/tasks/${t.id}`} className="block font-semibold leading-snug text-ink after:absolute after:inset-0">
-          <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
-        </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <div className="flex items-start gap-2.5">
+          {OPEN_STATUSES.includes(t.status) && (
+            <CompleteButton
+              taskId={t.id}
+              title={t.title}
+              dueByToday={t.overdue || (!!t.due_date && t.due_date <= today)}
+              className="mt-0.5"
+            />
+          )}
+          <Link href={`/tasks/${t.id}`} className="block min-w-0 font-semibold leading-snug text-ink after:absolute after:inset-0">
+            <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
+          </Link>
+        </div>
+        <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
           {showDepartment && t.department && (
             <span>
               {t.department.name}
-              {t.sub_team && ` · ${t.sub_team.name}`}
             </span>
           )}
-          {!showDepartment && t.sub_team && <span>{t.sub_team.name}</span>}
           {t.meeting && (
             <span className="inline-flex items-center gap-1">
               <NotebookPen className="h-3 w-3" /> From meeting
@@ -82,15 +108,19 @@ function TaskListItem({
         <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
         <PriorityBadge priority={t.priority} />
         <DueLabel date={t.due_date} time={t.due_time} overdue={t.overdue} />
-        <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-          <PersonAvatar person={t.owner} className="h-5 w-5" />
-        </span>
+        {showOwner && (
+          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+            <PersonAvatar person={t.owner} className="h-5 w-5" />
+          </span>
+        )}
       </div>
 
-      <div className="hidden items-center gap-2 text-sm md:flex">
-        <PersonAvatar person={t.owner} />
-        <span className="truncate">{personName(t.owner)}</span>
-      </div>
+      {showOwner && (
+        <div className="hidden items-center gap-2 text-sm md:flex">
+          <PersonAvatar person={t.owner} />
+          <span className="truncate">{personName(t.owner)}</span>
+        </div>
+      )}
       <div className="hidden md:block">
         <PriorityBadge priority={t.priority} />
       </div>

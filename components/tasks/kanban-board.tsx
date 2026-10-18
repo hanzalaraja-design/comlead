@@ -113,9 +113,9 @@ export function KanbanBoard({
                     <Link href={`/tasks/${t.id}`} className="block text-sm font-medium leading-snug after:absolute after:inset-0">
                       {t.title}
                     </Link>
-                    {(showDepartment || t.sub_team) && (
+                    {showDepartment && t.department && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {[showDepartment ? t.department?.name : null, t.sub_team?.name].filter(Boolean).join(" · ")}
+                        {t.department.name}
                       </p>
                     )}
                     {t.status === "blocked" && t.blocked_reason && (

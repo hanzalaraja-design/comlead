@@ -7,7 +7,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
 import { TaskList } from "@/components/tasks/task-list";
 import { MeetingEditor } from "@/components/meetings/meeting-editor";
-import { canLead, getDepartmentMembers, getDepartments, getPeople, getSubTeams, requireViewer } from "@/lib/auth";
+import { canLead, getDepartmentMembers, getDepartments, getPeople, requireViewer } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { isAiConfigured } from "@/lib/ai/claude";
@@ -31,10 +31,9 @@ export default async function MeetingPage({
   if (!meetingData) notFound();
   const meeting = meetingData as Meeting;
 
-  const [departments, people, subTeams, members, attendeesRes, itemsRes, prevRes] = await Promise.all([
+  const [departments, people, members, attendeesRes, itemsRes, prevRes] = await Promise.all([
     getDepartments(),
     getPeople(),
-    getSubTeams(),
     getDepartmentMembers(),
     supabase.from("meeting_attendees").select("user_id").eq("meeting_id", id),
     supabase.from("tasks").select(TASK_SELECT).eq("meeting_id", id).order("created_at"),
@@ -42,7 +41,7 @@ export default async function MeetingPage({
     supabase
       .from("meetings")
       .select("id, title, meeting_date")
-      .eq("department_id", meeting.department_id)
+      .eq(meeting.series_id ? "series_id" : "department_id", meeting.series_id ?? meeting.department_id)
       .or(`meeting_date.lt.${meeting.meeting_date},and(meeting_date.eq.${meeting.meeting_date},created_at.lt."${meeting.created_at}")`)
       .order("meeting_date", { ascending: false })
       .order("created_at", { ascending: false })
@@ -51,7 +50,6 @@ export default async function MeetingPage({
   ]);
 
   const dept = departments.find((d) => d.id === meeting.department_id);
-  const subTeam = subTeams.find((s) => s.id === meeting.sub_team_id);
   const peopleById = new Map(people.map((p) => [p.id, p]));
   const attendeeIds = (attendeesRes.data ?? []).map((a) => a.user_id as string);
   const items = (itemsRes.data ?? []) as unknown as TaskListRow[];
@@ -123,7 +121,6 @@ export default async function MeetingPage({
           }))}
           people={people}
           memberIds={members.filter((m) => m.department_id === meeting.department_id).map((m) => m.user_id)}
-          subTeams={subTeams.filter((s) => s.department_id === meeting.department_id && !s.archived)}
           canDelete={isLead}
           aiEnabled={isAiConfigured()}
         />
@@ -145,7 +142,6 @@ export default async function MeetingPage({
           <>
             {formatDate(meeting.meeting_date, "EEEE d MMMM yyyy")}
             {meeting.meeting_time && ` · ${formatTime(meeting.meeting_time)}`}
-            {subTeam && ` · ${subTeam.name}`}
           </>
         }
         actions={
@@ -190,17 +186,6 @@ export default async function MeetingPage({
           <p className="text-sm text-muted-foreground">No minutes yet.</p>
         )}
       </section>
-
-      {meeting.decisions.length > 0 && (
-        <section className="surface p-4 md:p-6">
-          <h2 className="kicker mb-2 text-ink">Decisions</h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm">
-            {meeting.decisions.map((d, i) => (
-              <li key={i}>{d}</li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       <section>
         <h2 className="kicker mb-2 text-ink">Action items</h2>

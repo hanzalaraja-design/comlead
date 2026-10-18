@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { DepartmentTabs } from "@/components/department-tabs";
 import { PageHeader } from "@/components/page-header";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
+import { QuickAdd } from "@/components/tasks/quick-add";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { getDepartments, isMemberOf, requireViewer } from "@/lib/auth";
 import { parseFilters } from "@/lib/tasks/filters";
@@ -43,9 +44,9 @@ export default async function DepartmentBoardPage({
   return (
     <>
       <PageHeader
-        breadcrumb={[{ label: "Departments", href: "/departments" }, dept.name, "Board"]}
+        breadcrumb={[{ label: "Teams", href: "/departments" }, dept.name, "Board"]}
         title={dept.name}
-        description={member ? undefined : "View only. You can see this department but not change it."}
+        description={member ? undefined : "You're on a task here, so you can see it."}
         actions={
           member && (
             <Button asChild size="sm">
@@ -57,7 +58,12 @@ export default async function DepartmentBoardPage({
         }
       />
       <DepartmentTabs slug={slug} active="board" />
-      <TaskFilterBar filters={base} options={options} hide={["dept", "status", "sort"]} allowSave={false} />
+      {member && (
+        <div className="mb-4">
+          <QuickAdd departments={[{ id: dept.id, name: dept.name }]} defaultDepartmentId={dept.id} />
+        </div>
+      )}
+      <TaskFilterBar filters={base} options={options} hide={["dept", "status", "sort"]} />
       {(open.error || done.error) && <p className="mb-3 text-sm text-danger">{open.error || done.error}</p>}
       <KanbanBoard tasks={[...open.tasks, ...done.tasks]} canEdit={member} />
     </>

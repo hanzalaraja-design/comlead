@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { UserRow } from "@/components/admin/user-row";
+import { DepartmentsSetup } from "@/components/admin/departments-setup";
 import { getDepartmentMembers, getDepartments, requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { DeptRole, Profile } from "@/lib/types";
@@ -35,7 +36,7 @@ export default async function AdminUsersPage() {
       <PageHeader
         breadcrumb={["Admin", "People"]}
         title="People"
-        description="New people appear here after their first Microsoft sign-in. Roles are set per department."
+        description="New people appear here after their first Microsoft sign-in. Add people to as many departments and project teams as you like, as Member or Dept admin. Admin sees everything."
       />
       <div className="space-y-8">
         {groups.map((g) => {
@@ -55,6 +56,13 @@ export default async function AdminUsersPage() {
             </section>
           );
         })}
+        <section id="departments" className="scroll-mt-6">
+          <h2 className="kicker mb-1 text-ink">Departments and project teams</h2>
+          <p className="mb-2 text-xs text-muted-foreground">
+            A project team works like a department but brings together people from several departments.
+          </p>
+          <DepartmentsSetup departments={departments} />
+        </section>
       </div>
     </>
   );

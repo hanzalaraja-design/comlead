@@ -8,6 +8,7 @@ import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { isBlankHtml, sanitizeRichText } from "@/lib/sanitize";
 import { syncLater } from "@/lib/calendar/schedule";
 import { syncTask } from "@/lib/calendar/sync";
+import { addDaysISO, parseISODate, todayPKT } from "@/lib/time";
 
 const uuid = z.string().uuid();
 const optionalUuid = z
@@ -20,15 +21,9 @@ const taskSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   description: z.string().max(100_000).optional(),
   department_id: uuid,
-  sub_team_id: optionalUuid,
   owner_id: optionalUuid,
   status: z.enum(["todo", "in_progress", "blocked", "done", "cancelled"]),
   priority: z.enum(["urgent", "high", "medium", "low"]),
-  start_date: z
-    .string()
-    .optional()
-    .transform((v) => v || null)
-    .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
   due_date: z
     .string()
     .optional()
@@ -52,8 +47,6 @@ const taskSchema = z.object({
   blocked_reason: z.string().trim().max(1000).optional(),
   meeting_id: optionalUuid,
   collaborators: z.array(uuid).max(50),
-}).refine((v) => !v.start_date || !v.due_date || v.start_date <= v.due_date, {
-  message: "Start date must be on or before the due date",
 });
 
 function readTaskForm(formData: FormData) {
@@ -61,11 +54,9 @@ function readTaskForm(formData: FormData) {
     title: formData.get("title") ?? "",
     description: formData.get("description") ?? undefined,
     department_id: formData.get("department_id") ?? "",
-    sub_team_id: formData.get("sub_team_id") ?? undefined,
     owner_id: formData.get("owner_id") ?? undefined,
     status: formData.get("status") ?? "todo",
     priority: formData.get("priority") ?? "medium",
-    start_date: formData.get("start_date") ?? undefined,
     due_date: formData.get("due_date") ?? undefined,
     due_time: formData.get("due_time") ?? undefined,
     tags: formData.get("tags") ?? undefined,
@@ -93,11 +84,9 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
       title: v.title,
       description: isBlankHtml(v.description) ? null : sanitizeRichText(v.description),
       department_id: v.department_id,
-      sub_team_id: v.sub_team_id,
       owner_id: v.owner_id,
       status: v.status,
       priority: v.priority,
-      start_date: v.start_date,
       due_date: v.due_date,
       due_time: v.due_date ? v.due_time : null,
       tags: v.tags,
@@ -136,11 +125,9 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
       title: v.title,
       description: isBlankHtml(v.description) ? null : sanitizeRichText(v.description),
       department_id: v.department_id,
-      sub_team_id: v.sub_team_id,
       owner_id: v.owner_id,
       status: v.status,
       priority: v.priority,
-      start_date: v.start_date,
       due_date: v.due_date,
       due_time: v.due_date ? v.due_time : null,
       tags: v.tags,
@@ -183,6 +170,52 @@ const statusSchema = z.object({
   blockedReason: z.string().trim().max(1000).optional(),
 });
 
+/**
+ * Quick add: a title and Enter. A few words at the end set details:
+ * "today" / "tomorrow" / "fri" for the due date, "!" for high or "!!" for urgent.
+ * The task is assigned to whoever adds it, in their (first) department.
+ */
+export async function quickAddTask(input: string, departmentId: string | null): Promise<ActionResult<{ id: string }>> {
+  const viewer = await requireViewer();
+  let title = input.trim().replace(/\s+/g, " ");
+  const dept = departmentId ?? viewer.memberDeptIds[0];
+  if (!dept || !uuid.safeParse(dept).success) return { ok: false, error: "Ask an Admin to add you to a department first." };
+
+  let priority: "urgent" | "high" | "medium" = "medium";
+  const bang = /\s*(!{1,2})$/.exec(title);
+  if (bang) {
+    priority = bang[1].length === 2 ? "urgent" : "high";
+    title = title.slice(0, bang.index).trim();
+  }
+  let due: string | null = null;
+  const today = todayPKT();
+  const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  const word = /\s+(today|tomorrow|tmrw|mon|tue|wed|thu|fri|sat|sun)(?:day|sday|nesday|rsday|urday)?$/i.exec(title);
+  if (word) {
+    const w = word[1].toLowerCase();
+    if (w === "today") due = today;
+    else if (w === "tomorrow" || w === "tmrw") due = addDaysISO(today, 1);
+    else {
+      const now = parseISODate(today).getDay();
+      due = addDaysISO(today, ((days.indexOf(w) - now + 7) % 7) || 7);
+    }
+    title = title.slice(0, word.index).trim();
+  }
+  if (!title) return { ok: false, error: "Type what needs doing first." };
+  if (title.length > 300) return { ok: false, error: "That's a bit long for a title." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .insert({ title, department_id: dept, owner_id: viewer.id, priority, due_date: due, created_by: viewer.id })
+    .select("id")
+    .single();
+  if (error || !data) return { ok: false, error: friendlyError(error) };
+  revalidateTaskViews(data.id);
+  syncLater(() => syncTask(data.id));
+  return { ok: true, data: { id: data.id as string } };
+}
+
 export async function setTaskStatus(
   taskId: string,
   status: string,
@@ -220,16 +253,27 @@ export async function deleteTask(taskId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-export async function addComment(taskId: string, body: string): Promise<ActionResult> {
+export async function addComment(taskId: string, body: string, mentionIds: string[] = []): Promise<ActionResult> {
   const viewer = await requireViewer();
   const text = body.trim();
   if (!uuid.safeParse(taskId).success || !text) return { ok: false, error: "Write a comment first." };
   if (text.length > 10_000) return { ok: false, error: "Comment is too long." };
+  const mentions = [...new Set(mentionIds)].filter((m) => uuid.safeParse(m).success && m !== viewer.id).slice(0, 20);
 
   const supabase = await createClient();
-  const { error } = await supabase.from("task_comments").insert({ task_id: taskId, author_id: viewer.id, body: text });
-  if (error) return { ok: false, error: friendlyError(error) };
+  const { data, error } = await supabase
+    .from("task_comments")
+    .insert({ task_id: taskId, author_id: viewer.id, body: text })
+    .select("id")
+    .single();
+  if (error || !data) return { ok: false, error: friendlyError(error) };
+  if (mentions.length) {
+    // Tagged people become collaborators, so they can open the task, and get it in their inbox.
+    const { error: mErr } = await supabase.rpc("add_comment_mentions", { p_comment_id: data.id, p_user_ids: mentions });
+    if (mErr) return { ok: false, error: friendlyError(mErr) };
+  }
   revalidatePath(`/tasks/${taskId}`);
+  if (mentions.length) revalidatePath("/my");
   return { ok: true };
 }
 

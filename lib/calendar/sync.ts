@@ -2,6 +2,7 @@ import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { addDays, addMinutes, format } from "date-fns";
+import { nextOnOrAfter, type Frequency } from "@/lib/series";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { priorityLabel } from "@/lib/labels";
 import { parseISODate, todayPKT, WEEKDAYS } from "@/lib/time";
@@ -56,82 +57,97 @@ async function guarded(label: string, fn: () => Promise<void>) {
 }
 
 // ---------------------------------------------------------------------------
-// Department weekly meeting series (sent from the shared mailbox)
+// Meetings set up in the app (sent from the shared mailbox)
 // ---------------------------------------------------------------------------
 
-/** Next date (PKT) on or after today that falls on ISO weekday 1–7. */
-function nextOccurrence(weekday: number): string {
-  const today = parseISODate(todayPKT());
-  const iso = today.getDay() === 0 ? 7 : today.getDay();
-  return format(addDays(today, (weekday - iso + 7) % 7), "yyyy-MM-dd");
+type SeriesRow = {
+  id: string;
+  title: string;
+  kind: "internal" | "external";
+  frequency: Frequency;
+  start_date: string;
+  meeting_time: string;
+  duration_minutes: number;
+  external_emails: string[];
+  archived: boolean;
+};
+
+async function seriesAttendees(db: Db, seriesId: string, external: string[]) {
+  const [{ data: people }, { data: depts }] = await Promise.all([
+    db.from("meeting_series_people").select("profiles!inner(email, full_name, status)").eq("series_id", seriesId),
+    db.from("meeting_series_departments").select("department_id").eq("series_id", seriesId),
+  ]);
+  const deptIds = (depts ?? []).map((d) => d.department_id as string);
+  const { data: members } = deptIds.length
+    ? await db.from("department_members").select("profiles!inner(email, full_name, status)").in("department_id", deptIds)
+    : { data: [] };
+  type P = { profiles: { email: string; full_name: string | null; status: string } };
+  const byEmail = new Map<string, string>();
+  for (const row of [...((people ?? []) as unknown as P[]), ...((members ?? []) as unknown as P[])]) {
+    if (row.profiles.status === "active") byEmail.set(row.profiles.email.toLowerCase(), row.profiles.full_name ?? row.profiles.email);
+  }
+  for (const e of external) if (!byEmail.has(e.toLowerCase())) byEmail.set(e.toLowerCase(), e);
+  return [...byEmail.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([email, name]) => ({ email, name }));
 }
 
-export function syncDepartmentSeries(departmentId: string) {
-  return guarded(`department ${departmentId}`, async () => {
+export function syncSeries(seriesId: string) {
+  return guarded(`meeting ${seriesId}`, async () => {
     const db = createAdminClient();
-    const { data: dept } = await db
-      .from("departments")
-      .select("id, name, slug, archived, meeting_weekday, meeting_time, meeting_duration_minutes")
-      .eq("id", departmentId)
-      .maybeSingle();
-    const { data: links } = await db
-      .from("calendar_links")
-      .select("id, mailbox, outlook_event_id, synced_hash")
-      .eq("kind", "department_series")
-      .eq("department_id", departmentId);
+    const [{ data: series }, { data: links }] = await Promise.all([
+      db
+        .from("meeting_series")
+        .select("id, title, kind, frequency, start_date, meeting_time, duration_minutes, external_emails, archived")
+        .eq("id", seriesId)
+        .maybeSingle(),
+      db.from("calendar_links").select("id, mailbox, outlook_event_id, synced_hash").eq("kind", "meeting_series").eq("series_id", seriesId),
+    ]);
+    const s = series as SeriesRow | null;
     const link = (links?.[0] ?? null) as Link | null;
+    const today = todayPKT();
+    // A changed schedule restarts the series from its next occurrence.
+    const first = s ? nextOnOrAfter(s, today) : null;
 
-    // No series wanted: department gone/archived or no schedule.
-    if (!dept || dept.archived || !dept.meeting_weekday || !dept.meeting_time) {
-      if (link) await cancelSeries(db, link, "This weekly meeting is no longer scheduled in Highfy Tasks.");
-      return;
+    if (!s || s.archived || !first) {
+      if (link && (!s || s.archived)) await cancelSeries(db, link, "This meeting has been cancelled in Highfy Tasks.");
+      return; // A past one-off keeps its event as it was.
     }
 
-    const { data: members } = await db
-      .from("department_members")
-      .select("profiles!inner(email, full_name, status)")
-      .eq("department_id", departmentId);
-    const attendees = ((members ?? []) as unknown as { profiles: { email: string; full_name: string | null; status: string } }[])
-      .map((m) => m.profiles)
-      .filter((p) => p.status === "active")
-      .sort((a, b) => a.email.localeCompare(b.email));
-
-    const time = String(dept.meeting_time).slice(0, 5);
-    const duration = dept.meeting_duration_minutes ?? 60;
-    const minutesUrl = `${siteUrl()}/meetings/this-week/${dept.slug}`;
-    const shape = { name: dept.name, weekday: dept.meeting_weekday, time, duration, attendees: attendees.map((a) => a.email), minutesUrl };
+    const attendees = await seriesAttendees(db, s.id, s.kind === "external" ? s.external_emails : []);
+    const time = String(s.meeting_time).slice(0, 5);
+    const minutesUrl = `${siteUrl()}/meetings/series/${s.id}`;
+    const shape = { ...s, time, first: s.frequency === "once" ? s.start_date : first, attendees: attendees.map((a) => a.email), minutesUrl };
     const fingerprint = hash(shape);
     if (link && link.synced_hash === fingerprint) return;
 
-    // A changed schedule restarts the series from its next occurrence.
-    const startDate = nextOccurrence(dept.meeting_weekday);
-    const start = parseISODate(startDate);
+    const start = parseISODate(first);
     const [h, m] = time.split(":").map(Number);
     start.setHours(h, m, 0, 0);
-    const end = addMinutes(start, duration);
+    const end = addMinutes(start, s.duration_minutes);
+    const weekday = WEEKDAYS[(start.getDay() + 6) % 7].toLowerCase();
+    const recurrence =
+      s.frequency === "once"
+        ? null
+        : {
+            pattern:
+              s.frequency === "monthly"
+                ? { type: "absoluteMonthly", interval: 1, dayOfMonth: parseISODate(s.start_date).getDate() }
+                : { type: "weekly", interval: s.frequency === "weekly" ? 1 : 2, daysOfWeek: [weekday], firstDayOfWeek: "monday" },
+            range: { type: "noEnd", startDate: first },
+          };
     const event = {
-      subject: `${dept.name} weekly meeting`,
+      subject: s.title,
       body: {
         contentType: "HTML",
         content:
-          `<p>Weekly ${escapeHtml(dept.name)} meeting.</p>` +
-          `<p><a href="${minutesUrl}">Open this week's minutes</a> to see last week's action items and take notes.</p>`,
+          `<p>${escapeHtml(s.title)}.</p>` +
+          (s.kind === "internal"
+            ? `<p><a href="${minutesUrl}">Open the agenda and minutes</a> in Highfy Tasks to see open action items and take notes.</p>`
+            : ""),
       },
       start: { dateTime: format(start, "yyyy-MM-dd'T'HH:mm:ss"), timeZone: TZ },
       end: { dateTime: format(end, "yyyy-MM-dd'T'HH:mm:ss"), timeZone: TZ },
-      recurrence: {
-        pattern: {
-          type: "weekly",
-          interval: 1,
-          daysOfWeek: [WEEKDAYS[dept.meeting_weekday - 1].toLowerCase()],
-          firstDayOfWeek: "monday",
-        },
-        range: { type: "noEnd", startDate },
-      },
-      attendees: attendees.map((a) => ({
-        emailAddress: { address: a.email, name: a.full_name ?? a.email },
-        type: "required",
-      })),
+      recurrence,
+      attendees: attendees.map((a) => ({ emailAddress: { address: a.email, name: a.name }, type: "required" })),
       allowNewTimeProposals: false,
       responseRequested: true,
     };
@@ -150,11 +166,11 @@ export function syncDepartmentSeries(departmentId: string) {
     }
     const created = await graph<{ id: string }>("POST", `${userPath(mailbox)}/events`, {
       ...event,
-      transactionId: `dept-${departmentId}-${fingerprint}`,
+      transactionId: `series-${s.id}-${fingerprint}`,
     });
     await db.from("calendar_links").insert({
-      kind: "department_series",
-      department_id: departmentId,
+      kind: "meeting_series",
+      series_id: s.id,
       mailbox,
       outlook_event_id: created!.id,
       synced_hash: fingerprint,
@@ -172,12 +188,29 @@ async function cancelSeries(db: Db, link: Link, comment: string) {
   await db.from("calendar_links").delete().eq("id", link.id);
 }
 
-/** Re-sync the series of every department a person belongs to. */
-export async function syncDepartmentsForUser(userId: string) {
+/** Meetings that invite a department, so its member list changes the invite. */
+export async function syncSeriesForDepartment(departmentId: string) {
   if (!isCalendarConfigured()) return;
   const db = createAdminClient();
-  const { data } = await db.from("department_members").select("department_id").eq("user_id", userId);
-  for (const m of data ?? []) await syncDepartmentSeries(m.department_id as string);
+  const { data } = await db.from("meeting_series_departments").select("series_id").eq("department_id", departmentId);
+  for (const r of data ?? []) await syncSeries(r.series_id as string);
+}
+
+/** Every meeting a person is invited to, directly or through a department. */
+export async function syncSeriesForUser(userId: string) {
+  if (!isCalendarConfigured()) return;
+  const db = createAdminClient();
+  const [{ data: direct }, { data: memberships }] = await Promise.all([
+    db.from("meeting_series_people").select("series_id").eq("user_id", userId),
+    db.from("department_members").select("department_id").eq("user_id", userId),
+  ]);
+  const ids = new Set((direct ?? []).map((r) => r.series_id as string));
+  const deptIds = (memberships ?? []).map((m) => m.department_id as string);
+  if (deptIds.length) {
+    const { data } = await db.from("meeting_series_departments").select("series_id").in("department_id", deptIds);
+    for (const r of data ?? []) ids.add(r.series_id as string);
+  }
+  for (const id of ids) await syncSeries(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -313,14 +346,17 @@ export async function syncTasksForMeeting(meetingId: string) {
   for (const t of data ?? []) await syncTask(t.id as string);
 }
 
-/** Nightly repair: every department series and every task that should (or no longer should) be in Outlook. */
+/** Nightly repair: every meeting and every task that should (or no longer should) be in Outlook. */
 export async function reconcileAll(): Promise<{ departments: number; tasks: number }> {
   if (!isCalendarConfigured()) return { departments: 0, tasks: 0 };
   const db = createAdminClient();
-  const { data: depts } = await db.from("departments").select("id");
-  const { data: seriesLinks } = await db.from("calendar_links").select("department_id").eq("kind", "department_series");
-  const deptIds = new Set([...(depts ?? []).map((d) => d.id as string), ...(seriesLinks ?? []).map((l) => l.department_id as string)]);
-  for (const id of deptIds) await syncDepartmentSeries(id);
+  const { data: series } = await db.from("meeting_series").select("id");
+  for (const r of series ?? []) await syncSeries(r.id as string);
+  // Invites from the old per-department schedule that weren't carried over.
+  const { data: oldLinks } = await db.from("calendar_links").select("id, mailbox, outlook_event_id, synced_hash").eq("kind", "department_series");
+  for (const l of (oldLinks ?? []) as Link[]) {
+    await guarded("old department invite", () => cancelSeries(db, l, "This meeting has moved to a new invite."));
+  }
 
   const { data: optedIn } = await db.from("profiles").select("id").eq("outlook_tasks_enabled", true).eq("status", "active");
   const owners = (optedIn ?? []).map((p) => p.id as string);
@@ -339,5 +375,5 @@ export async function reconcileAll(): Promise<{ departments: number; tasks: numb
   const { data: taskLinks } = await db.from("calendar_links").select("task_id").eq("kind", "task");
   for (const l of taskLinks ?? []) taskIds.add(l.task_id as string);
   for (const id of taskIds) await syncTask(id);
-  return { departments: deptIds.size, tasks: taskIds.size };
+  return { departments: (series ?? []).length, tasks: taskIds.size };
 }
