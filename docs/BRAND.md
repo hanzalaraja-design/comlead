@@ -22,7 +22,7 @@
 > - **Pills:** To do white with hairline; In progress blue; Blocked amber; Done
 >   green; Cancelled grey struck through. Priority: Urgent red, High amber,
 >   Medium grey, Low plain grey text.
-> - **Progress, lightly gamified:** weekly progress ring on My tasks; a one-click
+> - **Progress, lightly gamified:** a one-click
 >   tick that fills green; a short confetti burst when the last task due today is
 >   cleared (skipped for reduced motion); today's state line (green when nothing
 >   is overdue, red when something is); a department leaderboard on the Admin
