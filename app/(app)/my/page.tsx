@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { TaskList } from "@/components/tasks/task-list";
 import { QuickAdd } from "@/components/tasks/quick-add";
-import { ProgressRing } from "@/components/progress/progress-ring";
 import { CelebrateWhenCleared } from "@/components/progress/celebrate";
 import { PersonAvatar } from "@/components/person-avatar";
 import { getDepartments, getPeople, isMemberOf, requireViewer } from "@/lib/auth";
@@ -52,7 +51,7 @@ export default async function MyTasksPage() {
   const weekEnd = weekEndPKT();
 
   const departments = await getDepartments();
-  const [{ tasks, error }, collabRes, mentionsRes, doneRes, people] = await Promise.all([
+  const [{ tasks, error }, collabRes, mentionsRes, people] = await Promise.all([
     fetchTasks(parseFilters({ owner: "me", sort: "due" }), { viewerId: viewer.id, departments }),
     supabase.from("task_collaborators").select("task_id").eq("user_id", viewer.id),
     supabase
@@ -61,12 +60,6 @@ export default async function MyTasksPage() {
       .eq("user_id", viewer.id)
       .order("created_at", { ascending: false })
       .limit(15),
-    supabase
-      .from("tasks")
-      .select("id", { count: "exact", head: true })
-      .eq("owner_id", viewer.id)
-      .eq("status", "done")
-      .gte("completed_at", `${weekStart}T00:00:00+05:00`),
     getPeople(),
   ]);
 
@@ -96,8 +89,6 @@ export default async function MyTasksPage() {
 
   const overdue = grouped.get("overdue")!.length;
   const dueToday = grouped.get("today")!.length;
-  const doneThisWeek = doneRes.count ?? 0;
-  const leftThisWeek = overdue + dueToday + grouped.get("week")!.length;
   const state = todayLine(today, overdue, dueToday);
   // Teams you can add tasks to: your own, or every team for Admin.
   const myDepartments = departments.filter((d) => !d.archived && isMemberOf(viewer, d.id));
@@ -112,30 +103,18 @@ export default async function MyTasksPage() {
       <CelebrateWhenCleared remaining={overdue + dueToday} line={clearedLine(today + viewer.id)} />
 
       {/* Today at a glance */}
-      <section className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <div
-          className={cn(
-            "flex items-center gap-3 rounded-[20px] px-4 py-3 text-[15px] font-medium",
-            state.tone === "bad" ? "bg-danger-soft text-danger-ink" : "bg-success-soft text-success-ink",
-          )}
-        >
-          {state.tone === "bad" ? <TriangleAlert className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
-          {state.text}
-        </div>
-        <Link
-          href="/tasks?owner=me&status=done&sort=completed&dir=desc"
-          className="surface flex items-center gap-3 px-4 py-2 hover:bg-subtle/60"
-          title="See what you've finished"
-        >
-          <ProgressRing done={doneThisWeek} total={doneThisWeek + leftThisWeek} size={52} />
-          <div className="text-sm leading-tight">
-            <p className="font-semibold text-ink">
-              {doneThisWeek} of {doneThisWeek + leftThisWeek} done
-            </p>
-            <p className="text-ink-muted">this week</p>
-          </div>
+      <div
+        className={cn(
+          "mb-4 flex items-center gap-3 rounded-[20px] px-4 py-3 text-[15px] font-medium",
+          state.tone === "bad" ? "bg-danger-soft text-danger-ink" : "bg-success-soft text-success-ink",
+        )}
+      >
+        {state.tone === "bad" ? <TriangleAlert className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
+        <span className="flex-1">{state.text}</span>
+        <Link href="/tasks?owner=me&status=done&sort=completed&dir=desc" className="shrink-0 text-sm font-medium underline-offset-2 hover:underline">
+          Completed
         </Link>
-      </section>
+      </div>
 
       <div className="mb-6">
         <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} allowPrivate />

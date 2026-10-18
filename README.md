@@ -13,7 +13,7 @@ Tailwind CSS and shadcn/ui. All dates and "today" logic use Asia/Karachi (PKT).
 | Area | Where |
 |---|---|
 | Sign in with Microsoft, `@highfy.pk` only, pending approval | `/login`, `app/auth/*`, `lib/supabase/proxy.ts`, `/pending` |
-| My tasks: one inbox for tasks assigned to you, tasks you collaborate on and @mentions; quick add (type and press Enter); weekly progress ring | `/my` |
+| My tasks: one inbox for tasks assigned to you, tasks you collaborate on and @mentions; quick add (type and press Enter) | `/my` |
 | List view with combinable, shareable URL filters (less-used ones under "More") | `/tasks` |
 | Status board across departments, and per department | `/tasks/board`, `/departments/[slug]` |
 | Calendar view | `/tasks/calendar` |
