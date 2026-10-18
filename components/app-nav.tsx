@@ -50,7 +50,7 @@ const MOBILE: NavItem[] = [
 
 function isActive(pathname: string, href: string) {
   if (href === "/admin") return pathname === href;
-  if (href === "/tasks") return pathname === "/tasks" || /^\/tasks\/(board|calendar|timeline)$/.test(pathname);
+  if (href === "/tasks") return pathname === "/tasks" || /^\/tasks\/(board|calendar)$/.test(pathname);
   return pathname === href || pathname.startsWith(href + "/");
 }
 

@@ -17,23 +17,27 @@ export function TaskList({
   tasks,
   showDepartment = true,
   showCompleted = false,
+  showOwner = true,
 }: {
   tasks: TaskListRow[];
   showDepartment?: boolean;
   showCompleted?: boolean;
+  /** Off on My tasks, where every task is yours. */
+  showOwner?: boolean;
 }) {
+  const cols = showOwner ? "md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem]" : "md:grid-cols-[7.5rem_minmax(0,1fr)_8rem_9rem]";
   return (
     <div className="overflow-hidden surface">
-      <div className="hidden grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] gap-3 bg-subtle px-4 py-2.5 text-[13px] font-bold text-ink md:grid">
+      <div className={cn("hidden gap-3 bg-subtle px-4 py-2.5 text-[13px] font-bold text-ink md:grid", cols)}>
         <span>Status</span>
         <span>Task</span>
-        <span>Owner</span>
+        {showOwner && <span>Owner</span>}
         <span>Priority</span>
         <span>{showCompleted ? "Completed" : "Due"}</span>
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} />
+          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} />
         ))}
       </ul>
     </div>
@@ -44,16 +48,21 @@ function TaskListItem({
   task: t,
   showDepartment,
   showCompleted,
+  showOwner,
+  cols,
 }: {
   task: TaskListRow;
   showDepartment: boolean;
   showCompleted: boolean;
+  showOwner: boolean;
+  cols: string;
 }) {
   const today = todayPKT();
   return (
     <li
       className={cn(
-        "relative px-4 py-3 hover:bg-subtle/60 md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] md:items-center md:gap-3 md:py-2",
+        "relative px-4 py-3 hover:bg-subtle/60 md:grid md:items-center md:gap-3 md:py-2",
+        cols,
         t.overdue && "before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-danger",
         t.status === "done" && "opacity-70",
       )}
@@ -77,7 +86,6 @@ function TaskListItem({
           </Link>
         </div>
         <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
-          {!t.department_id && <span className="font-medium text-brand-primary">Personal</span>}
           {showDepartment && t.department && (
             <span>
               {t.department.name}
@@ -102,15 +110,19 @@ function TaskListItem({
         <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
         <PriorityBadge priority={t.priority} />
         <DueLabel date={t.due_date} time={t.due_time} overdue={t.overdue} />
-        <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-          <PersonAvatar person={t.owner} className="h-5 w-5" />
-        </span>
+        {showOwner && (
+          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+            <PersonAvatar person={t.owner} className="h-5 w-5" />
+          </span>
+        )}
       </div>
 
-      <div className="hidden items-center gap-2 text-sm md:flex">
-        <PersonAvatar person={t.owner} />
-        <span className="truncate">{personName(t.owner)}</span>
-      </div>
+      {showOwner && (
+        <div className="hidden items-center gap-2 text-sm md:flex">
+          <PersonAvatar person={t.owner} />
+          <span className="truncate">{personName(t.owner)}</span>
+        </div>
+      )}
       <div className="hidden md:block">
         <PriorityBadge priority={t.priority} />
       </div>

@@ -70,7 +70,6 @@ export function TaskAttachments({
 
   return (
     <div className="space-y-3">
-      {attachments.length === 0 && <p className="text-sm text-muted-foreground">No files.</p>}
       <ul className="space-y-1">
         {attachments.map((a) => (
           <li key={a.id} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">

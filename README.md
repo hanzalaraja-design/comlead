@@ -13,10 +13,9 @@ Tailwind CSS and shadcn/ui. All dates and "today" logic use Asia/Karachi (PKT).
 | Area | Where |
 |---|---|
 | Sign in with Microsoft, `@highfy.pk` only, pending approval | `/login`, `app/auth/*`, `lib/supabase/proxy.ts`, `/pending` |
-| My tasks: one inbox for tasks assigned to you, tasks you collaborate on and @mentions; quick add; personal tasks; weekly progress ring | `/my` |
-| List view with combinable, shareable URL filters and saved views | `/tasks` |
+| My tasks: one inbox for tasks assigned to you, tasks you collaborate on and @mentions; quick add (type and press Enter); weekly progress ring | `/my` |
+| List view with combinable, shareable URL filters (less-used ones under "More") | `/tasks` |
 | Status board across departments, and per department | `/tasks/board`, `/departments/[slug]` |
-| Timeline (Gantt): start date → due date, by department or person | `/tasks/timeline` |
 | Calendar view | `/tasks/calendar` |
 | Overdue across departments | `/overdue` |
 | Task detail: comments with @mentions, attachments, history | `/tasks/[id]` |
@@ -27,11 +26,10 @@ Tailwind CSS and shadcn/ui. All dates and "today" logic use Asia/Karachi (PKT).
 
 ### Access rules (enforced in the database with RLS)
 
-- **Admin** (company-wide): everything, except other people's personal tasks.
+- **Admin** (company-wide): everything.
 - **Dept admin** (per department, stored as role `lead`): full control of that department. Can add/remove Members.
 - **Member** (per department): can create tasks, and edit tasks they own, collaborate on or created.
 - People see **only the departments they belong to**, plus any task they own or collaborate on. A person can be in any number of departments, as Member in some and Dept admin in others.
-- **Personal tasks** have no department and are visible only to their owner (not even Admin). They stay out of the activity log. They can be moved into a department later.
 - **@mentions** add the tagged person as a collaborator (so they can open the task) and put it in their inbox.
 - **Meetings**: any department member can set one up for their department and invite other departments, people and (for external meetings) outside email addresses. Whoever set it up and the department's admins can change or cancel it. Everyone invited can open its agenda and minutes; anyone in the meeting can write them and add action items.
 - Only Dept admins/Admin reassign someone else's (non-meeting) task or move tasks between departments.

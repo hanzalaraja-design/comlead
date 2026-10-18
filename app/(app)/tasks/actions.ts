@@ -20,20 +20,11 @@ const optionalUuid = z
 const taskSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   description: z.string().max(100_000).optional(),
-  // "personal" (or empty) = a personal task with no department.
-  department_id: z
-    .string()
-    .transform((v) => (v && v !== "personal" ? v : null))
-    .pipe(uuid.nullable()),
+  department_id: uuid,
   sub_team_id: optionalUuid,
   owner_id: optionalUuid,
   status: z.enum(["todo", "in_progress", "blocked", "done", "cancelled"]),
   priority: z.enum(["urgent", "high", "medium", "low"]),
-  start_date: z
-    .string()
-    .optional()
-    .transform((v) => v || null)
-    .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
   due_date: z
     .string()
     .optional()
@@ -57,8 +48,6 @@ const taskSchema = z.object({
   blocked_reason: z.string().trim().max(1000).optional(),
   meeting_id: optionalUuid,
   collaborators: z.array(uuid).max(50),
-}).refine((v) => !v.start_date || !v.due_date || v.start_date <= v.due_date, {
-  message: "Start date must be on or before the due date",
 });
 
 function readTaskForm(formData: FormData) {
@@ -70,7 +59,6 @@ function readTaskForm(formData: FormData) {
     owner_id: formData.get("owner_id") ?? undefined,
     status: formData.get("status") ?? "todo",
     priority: formData.get("priority") ?? "medium",
-    start_date: formData.get("start_date") ?? undefined,
     due_date: formData.get("due_date") ?? undefined,
     due_time: formData.get("due_time") ?? undefined,
     tags: formData.get("tags") ?? undefined,
@@ -78,14 +66,6 @@ function readTaskForm(formData: FormData) {
     meeting_id: formData.get("meeting_id") ?? undefined,
     collaborators: formData.getAll("collaborators").map(String).filter(Boolean),
   });
-}
-
-/** Personal tasks always belong to whoever saves them and never sit in a meeting or sub-team. */
-function shape<T extends { department_id: string | null; owner_id: string | null; sub_team_id: string | null; meeting_id: string | null; collaborators: string[] }>(
-  v: T,
-  viewerId: string,
-): T {
-  return v.department_id ? v : { ...v, owner_id: viewerId, sub_team_id: null, meeting_id: null };
 }
 
 function revalidateTaskViews(taskId?: string) {
@@ -97,7 +77,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
   const viewer = await requireViewer();
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
-  const v = shape(parsed.data, viewer.id);
+  const v = parsed.data;
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -110,7 +90,6 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
       owner_id: v.owner_id,
       status: v.status,
       priority: v.priority,
-      start_date: v.start_date,
       due_date: v.due_date,
       due_time: v.due_date ? v.due_time : null,
       tags: v.tags,
@@ -136,11 +115,11 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
 }
 
 export async function updateTask(taskId: string, formData: FormData): Promise<ActionResult> {
-  const viewer = await requireViewer();
+  await requireViewer();
   if (!uuid.safeParse(taskId).success) return { ok: false, error: "Invalid task" };
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
-  const v = shape(parsed.data, viewer.id);
+  const v = parsed.data;
 
   const supabase = await createClient();
   const { data: updated, error } = await supabase
@@ -153,7 +132,6 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
       owner_id: v.owner_id,
       status: v.status,
       priority: v.priority,
-      start_date: v.start_date,
       due_date: v.due_date,
       due_time: v.due_date ? v.due_time : null,
       tags: v.tags,
@@ -199,12 +177,13 @@ const statusSchema = z.object({
 /**
  * Quick add: a title and Enter. A few words at the end set details:
  * "today" / "tomorrow" / "fri" for the due date, "!" for high or "!!" for urgent.
- * No department = a personal task.
+ * The task is assigned to whoever adds it, in their (first) department.
  */
 export async function quickAddTask(input: string, departmentId: string | null): Promise<ActionResult<{ id: string }>> {
   const viewer = await requireViewer();
   let title = input.trim().replace(/\s+/g, " ");
-  if (departmentId && !uuid.safeParse(departmentId).success) return { ok: false, error: "Pick a department." };
+  const dept = departmentId ?? viewer.memberDeptIds[0];
+  if (!dept || !uuid.safeParse(dept).success) return { ok: false, error: "Ask an Admin to add you to a department first." };
 
   let priority: "urgent" | "high" | "medium" = "medium";
   const bang = /\s*(!{1,2})$/.exec(title);
@@ -232,7 +211,7 @@ export async function quickAddTask(input: string, departmentId: string | null): 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tasks")
-    .insert({ title, department_id: departmentId, owner_id: viewer.id, priority, due_date: due, created_by: viewer.id })
+    .insert({ title, department_id: dept, owner_id: viewer.id, priority, due_date: due, created_by: viewer.id })
     .select("id")
     .single();
   if (error || !data) return { ok: false, error: friendlyError(error) };

@@ -123,7 +123,6 @@ export default async function MeetingPage({
           }))}
           people={people}
           memberIds={members.filter((m) => m.department_id === meeting.department_id).map((m) => m.user_id)}
-          subTeams={subTeams.filter((s) => s.department_id === meeting.department_id && !s.archived)}
           canDelete={isLead}
           aiEnabled={isAiConfigured()}
         />

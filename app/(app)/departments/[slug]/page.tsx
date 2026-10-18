@@ -63,7 +63,7 @@ export default async function DepartmentBoardPage({
           <QuickAdd departments={[{ id: dept.id, name: dept.name }]} defaultDepartmentId={dept.id} />
         </div>
       )}
-      <TaskFilterBar filters={base} options={options} hide={["dept", "status", "sort"]} allowSave={false} />
+      <TaskFilterBar filters={base} options={options} hide={["dept", "status", "sort"]} />
       {(open.error || done.error) && <p className="mb-3 text-sm text-danger">{open.error || done.error}</p>}
       <KanbanBoard tasks={[...open.tasks, ...done.tasks]} canEdit={member} />
     </>

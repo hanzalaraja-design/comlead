@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { CalendarDays, GanttChart, KanbanSquare, List } from "lucide-react";
+import { CalendarDays, KanbanSquare, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const VIEWS = [
   { key: "list", label: "List", href: "/tasks", icon: List },
   { key: "board", label: "Board", href: "/tasks/board", icon: KanbanSquare },
   { key: "calendar", label: "Calendar", href: "/tasks/calendar", icon: CalendarDays },
-  { key: "timeline", label: "Timeline", href: "/tasks/timeline", icon: GanttChart },
 ] as const;
 
 export type TaskView = (typeof VIEWS)[number]["key"];

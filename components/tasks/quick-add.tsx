@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { CornerDownLeft, Plus } from "lucide-react";
 import { quickAddTask } from "@/app/(app)/tasks/actions";
 
-/** Type, press Enter, done. Details can be added later from the task. */
+/** Type, press Enter, done: a task assigned to you. Details can be added later from the task. */
 export function QuickAdd({
   departments,
   defaultDepartmentId = null,
@@ -14,7 +14,7 @@ export function QuickAdd({
   defaultDepartmentId?: string | null;
 }) {
   const [title, setTitle] = useState("");
-  const [dept, setDept] = useState<string>(defaultDepartmentId ?? "");
+  const [dept, setDept] = useState<string>(defaultDepartmentId ?? departments[0]?.id ?? "");
   const [pending, startTransition] = useTransition();
   const input = useRef<HTMLInputElement>(null);
 
@@ -24,7 +24,7 @@ export function QuickAdd({
     setTitle("");
     startTransition(async () => {
       const res = await quickAddTask(value, dept || null);
-      if (res.ok) toast.success(dept ? "Added." : "Added to your personal list.");
+      if (res.ok) toast.success("Added. It's yours.");
       else {
         setTitle(value);
         toast.error(res.error);
@@ -54,19 +54,21 @@ export function QuickAdd({
         />
       </div>
       <div className="flex items-center gap-2">
-        <select
-          aria-label="Where it goes"
-          value={dept}
-          onChange={(e) => setDept(e.target.value)}
-          className="h-9 field max-w-[11rem] px-2 text-sm"
-        >
-          <option value="">Personal</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
+        {/* Only asked when it isn't obvious. */}
+        {departments.length > 1 && (
+          <select
+            aria-label="Department"
+            value={dept}
+            onChange={(e) => setDept(e.target.value)}
+            className="h-9 field max-w-[11rem] px-2 text-sm"
+          >
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="submit"
           disabled={pending || !title.trim()}

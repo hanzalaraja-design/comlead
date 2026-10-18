@@ -13,7 +13,7 @@ import { DeleteTaskButton } from "@/components/tasks/task-actions-menu";
 import { TaskForm } from "@/components/tasks/task-form";
 import { canLead, getPeople, isMemberOf, requireViewer } from "@/lib/auth";
 import { describeActivity } from "@/lib/activity";
-import { personName, sourceLabel } from "@/lib/labels";
+import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { getTaskFormData } from "@/lib/tasks/form-data";
 import { TASK_SELECT, type TaskListRow } from "@/lib/tasks/queries";
@@ -141,11 +141,7 @@ export default async function TaskPage({
                 <span className="font-medium">Blocked:</span> {task.blocked_reason || "No reason given"}
               </p>
             )}
-            {task.description ? (
-              <RichTextView html={task.description} />
-            ) : (
-              <p className="text-sm text-ink-muted">No description.</p>
-            )}
+            {task.description && <RichTextView html={task.description} />}
           </div>
 
           <section id="comments" className="surface scroll-mt-6 p-4 md:p-6">
@@ -182,12 +178,13 @@ export default async function TaskPage({
             />
           </section>
 
-          <section className="surface p-4 md:p-6">
-            <h2 className="kicker mb-3 text-ink">History</h2>
-            {(historyRes.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No history you can see.</p>
-            ) : (
-              <ol className="space-y-2 border-l pl-4">
+          {(historyRes.data ?? []).length > 0 && (
+            <details className="surface group p-4 md:p-6">
+              <summary className="kicker cursor-pointer list-none text-ink">
+                History <span className="font-normal text-ink-muted">· {(historyRes.data ?? []).length}</span>
+                <span className="ml-1 text-xs font-normal text-ink-muted group-open:hidden">(show)</span>
+              </summary>
+              <ol className="mt-3 space-y-2 border-l pl-4">
                 {((historyRes.data ?? []) as ActivityEntry[]).map((e) => (
                   <li key={e.id} className="text-sm">
                     <span className="font-medium">{e.actor_id ? personName(person(e.actor_id)) : "System"}</span>{" "}
@@ -196,8 +193,8 @@ export default async function TaskPage({
                   </li>
                 ))}
               </ol>
-            )}
-          </section>
+            </details>
+          )}
         </div>
 
         <aside className="h-fit space-y-4 surface p-4 text-sm lg:sticky lg:top-8">
@@ -221,29 +218,24 @@ export default async function TaskPage({
             {task.department?.name}
             {task.sub_team && <span className="text-muted-foreground"> · {task.sub_team.name}</span>}
           </Detail>
-          <Detail label="Source">
-            {sourceLabel(task.source)}
-            {task.meeting && (
-              <Link href={`/meetings/${task.meeting.id}`} className="mt-1 flex items-center gap-1 text-primary hover:underline">
+          {task.meeting && (
+            <Detail label="From meeting">
+              <Link href={`/meetings/${task.meeting.id}`} className="flex items-center gap-1 text-primary hover:underline">
                 <NotebookPen className="h-3.5 w-3.5" />
                 {task.meeting.title || "Meeting"} · {formatDate(task.meeting.meeting_date, "d MMM")}
               </Link>
-            )}
-          </Detail>
-          {task.start_date && (
-            <Detail label="Start date">{formatDate(task.start_date, "EEE d MMM yyyy")}</Detail>
+            </Detail>
           )}
           {task.tags.length > 0 && (
             <Detail label="Tags">
               <TagList tags={task.tags} />
             </Detail>
           )}
-          <Detail label="Created">
-            {formatPKT(task.created_at)}
-            {createdBy && <span className="block text-muted-foreground">by {personName(createdBy)}</span>}
-          </Detail>
-          <Detail label="Updated">{formatPKT(task.updated_at)}</Detail>
-          {task.completed_at && <Detail label="Completed">{formatPKT(task.completed_at)}</Detail>}
+          <p className="text-xs text-ink-muted">
+            Added {formatPKT(task.created_at, "d MMM")}
+            {createdBy && ` by ${personName(createdBy)}`}
+            {task.completed_at && ` · done ${formatPKT(task.completed_at, "d MMM")}`}
+          </p>
         </aside>
       </div>
     </div>

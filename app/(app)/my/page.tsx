@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { AtSign, CheckCircle2, Plus, TriangleAlert, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AtSign, CheckCircle2, TriangleAlert, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { TaskList } from "@/components/tasks/task-list";
@@ -108,18 +107,6 @@ export default async function MyTasksPage() {
         breadcrumb={["Tasks", "My tasks"]}
         title="My tasks"
         description={formatDate(today, "EEEE d MMMM")}
-        actions={
-          <>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/tasks?owner=me&status=done&sort=completed&dir=desc">Completed</Link>
-            </Button>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/tasks/new">
-                <Plus className="h-4 w-4" /> Full form
-              </Link>
-            </Button>
-          </>
-        }
       />
       <CelebrateWhenCleared remaining={overdue + dueToday} line={clearedLine(today + viewer.id)} />
 
@@ -134,7 +121,11 @@ export default async function MyTasksPage() {
           {state.tone === "bad" ? <TriangleAlert className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
           {state.text}
         </div>
-        <div className="surface flex items-center gap-3 px-4 py-2">
+        <Link
+          href="/tasks?owner=me&status=done&sort=completed&dir=desc"
+          className="surface flex items-center gap-3 px-4 py-2 hover:bg-subtle/60"
+          title="See what you've finished"
+        >
           <ProgressRing done={doneThisWeek} total={doneThisWeek + leftThisWeek} size={52} />
           <div className="text-sm leading-tight">
             <p className="font-semibold text-ink">
@@ -142,7 +133,7 @@ export default async function MyTasksPage() {
             </p>
             <p className="text-ink-muted">this week</p>
           </div>
-        </div>
+        </Link>
       </section>
 
       <div className="mb-6">
@@ -207,7 +198,7 @@ export default async function MyTasksPage() {
                         {items.length}
                       </span>
                     </h3>
-                    <TaskList tasks={items} />
+                    <TaskList tasks={items} showOwner={false} />
                   </div>
                 );
               })}

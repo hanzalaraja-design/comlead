@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/multi-select";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { PRIORITIES, personName } from "@/lib/labels";
-import type { Meeting, PersonRef, SubTeam, TaskPriority, TaskStatus } from "@/lib/types";
+import type { Meeting, PersonRef, TaskPriority, TaskStatus } from "@/lib/types";
 import { deleteMeeting, saveMeeting } from "@/app/(app)/meetings/actions";
 import { StatusBadge } from "@/components/tasks/task-badges";
 import { RichTextView } from "@/components/rich-text-view";
@@ -44,7 +44,6 @@ export function MeetingEditor({
   actionItems,
   people,
   memberIds,
-  subTeams,
   canDelete,
   aiEnabled = false,
 }: {
@@ -54,7 +53,6 @@ export function MeetingEditor({
   people: PersonRef[];
   /** Department members: suggested owners. */
   memberIds: string[];
-  subTeams: SubTeam[];
   /** Only Leads and Admin may delete a meeting. */
   canDelete: boolean;
   /** Show the assistant (Claude API key set). Only editors see this editor at all. */
@@ -66,7 +64,7 @@ export function MeetingEditor({
   const [title, setTitle] = useState(meeting.title ?? "");
   const [date, setDate] = useState(meeting.meeting_date);
   const [time, setTime] = useState(meeting.meeting_time?.slice(0, 5) ?? "");
-  const [subTeam, setSubTeam] = useState(meeting.sub_team_id ?? "");
+  const subTeam = meeting.sub_team_id ?? "";
   const [attendees, setAttendees] = useState(attendeeIds);
   const [agenda, setAgenda] = useState(meeting.agenda ?? "");
   const [minutes, setMinutes] = useState(meeting.minutes ?? "");
@@ -212,19 +210,6 @@ export function MeetingEditor({
           <Label htmlFor="m-time">Time</Label>
           <Input id="m-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-10" />
         </div>
-        {subTeams.length > 0 && (
-          <div className="space-y-1.5">
-            <Label htmlFor="m-sub">Sub-team</Label>
-            <select id="m-sub" value={subTeam} onChange={(e) => setSubTeam(e.target.value)} className={`${fieldClass} h-10 w-full`}>
-              <option value="">Whole department</option>
-              {subTeams.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
         <div className="space-y-1.5 sm:col-span-2">
           <Label>Attendees</Label>
           <div>

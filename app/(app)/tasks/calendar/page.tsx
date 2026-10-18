@@ -79,7 +79,7 @@ export default async function CalendarPage({
         }
       />
       <TaskViewTabs active="calendar" search={filtersToSearch(base)} />
-      <TaskFilterBar filters={base} options={options} hide={["sort"]} allowSave={false} preserve={{ month: monthParam }} />
+      <TaskFilterBar filters={base} options={options} hide={["sort"]} preserve={{ month: monthParam }} />
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       {/* Desktop: month grid */}
