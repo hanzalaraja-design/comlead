@@ -179,7 +179,8 @@ export async function quickAddTask(input: string, departmentId: string | null): 
   const viewer = await requireViewer();
   let title = input.trim().replace(/\s+/g, " ");
   const dept = departmentId ?? viewer.memberDeptIds[0];
-  if (!dept || !uuid.safeParse(dept).success) return { ok: false, error: "Ask an Admin to add you to a department first." };
+  if (!dept || !uuid.safeParse(dept).success)
+    return { ok: false, error: viewer.isAdmin ? "Pick a team for this task." : "Ask an Admin to add you to a team first." };
 
   let priority: "urgent" | "high" | "medium" = "medium";
   const bang = /\s*(!{1,2})$/.exec(title);

@@ -7,7 +7,7 @@ import { QuickAdd } from "@/components/tasks/quick-add";
 import { ProgressRing } from "@/components/progress/progress-ring";
 import { CelebrateWhenCleared } from "@/components/progress/celebrate";
 import { PersonAvatar } from "@/components/person-avatar";
-import { getDepartments, getPeople, requireViewer } from "@/lib/auth";
+import { getDepartments, getPeople, isMemberOf, requireViewer } from "@/lib/auth";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { parseFilters } from "@/lib/tasks/filters";
@@ -99,7 +99,8 @@ export default async function MyTasksPage() {
   const doneThisWeek = doneRes.count ?? 0;
   const leftThisWeek = overdue + dueToday + grouped.get("week")!.length;
   const state = todayLine(today, overdue, dueToday);
-  const myDepartments = departments.filter((d) => !d.archived && viewer.memberDeptIds.includes(d.id));
+  // Teams you can add tasks to: your own, or every team for Admin.
+  const myDepartments = departments.filter((d) => !d.archived && isMemberOf(viewer, d.id));
 
   return (
     <>
