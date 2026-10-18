@@ -10,13 +10,35 @@ import type { z } from "zod";
 
 const MODEL = "claude-opus-5-5";
 
+/** The key as set in Vercel, minus any stray spaces or line breaks from pasting. */
+function apiKey(): string {
+  return process.env.ANTHROPIC_API_KEY?.trim() ?? "";
+}
+
 export function isAiConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return Boolean(apiKey());
+}
+
+/** What the running deployment can see, for the Admin status page. Never returns the key. */
+export function aiEnvReport() {
+  const raw = process.env.ANTHROPIC_API_KEY;
+  return {
+    keySet: Boolean(apiKey()),
+    looksRight: apiKey().startsWith("sk-ant-"),
+    hadWhitespace: raw !== undefined && raw !== raw.trim(),
+    // Names only: catches a typo such as ANTHROPIC_KEY or a trailing space in the name.
+    similarNames: Object.keys(process.env).filter(
+      (k) => k !== "ANTHROPIC_API_KEY" && (k.trim() === "ANTHROPIC_API_KEY" || (/anthropic|claude/i.test(k) && /key/i.test(k))),
+    ),
+    environment: process.env.VERCEL_ENV ?? "local",
+    commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+    host: process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL ?? null,
+  };
 }
 
 let client: Anthropic | null = null;
 function getClient() {
-  client ??= new Anthropic({ maxRetries: 2, timeout: 90_000 });
+  client ??= new Anthropic({ apiKey: apiKey(), maxRetries: 2, timeout: 90_000 });
   return client;
 }
 

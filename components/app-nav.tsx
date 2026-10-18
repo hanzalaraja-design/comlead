@@ -13,6 +13,7 @@ import {
   Menu,
   NotebookPen,
   Settings,
+  Sparkles,
   TriangleAlert,
   Users,
 } from "lucide-react";
@@ -35,6 +36,7 @@ const ADMIN: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/users", label: "People", icon: Users },
   { href: "/admin/departments", label: "Departments setup", icon: Settings },
+  { href: "/admin/assistant", label: "Meeting assistant", icon: Sparkles },
 ];
 
 // Bottom bar on phones: the four things people open most.
