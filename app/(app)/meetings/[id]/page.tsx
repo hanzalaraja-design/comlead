@@ -100,6 +100,15 @@ export default async function MeetingPage({
           title="Edit minutes"
         />
         {carryForward}
+        {viewer.isAdmin && !isAiConfigured() && (
+          <p className="text-sm text-ink-muted">
+            The meeting assistant is off on this deployment.{" "}
+            <Link href="/admin/assistant" className="underline">
+              Check its setup
+            </Link>
+            .
+          </p>
+        )}
         <div className="card-outlined p-4 md:p-6">
         <MeetingEditor
           meeting={meeting}
