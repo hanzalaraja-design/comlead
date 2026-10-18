@@ -5,6 +5,8 @@ import { getPeople, requireViewer } from "@/lib/auth";
 import { departmentsForSetup } from "@/lib/meetings";
 import type { Frequency } from "@/lib/series";
 import { createClient } from "@/lib/supabase/server";
+import { seriesOutlookStatus } from "@/lib/calendar/sync";
+import { formatPKT } from "@/lib/time";
 
 export const metadata = { title: "Edit meeting · Highfy Tasks" };
 
@@ -21,12 +23,31 @@ export default async function EditSeriesPage({ params }: { params: Promise<{ id:
     departmentsForSetup(viewer),
     getPeople(),
   ]);
+  const outlook = await seriesOutlookStatus(id);
   if (!s || s.archived) notFound();
   if (!canManage) notFound();
 
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader breadcrumb={[{ label: "Meetings", href: "/meetings" }, s.title, "Edit"]} title="Edit meeting" />
+      {outlook && (
+        <div
+          className={
+            outlook.sent && outlook.invitees.length
+              ? "mb-4 rounded-[20px] bg-success-soft px-4 py-3 text-sm text-success-ink"
+              : "mb-4 rounded-[20px] bg-warning-soft px-4 py-3 text-sm text-warning-ink"
+          }
+        >
+          <p className="font-semibold">
+            {!outlook.sent
+              ? "Not in Outlook yet. Save again, or run Sync now under Admin → Outlook to see why."
+              : outlook.invitees.length
+                ? `In Outlook${outlook.sentAt ? ` (updated ${formatPKT(outlook.sentAt, "d MMM, h:mm a")})` : ""}. Invite goes to ${outlook.invitees.length} ${outlook.invitees.length === 1 ? "person" : "people"}:`
+                : "In Outlook, but nobody is invited. Add people or a team with members below."}
+          </p>
+          {outlook.invitees.length > 0 && <p className="mt-1">{outlook.invitees.map((i) => i.name).join(", ")}</p>}
+        </div>
+      )}
       <SeriesForm
         id={id}
         departments={departments.map((d) => (d.id === s.department_id ? { ...d, mine: true } : d))}
