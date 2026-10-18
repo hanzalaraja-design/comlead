@@ -60,6 +60,8 @@ export default async function TaskPage({
   ]);
 
   const peopleById = new Map<string, PersonRef>(people.map((p) => [p.id, p]));
+  // Opening the task counts as reading any mentions of you in it.
+  await supabase.from("task_mentions").update({ seen_at: new Date().toISOString() }).eq("task_id", id).eq("user_id", viewer.id).is("seen_at", null);
   const person = (pid: unknown) => (typeof pid === "string" ? peopleById.get(pid) ?? null : null);
   const collaboratorIds = (collabRes.data ?? []).map((c) => c.user_id as string);
 
@@ -78,7 +80,7 @@ export default async function TaskPage({
   const canReassign = isLead || isOwner || !task.owner_id || isMeetingEditor;
 
   if (edit && canEdit) {
-    const formData = await getTaskFormData(viewer, task.department_id);
+    const formData = await getTaskFormData(viewer, task.department_id ?? undefined);
     return (
       <div className="mx-auto max-w-2xl">
         <PageHeader
@@ -135,7 +137,7 @@ export default async function TaskPage({
               <DueLabel date={task.due_date} time={task.due_time} overdue={task.overdue} className="text-sm" />
             </div>
             {task.status === "blocked" && (
-              <p className="rounded-[12px] bg-brand-accent/20 px-3 py-2 text-sm text-ink">
+              <p className="rounded-[12px] bg-warning-soft px-3 py-2 text-sm text-warning-ink">
                 <span className="font-medium">Blocked:</span> {task.blocked_reason || "No reason given"}
               </p>
             )}
@@ -146,11 +148,13 @@ export default async function TaskPage({
             )}
           </div>
 
-          <section className="surface p-4 md:p-6">
+          <section id="comments" className="surface scroll-mt-6 p-4 md:p-6">
             <h2 className="kicker mb-3 text-ink">Comments</h2>
             <TaskComments
               taskId={id}
               canComment={canContribute}
+              people={people}
+              viewerId={viewer.id}
               comments={(commentsRes.data ?? []).map((c) => ({
                 id: c.id as string,
                 body: c.body as string,

@@ -39,7 +39,7 @@ async function editableMeeting(meetingId: string): Promise<Ctx | { error: string
     supabase.rpc("can_edit_meeting", { p_meeting_id: meetingId }),
   ]);
   if (!meeting) return { error: "Meeting not found." };
-  if (!canEdit) return { error: "Only people in this meeting, its department Lead or an Admin can use the assistant here." };
+  if (!canEdit) return { error: "Only people in this meeting, its department admin can use the assistant here." };
   return { supabase, viewerId: viewer.id, meeting: meeting as Meeting };
 }
 
@@ -72,7 +72,7 @@ async function attendeeNames(ctx: Ctx) {
 const tidySchema = {
   type: "object",
   additionalProperties: false,
-  required: ["sections", "decisions"],
+  required: ["sections"],
   properties: {
     sections: {
       type: "array",
@@ -86,7 +86,6 @@ const tidySchema = {
         },
       },
     },
-    decisions: { type: "array", items: { type: "string" } },
   },
 };
 
@@ -94,10 +93,9 @@ const tidyParser = z.object({
   sections: z
     .array(z.object({ heading: z.string().trim().max(200), points: z.array(z.string().trim().max(2000)).max(60) }))
     .max(30),
-  decisions: z.array(z.string().trim().min(1).max(1000)).max(30),
 });
 
-export type TidyDraft = { html: string; decisions: string[] };
+export type TidyDraft = { html: string };
 
 export async function tidyMinutes(meetingId: string, minutesHtml: string): Promise<ActionResult<TidyDraft>> {
   return run(async () => {
@@ -123,11 +121,10 @@ How to structure the minutes:
 - Keep every fact from the notes. Drop only filler and repetition. Do not add facts, opinions, owners or dates the notes do not contain.
 - Expand obvious shorthand ("w/" to "with", "mtg" to "meeting"), but keep names, numbers and acronyms as written.
 - Do not include a section for action items; those are handled separately.
-- Put anything clearly agreed or decided in "decisions" as a short sentence each. Leave it empty if nothing was decided.
+- Where something was agreed, say so plainly in the relevant point ("Agreed to launch on 1 Nov.").
 - The notes may mix English and Roman Urdu. Write the minutes in English.`,
       prompt: `Meeting: ${meetingLabel(ctx.meeting)}
 Attendees: ${names.join(", ") || "not recorded"}
-Decisions already recorded: ${ctx.meeting.decisions.length ? ctx.meeting.decisions.join("; ") : "none"}
 
 Rough notes:
 <notes>
@@ -137,10 +134,9 @@ ${notes}
 
     const sections = out.sections.filter((s) => s.points.some((p) => p));
     if (!sections.length) return { ok: false, error: "The assistant found nothing to tidy." };
-    const have = new Set(ctx.meeting.decisions.map((d) => d.toLowerCase()));
     return {
       ok: true,
-      data: { html: minutesToHtml(sections), decisions: out.decisions.filter((d) => !have.has(d.toLowerCase())) },
+      data: { html: minutesToHtml(sections) },
     };
   });
 }
@@ -335,8 +331,8 @@ export async function draftAgenda(meetingId: string): Promise<ActionResult<strin
     const [{ data: prev }, { data: stuck }, people] = await Promise.all([
       supabase
         .from("meetings")
-        .select("id, title, meeting_date, decisions")
-        .eq("department_id", meeting.department_id)
+        .select("id, title, meeting_date")
+        .eq(meeting.series_id ? "series_id" : "department_id", meeting.series_id ?? meeting.department_id)
         .or(`meeting_date.lt.${meeting.meeting_date},and(meeting_date.eq.${meeting.meeting_date},created_at.lt."${meeting.created_at}")`)
         .order("meeting_date", { ascending: false })
         .order("created_at", { ascending: false })
@@ -401,7 +397,6 @@ Rules:
 - At most 12 topics.`,
       prompt: `Meeting: ${meetingLabel(meeting)}, today is ${today}
 ${prev ? `Previous meeting: ${prev.title || "Weekly meeting"}, ${prev.meeting_date}` : "No previous meeting recorded."}
-${prev && (prev.decisions as string[])?.length ? `Decisions last time: ${(prev.decisions as string[]).join("; ")}` : ""}
 
 Last week's action items that are still open:
 ${open.map(line).join("\n") || "none"}

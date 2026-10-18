@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScheduleEditor } from "@/components/departments/team-manager";
 import type { Department, SubTeam } from "@/lib/types";
 import {
   createDepartment,
@@ -108,17 +107,6 @@ function DepartmentCard({ dept, subTeams, first, last }: { dept: Department; sub
             {dept.archived ? "Restore" : "Archive"}
           </Button>
         </div>
-      </div>
-
-      <div>
-        <p className="mb-1 text-xs font-medium text-muted-foreground">Weekly meeting</p>
-        <ScheduleEditor
-          departmentId={dept.id}
-          weekday={dept.meeting_weekday}
-          time={dept.meeting_time}
-          duration={dept.meeting_duration_minutes}
-          canEdit
-        />
       </div>
 
       <div>

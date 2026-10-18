@@ -8,7 +8,7 @@ export const metadata = { title: "Meeting assistant · Highfy Tasks" };
 function Row({ label, ok, children }: { label: string; ok: boolean; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-3 py-3">
-      <span className={ok ? "mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ink-muted" : "mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-accent"} />
+      <span className={ok ? "mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ink-muted" : "mt-1.5 h-2 w-2 shrink-0 rounded-full bg-warning"} />
       <div>
         <p className="text-sm font-semibold text-ink">{label}</p>
         <p className="text-sm text-ink-muted">{children}</p>

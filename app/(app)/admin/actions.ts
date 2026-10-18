@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { syncLater } from "@/lib/calendar/schedule";
-import { syncDepartmentSeries, syncDepartmentsForUser, syncUserTasks } from "@/lib/calendar/sync";
+import { syncSeriesForDepartment, syncSeriesForUser, syncUserTasks } from "@/lib/calendar/sync";
 
 const uuid = z.string().uuid();
 
@@ -26,7 +26,7 @@ export async function setUserStatus(userId: string, status: "active" | "disabled
   const res = await update("profiles", userId, { status });
   // Access changes who gets the weekly invites and task events.
   if (res.ok) syncLater(async () => {
-    await syncDepartmentsForUser(userId);
+    await syncSeriesForUser(userId);
     await syncUserTasks(userId);
   });
   return res;
@@ -68,14 +68,14 @@ export async function renameDepartment(id: string, name: string): Promise<Action
   if (!n) return { ok: false, error: "Enter a name." };
   // The slug stays the same so existing links and saved views keep working.
   const res = await update("departments", id, { name: n });
-  if (res.ok) syncLater(() => syncDepartmentSeries(id));
+  if (res.ok) syncLater(() => syncSeriesForDepartment(id));
   return res;
 }
 
 export async function setDepartmentArchived(id: string, archived: boolean): Promise<ActionResult> {
   await requireAdmin();
   const res = await update("departments", id, { archived: !!archived });
-  if (res.ok) syncLater(() => syncDepartmentSeries(id));
+  if (res.ok) syncLater(() => syncSeriesForDepartment(id));
   return res;
 }
 

@@ -64,11 +64,14 @@ export async function requireAdmin(): Promise<Viewer> {
   return viewer;
 }
 
-export function canLead(viewer: Viewer, departmentId: string): boolean {
+/** Personal tasks (no department) belong to their owner only, Admin included. */
+export function canLead(viewer: Viewer, departmentId: string | null): boolean {
+  if (!departmentId) return false;
   return viewer.isAdmin || viewer.leadDeptIds.includes(departmentId);
 }
 
-export function isMemberOf(viewer: Viewer, departmentId: string): boolean {
+export function isMemberOf(viewer: Viewer, departmentId: string | null): boolean {
+  if (!departmentId) return false;
   return viewer.isAdmin || viewer.memberDeptIds.includes(departmentId);
 }
 

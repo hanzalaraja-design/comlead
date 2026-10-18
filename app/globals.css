@@ -18,7 +18,16 @@
     --brand-muted: 289 49.3% 86.9%;       /* #E8CDEE muted lavender */
     --brand-panel: 281 49% 90%;           /* #EAD9F2 light purple panel */
     --brand-surface: 0 0% 100%;           /* #FFFFFF */
-    --danger: 0 66.4% 46.7%;              /* #C62828 */
+    /* Meaning colours, used soft: tinted background + darker text. */
+    --danger: 4 70% 50%;                  /* #D93025 overdue, urgent */
+    --danger-soft: 6 85% 95%;             /* #FDECEA */
+    --danger-ink: 3 71% 41%;              /* #B3261E */
+    --warning: 40 100% 47%;               /* #F2A100 due soon, blocked */
+    --warning-soft: 43 94% 93%;           /* #FEF4DC */
+    --warning-ink: 36 100% 28%;           /* #8F5600 */
+    --info: 220 84% 56%;                  /* #2F6FED in progress, today's meetings */
+    --info-soft: 219 89% 95%;             /* #E8F0FE */
+    --info-ink: 221 71% 42%;              /* #1F4FB8 */
 
     /* Neutral base: the app is mostly greys; brand colours highlight. */
     --canvas: 40 14% 95.5%;               /* #F5F4F1 page background */
@@ -27,7 +36,9 @@
     --subtle: 40 12% 94%;                 /* #F2F1EE hover, table headers, quiet pills */
     --ink: 30 6% 11%;                     /* #1E1C1A text */
     --ink-muted: 35 4% 43%;               /* #736F6A secondary text */
-    --success: 123 46.2% 33.5%;           /* #2E7D32 */
+    --success: 148 68% 37%;               /* #1E9E5A done, on track */
+    --success-soft: 147 49% 93%;          /* #E3F5EB */
+    --success-ink: 149 71% 26%;           /* #13703F */
 
     /* shadcn/ui mapping */
     --background: var(--canvas);
@@ -130,5 +141,12 @@
   .prose-content p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     @apply pointer-events-none float-left h-0 text-muted-foreground;
+  }
+}
+
+@keyframes confetti-fall {
+  to {
+    transform: translate(var(--drift), 105vh) rotate(720deg);
+    opacity: 0.9;
   }
 }

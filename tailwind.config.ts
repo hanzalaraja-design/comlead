@@ -26,7 +26,21 @@ export default {
           panel: "hsl(var(--brand-panel) / <alpha-value>)",
           surface: "hsl(var(--brand-surface) / <alpha-value>)",
         },
-        danger: "hsl(var(--danger) / <alpha-value>)",
+        danger: {
+          DEFAULT: "hsl(var(--danger) / <alpha-value>)",
+          soft: "hsl(var(--danger-soft) / <alpha-value>)",
+          ink: "hsl(var(--danger-ink) / <alpha-value>)",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
+          soft: "hsl(var(--warning-soft) / <alpha-value>)",
+          ink: "hsl(var(--warning-ink) / <alpha-value>)",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info) / <alpha-value>)",
+          soft: "hsl(var(--info-soft) / <alpha-value>)",
+          ink: "hsl(var(--info-ink) / <alpha-value>)",
+        },
         canvas: "hsl(var(--canvas) / <alpha-value>)",
         line: "hsl(var(--line) / <alpha-value>)",
         subtle: "hsl(var(--subtle) / <alpha-value>)",
@@ -34,7 +48,11 @@ export default {
           DEFAULT: "hsl(var(--ink) / <alpha-value>)",
           muted: "hsl(var(--ink-muted) / <alpha-value>)",
         },
-        success: "hsl(var(--success) / <alpha-value>)",
+        success: {
+          DEFAULT: "hsl(var(--success) / <alpha-value>)",
+          soft: "hsl(var(--success-soft) / <alpha-value>)",
+          ink: "hsl(var(--success-ink) / <alpha-value>)",
+        },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

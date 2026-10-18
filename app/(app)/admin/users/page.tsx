@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { UserRow } from "@/components/admin/user-row";
-import { getDepartmentMembers, getDepartments, requireAdmin } from "@/lib/auth";
+import { DepartmentsSetup } from "@/components/admin/departments-setup";
+import { getDepartmentMembers, getDepartments, getSubTeams, requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { DeptRole, Profile } from "@/lib/types";
 
@@ -11,10 +12,11 @@ const ORDER = { pending: 0, active: 1, disabled: 2 } as const;
 export default async function AdminUsersPage() {
   const admin = await requireAdmin();
   const supabase = await createClient();
-  const [{ data }, departments, members] = await Promise.all([
+  const [{ data }, departments, members, subTeams] = await Promise.all([
     supabase.from("profiles").select("*").order("full_name", { nullsFirst: false }),
     getDepartments(),
     getDepartmentMembers(),
+    getSubTeams(),
   ]);
   const users = ((data ?? []) as Profile[]).sort((a, b) => ORDER[a.status] - ORDER[b.status]);
   const byUser = new Map<string, { department_id: string; role: DeptRole }[]>();
@@ -35,7 +37,7 @@ export default async function AdminUsersPage() {
       <PageHeader
         breadcrumb={["Admin", "People"]}
         title="People"
-        description="New people appear here after their first Microsoft sign-in. Roles are set per department."
+        description="New people appear here after their first Microsoft sign-in. Add people to as many departments as you like, as Member or Dept admin. Admin sees everything."
       />
       <div className="space-y-8">
         {groups.map((g) => {
@@ -55,6 +57,11 @@ export default async function AdminUsersPage() {
             </section>
           );
         })}
+        <section id="departments" className="scroll-mt-6">
+          <h2 className="kicker mb-1 text-ink">Departments</h2>
+          <p className="mb-2 text-xs text-muted-foreground">Rename, reorder or archive departments and manage sub-teams. Meetings are set up under Meetings.</p>
+          <DepartmentsSetup departments={departments} subTeams={subTeams} />
+        </section>
       </div>
     </>
   );

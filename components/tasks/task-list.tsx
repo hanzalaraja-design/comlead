@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { NotebookPen } from "lucide-react";
 import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel, PriorityBadge, TagList } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
-import { personName } from "@/lib/labels";
-import { formatPKT } from "@/lib/time";
+import { OPEN_STATUSES, personName } from "@/lib/labels";
+import { CompleteButton } from "@/components/tasks/complete-button";
+import { formatPKT, todayPKT } from "@/lib/time";
 import type { TaskListRow } from "@/lib/tasks/queries";
 
 /**
@@ -47,17 +49,35 @@ function TaskListItem({
   showDepartment: boolean;
   showCompleted: boolean;
 }) {
+  const today = todayPKT();
   return (
-    <li className="relative px-4 py-3 hover:bg-subtle/60 md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] md:items-center md:gap-3 md:py-2">
+    <li
+      className={cn(
+        "relative px-4 py-3 hover:bg-subtle/60 md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem] md:items-center md:gap-3 md:py-2",
+        t.overdue && "before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-danger",
+        t.status === "done" && "opacity-70",
+      )}
+    >
       <div className="hidden md:block">
         <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
       </div>
 
       <div className="min-w-0">
-        <Link href={`/tasks/${t.id}`} className="block font-semibold leading-snug text-ink after:absolute after:inset-0">
-          <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
-        </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <div className="flex items-start gap-2.5">
+          {OPEN_STATUSES.includes(t.status) && (
+            <CompleteButton
+              taskId={t.id}
+              title={t.title}
+              dueByToday={t.overdue || (!!t.due_date && t.due_date <= today)}
+              className="mt-0.5"
+            />
+          )}
+          <Link href={`/tasks/${t.id}`} className="block min-w-0 font-semibold leading-snug text-ink after:absolute after:inset-0">
+            <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
+          </Link>
+        </div>
+        <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
+          {!t.department_id && <span className="font-medium text-brand-primary">Personal</span>}
           {showDepartment && t.department && (
             <span>
               {t.department.name}

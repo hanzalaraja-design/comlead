@@ -36,7 +36,6 @@ const MAIN: NavItem[] = [
 const ADMIN: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/users", label: "People", icon: Users },
-  { href: "/admin/departments", label: "Departments setup", icon: Settings },
   { href: "/admin/assistant", label: "Meeting assistant", icon: Sparkles },
   { href: "/admin/outlook", label: "Outlook", icon: CalendarSync },
 ];
@@ -55,7 +54,19 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-function NavLinks({ items, pathname, onNavigate }: { items: NavItem[]; pathname: string; onNavigate?: () => void }) {
+type Badges = Record<string, number>;
+
+function NavLinks({
+  items,
+  pathname,
+  onNavigate,
+  badges = {},
+}: {
+  items: NavItem[];
+  pathname: string;
+  onNavigate?: () => void;
+  badges?: Badges;
+}) {
   return (
     <ul className="space-y-0.5">
       {items.map((item) => (
@@ -71,7 +82,22 @@ function NavLinks({ items, pathname, onNavigate }: { items: NavItem[]; pathname:
             )}
           >
             <item.icon className="h-4 w-4 shrink-0" />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {!!badges[item.href] && (
+              <span
+                className={cn(
+                  "min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5",
+                  isActive(pathname, item.href)
+                    ? "bg-white/25 text-white"
+                    : item.href === "/overdue"
+                      ? "bg-danger-soft text-danger-ink"
+                      : "bg-brand-primary text-white",
+                )}
+                aria-label={item.href === "/overdue" ? `${badges[item.href]} overdue` : `${badges[item.href]} new mentions`}
+              >
+                {badges[item.href]}
+              </span>
+            )}
           </Link>
         </li>
       ))}
@@ -85,16 +111,18 @@ function NavBody({
   email,
   pathname,
   onNavigate,
+  badges,
 }: {
   isAdmin: boolean;
   name: string;
   email: string;
   pathname: string;
   onNavigate?: () => void;
+  badges?: Badges;
 }) {
   return (
     <div className="flex h-full flex-col gap-6">
-      <NavLinks items={MAIN} pathname={pathname} onNavigate={onNavigate} />
+      <NavLinks items={MAIN} pathname={pathname} onNavigate={onNavigate} badges={badges} />
       {isAdmin && (
         <div>
           <p className="mb-1 px-3 text-xs font-medium text-ink-muted">Admin</p>
@@ -126,7 +154,7 @@ function NavBody({
   );
 }
 
-export function AppNav({ isAdmin, name, email }: { isAdmin: boolean; name: string; email: string }) {
+export function AppNav({ isAdmin, name, email, badges }: { isAdmin: boolean; name: string; email: string; badges?: Badges }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -138,7 +166,7 @@ export function AppNav({ isAdmin, name, email }: { isAdmin: boolean; name: strin
           <HighfyLogo className="w-24" />
           <span className="pb-1 text-sm font-semibold text-ink-muted">Tasks</span>
         </Link>
-        <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} />
+        <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} badges={badges} />
       </aside>
 
       {/* Phone top bar */}
@@ -161,7 +189,7 @@ export function AppNav({ isAdmin, name, email }: { isAdmin: boolean; name: strin
           <SheetHeader className="p-0 pb-2">
             <SheetTitle className="text-ink">Menu</SheetTitle>
           </SheetHeader>
-          <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} onNavigate={() => setOpen(false)} />
+          <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} onNavigate={() => setOpen(false)} badges={badges} />
         </SheetContent>
       </Sheet>
 
@@ -177,7 +205,10 @@ export function AppNav({ isAdmin, name, email }: { isAdmin: boolean; name: strin
                   isActive(pathname, item.href) ? "font-semibold text-brand-primary" : "text-ink-muted",
                 )}
               >
-                <item.icon className="h-5 w-5" />
+                <span className="relative">
+                  <item.icon className="h-5 w-5" />
+                  {!!badges?.[item.href] && <span className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full bg-brand-primary" />}
+                </span>
                 {item.label}
               </Link>
             </li>

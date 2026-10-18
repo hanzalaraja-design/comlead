@@ -1,6 +1,35 @@
 # Highfy Brand Guide for the Task Tracker (comlead)
 
-> **Revision (Oct 2026): minimalist, mostly grey.** The app is built on a neutral
+> **Revision 2 (Oct 2026): calm base, colour that means something.** Grey stays
+> the base; colour only ever tells you about time or progress. Where this note
+> conflicts with anything below (including Revision 1), this note wins.
+>
+> - **Base (unchanged):** warm off-white page (`--canvas` #F5F4F1), white cards
+>   with a 1px hairline (`--line` #E8E6E2), 20px radius, near-black ink text,
+>   League Spartan, logo and crown.
+> - **Meaning colours, always soft** (tinted background + darker text, never
+>   loud solid blocks):
+>
+>   | Colour | Token | Means |
+>   |---|---|---|
+>   | Red #D93025 | `danger` (`-soft`, `-ink`) | Overdue, urgent. Overdue rows get a red left edge. |
+>   | Amber #F2A100 | `warning` | Due today or tomorrow, blocked, high priority |
+>   | Green #1E9E5A | `success` | Done, on track, progress |
+>   | Blue #2F6FED | `info` | In progress, today's meetings, "today" markers |
+>   | Purple #7C118C | `brand-primary` | Actions and you: buttons, active menu item, mentions |
+>   | Orange #FF8F4B | `brand-accent` | Celebration only: the crown, the leaderboard winner |
+>
+> - **Pills:** To do white with hairline; In progress blue; Blocked amber; Done
+>   green; Cancelled grey struck through. Priority: Urgent red, High amber,
+>   Medium grey, Low plain grey text.
+> - **Progress, lightly gamified:** weekly progress ring on My tasks; a one-click
+>   tick that fills green; a short confetti burst when the last task due today is
+>   cleared (skipped for reduced motion); today's state line (green when nothing
+>   is overdue, red when something is); a department leaderboard on the Admin
+>   dashboard, by team, never by person. No streaks.
+> - No decorative colour: no gradients, no coloured page backgrounds.
+
+> **Revision 1 (Oct 2026, superseded where it conflicts): minimalist, mostly grey.** The app is built on a neutral
 > base and uses brand colours only to highlight. Where this note conflicts with
 > the sections below, this note wins.
 >
@@ -145,13 +174,15 @@ Follow the deck's stat card pattern:
 
 ## 9. Voice for UI text
 
-Highfy talks like a calm, honest colleague. Plain, specific, a little dry. Never hype.
+Highfy talks like a calm, honest colleague with a bit of warmth. Plain and specific first, but not robotic: it's fine to sound like a person.
 
 - Say the plain true thing. "3 tasks overdue." not "Uh oh! Looks like you're falling behind!"
-- No exclamation marks, no emoji, no exaggerated cheer.
-- Empty states: "Nothing due today." / "No meetings recorded yet."
+- **Vary it.** Recurring lines (empty states, today's state, praise) rotate through a few phrasings so the app doesn't repeat itself every day ("Nothing overdue. Nice and tidy." / "All caught up. Enjoy it." / "Clean slate. Go get a coffee."). Keep the set in `lib/voice.ts`.
+- Warmth is welcome, hype is not. A small "Nicely done." when someone clears their day; never "Amazing!!" or "You're crushing it!"
+- A light touch of humour is fine in empty states and celebrations. Never in errors.
+- No exclamation marks, no emoji.
 - Errors: say what happened and what to do. "Couldn't save. Check your connection and try again."
-- Confirmations: short. "Task marked done."
+- Confirmations: short. "Task created." "Added to your personal list."
 - No em dashes anywhere in UI text.
 - Sentence case everywhere.
 

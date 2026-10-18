@@ -36,7 +36,7 @@ export function MeetingFilters({ departments, people }: { departments: Opt[]; pe
     <div className="mb-4 space-y-2">
       <div className="relative">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search all minutes, agendas and decisions…" className="h-10 pl-8" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search all minutes and agendas…" className="h-10 pl-8" />
       </div>
       <div className="flex flex-wrap gap-2">
         {departments.length > 1 && (

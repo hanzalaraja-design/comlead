@@ -306,10 +306,12 @@ reset role;
 
 select pg_temp.login('00000000-0000-4000-a000-000000000002', 'rlstest.mlead@highfy.pk');
 set local role authenticated;
-select pg_temp.ok((select count(*) from public.tasks where id = '00000000-0000-4000-c000-000000000002') = 1,
-  'lead can read another department''s task');
-select pg_temp.ok((select count(*) from public.meetings where id = '00000000-0000-4000-b000-000000000002') = 1,
-  'lead can read another department''s meeting');
+select pg_temp.ok((select count(*) from public.tasks where id = '00000000-0000-4000-c000-000000000002') = 0,
+  'dept admin cannot read another department''s task');
+select pg_temp.ok((select count(*) from public.meetings where id = '00000000-0000-4000-b000-000000000002') = 0,
+  'dept admin cannot read another department''s meeting');
+select pg_temp.ok((select count(*) from public.departments where slug = 'content') = 0,
+  'dept admin cannot see another department');
 select pg_temp.denied($$update public.tasks set status = 'done' where id = '00000000-0000-4000-c000-000000000002'$$,
   'lead cannot edit another department''s task');
 select pg_temp.denied($$insert into public.tasks (title, department_id, created_by)
@@ -488,6 +490,147 @@ select pg_temp.ok((select outlook_tasks_enabled from public.profiles where id = 
   'users can switch their own Outlook task sync on');
 select pg_temp.ok(not (select outlook_tasks_enabled from public.profiles where id = '00000000-0000-4000-a000-000000000006'),
   'switching it on does not affect anyone else');
+
+
+-- ---------------------------------------------------------------------------
+-- Personal tasks
+-- ---------------------------------------------------------------------------
+
+select pg_temp.login('00000000-0000-4000-a000-000000000003', 'rlstest.mmember@highfy.pk');
+set local role authenticated;
+select pg_temp.allowed($$insert into public.tasks (id, title, department_id, owner_id, created_by)
+  values ('00000000-0000-4000-c000-0000000000a1', 'P1 personal', null, auth.uid(), auth.uid())$$,
+  'anyone can add a personal task for themselves');
+select pg_temp.denied($$insert into public.tasks (title, department_id, owner_id, created_by)
+  values ('P2 personal for someone else', null, '00000000-0000-4000-a000-000000000006', auth.uid())$$,
+  'cannot add a personal task for someone else');
+select pg_temp.allowed($$update public.tasks set status = 'in_progress' where id = '00000000-0000-4000-c000-0000000000a1'$$,
+  'owner can update their personal task');
+select pg_temp.allowed($$update public.tasks set department_id = (select id from public.departments where slug = 'marketing')
+  where id = '00000000-0000-4000-c000-0000000000a1'$$,
+  'owner can move a personal task into their department');
+select pg_temp.denied($$update public.tasks set department_id = null where id = '00000000-0000-4000-c000-0000000000a1'$$,
+  'a member cannot turn a department task back into a personal one');
+reset role;
+
+select pg_temp.login('00000000-0000-4000-a000-000000000003', 'rlstest.mmember@highfy.pk');
+set local role authenticated;
+select pg_temp.allowed($$insert into public.tasks (id, title, department_id, owner_id, created_by)
+  values ('00000000-0000-4000-c000-0000000000a2', 'P3 private', null, auth.uid(), auth.uid()) returning id$$,
+  'a new personal task can be read back straight away');
+reset role;
+select pg_temp.login('00000000-0000-4000-a000-000000000002', 'rlstest.mlead@highfy.pk');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.tasks where id = '00000000-0000-4000-c000-0000000000a2') = 0,
+  'dept admin cannot see a member''s personal task');
+reset role;
+select pg_temp.login('00000000-0000-4000-a000-000000000001', 'rlstest.admin@highfy.pk');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.tasks where id = '00000000-0000-4000-c000-0000000000a2') = 0,
+  'company admin cannot see someone''s personal task');
+select pg_temp.denied($$update public.tasks set title = 'x' where id = '00000000-0000-4000-c000-0000000000a2'$$,
+  'company admin cannot edit someone''s personal task');
+reset role;
+select pg_temp.ok(not exists (select 1 from public.activity_log where task_id = '00000000-0000-4000-c000-0000000000a2'),
+  'personal tasks stay out of the activity log');
+
+-- ---------------------------------------------------------------------------
+-- Mentions
+-- ---------------------------------------------------------------------------
+
+select pg_temp.login('00000000-0000-4000-a000-000000000003', 'rlstest.mmember@highfy.pk');
+set local role authenticated;
+insert into public.task_comments (id, task_id, author_id, body)
+values ('00000000-0000-4000-d000-000000000001', '00000000-0000-4000-c000-000000000001', auth.uid(), '@Content Member can you check?');
+select public.add_comment_mentions('00000000-0000-4000-d000-000000000001', array['00000000-0000-4000-a000-000000000004']::uuid[]);
+reset role;
+select pg_temp.login('00000000-0000-4000-a000-000000000004', 'rlstest.cmember@highfy.pk');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.task_mentions where user_id = auth.uid()) = 1,
+  'mentioned person sees the mention');
+select pg_temp.ok((select count(*) from public.tasks where id = '00000000-0000-4000-c000-000000000001') = 1,
+  'mentioned person can open the task from another department');
+select pg_temp.allowed($$update public.task_mentions set seen_at = now() where user_id = auth.uid()$$,
+  'mentioned person can mark it seen');
+do $$
+begin
+  begin
+    perform public.add_comment_mentions('00000000-0000-4000-d000-000000000001', array['00000000-0000-4000-a000-000000000006']::uuid[]);
+    raise exception 'FAIL: someone else added mentions to a comment';
+  exception when insufficient_privilege then
+    raise notice 'ok   - only the comment author can tag people';
+  end;
+end $$;
+reset role;
+select pg_temp.login('00000000-0000-4000-a000-000000000006', 'rlstest.mmember2@highfy.pk');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.task_mentions) = 0, 'people cannot see other people''s mentions');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Meeting setup
+-- ---------------------------------------------------------------------------
+
+select pg_temp.login('00000000-0000-4000-a000-000000000003', 'rlstest.mmember@highfy.pk');
+set local role authenticated;
+select pg_temp.allowed($$insert into public.meeting_series (id, title, department_id, frequency, start_date, meeting_time, created_by)
+  select '00000000-0000-4000-e000-000000000001', 'Campaign sync', id, 'fortnightly', current_date, '10:00', auth.uid()
+    from public.departments where slug = 'marketing'$$,
+  'member can set up a meeting in their department');
+select pg_temp.allowed($$insert into public.meeting_series_people (series_id, user_id)
+  values ('00000000-0000-4000-e000-000000000001', '00000000-0000-4000-a000-000000000004')$$,
+  'organiser can invite someone from another department');
+select pg_temp.denied($$insert into public.meeting_series (title, department_id, frequency, start_date, meeting_time, created_by)
+  select 'x', id, 'weekly', current_date, '10:00', auth.uid() from public.departments where slug = 'content'$$,
+  'member cannot set up a meeting in another department');
+reset role;
+select pg_temp.login('00000000-0000-4000-a000-000000000006', 'rlstest.mmember2@highfy.pk');
+set local role authenticated;
+select pg_temp.denied($$update public.meeting_series set title = 'Hijacked' where id = '00000000-0000-4000-e000-000000000001'$$,
+  'another member cannot change someone else''s meeting');
+reset role;
+select pg_temp.login('00000000-0000-4000-a000-000000000002', 'rlstest.mlead@highfy.pk');
+set local role authenticated;
+select pg_temp.allowed($$update public.meeting_series set duration_minutes = 45 where id = '00000000-0000-4000-e000-000000000001'$$,
+  'dept admin can change their department''s meetings');
+reset role;
+select pg_temp.login('00000000-0000-4000-a000-000000000004', 'rlstest.cmember@highfy.pk');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.meeting_series where id = '00000000-0000-4000-e000-000000000001') = 1,
+  'invited person from another department can see the meeting');
+select pg_temp.ok(public.open_series_meeting('00000000-0000-4000-e000-000000000001', current_date) is not null,
+  'invited person can start the minutes');
+select pg_temp.ok((select count(*) from public.meetings where series_id = '00000000-0000-4000-e000-000000000001') = 1,
+  'and can open them');
+select pg_temp.ok(public.open_series_meeting('00000000-0000-4000-e000-000000000001', current_date)
+  = (select id from public.meetings where series_id = '00000000-0000-4000-e000-000000000001'),
+  'opening again returns the same minutes');
+select pg_temp.denied($$update public.meeting_series set title = 'x' where id = '00000000-0000-4000-e000-000000000001'$$,
+  'invited person cannot change it');
+reset role;
+select pg_temp.login('00000000-0000-4000-a000-000000000006', 'rlstest.mmember2@highfy.pk');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.meeting_series) >= 1, 'department members see their department''s meetings');
+do $$
+begin
+  begin
+    perform public.open_series_meeting('00000000-0000-4000-e000-000000000001', current_date);
+    raise notice 'ok   - department members can open its minutes';
+  end;
+end $$;
+reset role;
+select pg_temp.login('00000000-0000-4000-a000-000000000005', 'rlstest.pending@highfy.pk');
+set local role authenticated;
+do $$
+begin
+  begin
+    perform public.open_series_meeting('00000000-0000-4000-e000-000000000001', current_date);
+    raise exception 'FAIL: outsider opened a meeting they were not invited to';
+  exception when insufficient_privilege then
+    raise notice 'ok   - people not invited cannot open the minutes';
+  end;
+end $$;
+reset role;
 
 select 'ALL RLS TESTS PASSED' as result;
 

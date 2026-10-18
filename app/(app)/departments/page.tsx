@@ -2,7 +2,6 @@ import Link from "next/link";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { formatTime, weekdayName } from "@/lib/time";
 import type { Department } from "@/lib/types";
 
 export const metadata = { title: "Departments · Highfy Tasks" };
@@ -12,10 +11,13 @@ type Stats = { department_id: string; open_count: number; overdue_count: number;
 export default async function DepartmentsPage() {
   const viewer = await requireViewer();
   const supabase = await createClient();
-  const [{ data: depts }, { data: stats }] = await Promise.all([
+  const [{ data: depts }, { data: stats }, { data: series }] = await Promise.all([
     supabase.from("departments").select("*").eq("archived", false).order("sort_order").order("name"),
     supabase.rpc("dashboard_department_stats"),
+    supabase.from("meeting_series").select("department_id").eq("archived", false),
   ]);
+  const meetingsBy = new Map<string, number>();
+  for (const r of series ?? []) meetingsBy.set(r.department_id as string, (meetingsBy.get(r.department_id as string) ?? 0) + 1);
   const statsBy = new Map(((stats ?? []) as Stats[]).map((s) => [s.department_id, s]));
   const roleBy = new Map(viewer.memberships.map((m) => [m.department_id, m.role]));
 
@@ -36,17 +38,14 @@ export default async function DepartmentsPage() {
                     <h2 className="font-semibold">{d.name}</h2>
                     {role && (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        {role === "lead" ? "Lead" : "Member"}
+                        {role === "lead" ? "Dept admin" : "Member"}
                       </span>
-                    )}
-                    {!role && !viewer.isAdmin && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">View only</span>
                     )}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {d.meeting_weekday
-                      ? `Weekly meeting: ${weekdayName(d.meeting_weekday)}${d.meeting_time ? ` ${formatTime(d.meeting_time)}` : ""}`
-                      : "No meeting schedule set"}
+                    {meetingsBy.get(d.id)
+                      ? `${meetingsBy.get(d.id)} meeting${meetingsBy.get(d.id) === 1 ? "" : "s"} planned`
+                      : "No meetings planned"}
                   </p>
                   {s && (
                     <dl className="mt-3 grid grid-cols-4 gap-2 text-center">
@@ -72,7 +71,7 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "re
       <dd
         className={
           "text-lg font-semibold " +
-          (tone === "red" ? "text-brand-accent" : "text-ink")
+          (tone === "red" ? "text-danger" : "text-ink")
         }
       >
         {value}

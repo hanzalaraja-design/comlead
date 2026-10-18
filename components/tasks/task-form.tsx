@@ -31,14 +31,18 @@ export type TaskFormProps = {
 };
 
 const selectClass = "h-10 w-full field px-3 text-sm disabled:opacity-60";
+const PERSONAL = "personal";
 
 export function TaskForm(props: TaskFormProps) {
   const { task } = props;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [departmentId, setDepartmentId] = useState(
-    task?.department_id ?? props.defaultDepartmentId ?? props.departments[0]?.id ?? "",
+    task ? task.department_id ?? PERSONAL : props.defaultDepartmentId ?? props.departments[0]?.id ?? PERSONAL,
   );
+  const personal = departmentId === PERSONAL;
+  // A department task can't be turned back into a personal one.
+  const offerPersonal = !task || task.department_id === null;
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo");
   const [dueDate, setDueDate] = useState(task?.due_date ?? "");
   const [collaborators, setCollaborators] = useState<string[]>(props.collaboratorIds ?? []);
@@ -88,6 +92,7 @@ export function TaskForm(props: TaskFormProps) {
             disabled={!!task && !props.canMove}
             onChange={(e) => setDepartmentId(e.target.value)}
           >
+            {offerPersonal && <option value={PERSONAL}>Personal (only you)</option>}
             {props.departments.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -104,7 +109,7 @@ export function TaskForm(props: TaskFormProps) {
             className={selectClass}
             defaultValue={task?.sub_team_id ?? ""}
             key={departmentId}
-            disabled={!subTeams.length}
+            disabled={!subTeams.length || personal}
           >
             <option value="">{subTeams.length ? "None" : "No sub-teams"}</option>
             {subTeams.map((s) => (
@@ -122,9 +127,10 @@ export function TaskForm(props: TaskFormProps) {
             name="owner_id"
             className={selectClass}
             defaultValue={task ? task.owner_id ?? "" : props.defaultOwnerId ?? ""}
-            disabled={!!task && !props.canReassign}
+            disabled={(!!task && !props.canReassign) || personal}
+            key={personal ? "personal" : "team"}
           >
-            <option value="">Unassigned</option>
+            {personal ? <option value="">You</option> : <option value="">Unassigned</option>}
             {ownerOptions.map((p) => (
               <option key={p.id} value={p.id}>
                 {personName(p)}

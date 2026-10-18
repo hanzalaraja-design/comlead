@@ -45,7 +45,8 @@ export type Task = {
   id: string;
   title: string;
   description: string | null;
-  department_id: string;
+  /** null = personal task, visible only to its owner. */
+  department_id: string | null;
   sub_team_id: string | null;
   owner_id: string | null;
   status: TaskStatus;
@@ -81,6 +82,7 @@ export type Meeting = {
   agenda: string | null;
   minutes: string | null;
   decisions: string[];
+  series_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

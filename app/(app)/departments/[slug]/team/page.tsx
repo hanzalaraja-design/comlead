@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { DepartmentTabs } from "@/components/department-tabs";
 import { PageHeader } from "@/components/page-header";
-import { ScheduleEditor, TeamManager } from "@/components/departments/team-manager";
+import { TeamManager } from "@/components/departments/team-manager";
 import { canLead, getDepartmentMembers, getDepartments, getPeople, getSubTeams, requireViewer } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 
@@ -43,23 +43,10 @@ export default async function DepartmentTeamPage({ params }: { params: Promise<{
             isAdmin={viewer.isAdmin}
           />
           {!isLead && (
-            <p className="mt-2 text-xs text-muted-foreground">Only the department Lead or Admin can add or remove people.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Only a department admin can add or remove people.</p>
           )}
         </section>
         <div className="space-y-8">
-          <section className="surface p-4 md:p-6">
-            <h2 className="kicker mb-3 text-ink">Weekly meeting</h2>
-            <ScheduleEditor
-              departmentId={dept.id}
-              weekday={dept.meeting_weekday}
-              time={dept.meeting_time}
-              duration={dept.meeting_duration_minutes}
-              canEdit={isLead}
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              Once Outlook is connected, this is sent to everyone in the department as a weekly invite.
-            </p>
-          </section>
           <section className="surface p-4 md:p-6">
             <h2 className="kicker mb-3 text-ink">Sub-teams</h2>
             {subTeams.filter((s) => s.department_id === dept.id && !s.archived).length ? (
@@ -75,7 +62,7 @@ export default async function DepartmentTeamPage({ params }: { params: Promise<{
             ) : (
               <p className="text-sm text-muted-foreground">None.</p>
             )}
-            {viewer.isAdmin && <p className="mt-2 text-xs text-muted-foreground">Manage sub-teams in Admin → Departments setup.</p>}
+            {viewer.isAdmin && <p className="mt-2 text-xs text-muted-foreground">Manage sub-teams in Admin → People → Departments.</p>}
           </section>
         </div>
       </div>

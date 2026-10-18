@@ -59,11 +59,11 @@ export function describeActivity(e: ActivityEntry, { person }: Lookup): string {
     case "meeting.action_item_added":
       return `added action item “${s(n.title)}” to ${label}`;
     case "membership.added":
-      return `added ${label} (${s(n.role) === "lead" ? "Lead" : "Member"})`;
+      return `added ${label} (${s(n.role) === "lead" ? "Dept admin" : "Member"})`;
     case "membership.removed":
       return `removed ${label}`;
     case "membership.role_changed":
-      return `changed ${label} to ${s(n.role) === "lead" ? "Lead" : "Member"}`;
+      return `changed ${label} to ${s(n.role) === "lead" ? "Dept admin" : "Member"}`;
     default:
       return `${e.action} ${label}`;
   }

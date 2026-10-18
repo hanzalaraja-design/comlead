@@ -6,9 +6,8 @@ import { UserMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { personName } from "@/lib/labels";
-import { WEEKDAYS } from "@/lib/time";
 import type { DeptRole, PersonRef } from "@/lib/types";
-import { addMember, removeMember, setMeetingSchedule, setMemberRole } from "@/app/(app)/departments/actions";
+import { addMember, removeMember, setMemberRole } from "@/app/(app)/departments/actions";
 
 type Member = { person: PersonRef; role: DeptRole };
 
@@ -56,10 +55,10 @@ export function TeamManager({
                 className="h-8 field px-2 text-xs"
               >
                 <option value="member">Member</option>
-                <option value="lead">Lead</option>
+                <option value="lead">Dept admin</option>
               </select>
             ) : (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{m.role === "lead" ? "Lead" : "Member"}</span>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{m.role === "lead" ? "Dept admin" : "Member"}</span>
             )}
             {canManage && (isAdmin || m.role === "member") && (
               <button
@@ -112,82 +111,5 @@ export function TeamManager({
         </form>
       )}
     </div>
-  );
-}
-
-const DURATIONS = [15, 30, 45, 60, 90, 120];
-
-export function ScheduleEditor({
-  departmentId,
-  weekday,
-  time,
-  duration = 60,
-  canEdit,
-}: {
-  departmentId: string;
-  weekday: number | null;
-  time: string | null;
-  duration?: number;
-  canEdit: boolean;
-}) {
-  const [day, setDay] = useState(weekday ? String(weekday) : "");
-  const [t, setT] = useState(time?.slice(0, 5) ?? "");
-  const [len, setLen] = useState(String(duration));
-  const [pending, startTransition] = useTransition();
-
-  return (
-    <form
-      className="flex flex-wrap items-end gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        startTransition(async () => {
-          const res = await setMeetingSchedule(departmentId, day ? Number(day) : null, t || null, Number(len));
-          if (res.ok) toast.success("Schedule saved");
-          else toast.error(res.error);
-        });
-      }}
-    >
-      <label className="space-y-1 text-xs">
-        <span className="block text-muted-foreground">Day</span>
-        <select
-          value={day}
-          disabled={!canEdit}
-          onChange={(e) => setDay(e.target.value)}
-          className="h-9 field px-2 text-sm"
-        >
-          <option value="">Not set</option>
-          {WEEKDAYS.map((w, i) => (
-            <option key={w} value={i + 1}>
-              {w}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="space-y-1 text-xs">
-        <span className="block text-muted-foreground">Time (PKT)</span>
-        <input
-          type="time"
-          value={t}
-          disabled={!canEdit}
-          onChange={(e) => setT(e.target.value)}
-          className="h-9 field px-2 text-sm"
-        />
-      </label>
-      <label className="space-y-1 text-xs">
-        <span className="block text-muted-foreground">Length</span>
-        <select value={len} disabled={!canEdit} onChange={(e) => setLen(e.target.value)} className="field h-9">
-          {[...new Set([...DURATIONS, duration])].sort((a, b) => a - b).map((d) => (
-            <option key={d} value={d}>
-              {d < 60 ? `${d} min` : `${d / 60} hr`}
-            </option>
-          ))}
-        </select>
-      </label>
-      {canEdit && (
-        <Button type="submit" size="sm" disabled={pending}>
-          Save
-        </Button>
-      )}
-    </form>
   );
 }

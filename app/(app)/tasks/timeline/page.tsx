@@ -21,7 +21,7 @@ export const metadata = { title: "Timeline · Highfy Tasks" };
 const BAR: Record<TaskStatus, string> = {
   todo: "border border-ink/25 bg-white text-ink",
   in_progress: "bg-brand-primary text-white",
-  blocked: "bg-brand-accent text-ink",
+  blocked: "bg-warning-soft text-warning-ink",
   done: "bg-subtle text-ink",
   cancelled: "border border-line bg-white text-muted-foreground",
 };
@@ -71,11 +71,11 @@ export default async function TimelinePage({
   const groups = new Map<string, { label: string; order: number; tasks: TaskListRow[] }>();
   const deptOrder = new Map(departments.map((d, i) => [d.id, i]));
   for (const t of tasks) {
-    const key = group === "dept" ? t.department_id : t.owner_id ?? "none";
+    const key = group === "dept" ? t.department_id ?? "personal" : t.owner_id ?? "none";
     if (!groups.has(key)) {
       groups.set(key, {
-        label: group === "dept" ? t.department?.name ?? "No department" : personName(t.owner),
-        order: group === "dept" ? deptOrder.get(t.department_id) ?? 99 : 0,
+        label: group === "dept" ? t.department?.name ?? "Personal" : personName(t.owner),
+        order: group === "dept" ? (t.department_id ? deptOrder.get(t.department_id) ?? 99 : 100) : 0,
         tasks: [],
       });
     }
@@ -162,7 +162,7 @@ export default async function TimelinePage({
                       className={cn(
                         "shrink-0 border-r py-1 text-center leading-tight",
                         weekend && "bg-muted",
-                        d === today && "bg-brand-accent font-semibold text-ink",
+                        d === today && "bg-info-soft font-semibold text-info-ink",
                       )}
                     >
                       <div className="h-3 truncate px-0.5 font-medium">{showMonth ? format(date, "MMM") : ""}</div>
@@ -200,7 +200,7 @@ export default async function TimelinePage({
           <span className="h-2.5 w-2.5 rotate-45 bg-ink" /> Due date only (no start date)
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-0.5 bg-brand-accent" /> Today
+          <span className="h-3 w-0.5 bg-info" /> Today
         </span>
         {truncated && <span>Showing the first 1000 tasks; narrow the filters.</span>}
       </div>
@@ -250,7 +250,7 @@ function TimelineRow({
       </Link>
       <div className="relative h-8" style={{ width: dayCount * W }}>
         {todayIdx >= 0 && todayIdx < dayCount && (
-          <div className="absolute inset-y-0 w-0.5 bg-brand-accent" style={{ left: todayIdx * W + W / 2 - 1 }} />
+          <div className="absolute inset-y-0 w-0.5 bg-info" style={{ left: todayIdx * W + W / 2 - 1 }} />
         )}
         {start === null ? (
           due < dayCount && (
@@ -260,7 +260,7 @@ function TimelineRow({
               className={cn(
                 "absolute top-1/2 h-3 w-3 -translate-y-1/2 rotate-45 rounded-[2px]",
                 BAR[t.status],
-                t.overdue && "ring-2 ring-brand-accent ring-offset-1 ring-offset-white",
+                t.overdue && "ring-2 ring-danger ring-offset-1 ring-offset-white",
               )}
               style={{ left: due * W + W / 2 - 6 }}
             />
@@ -274,7 +274,7 @@ function TimelineRow({
               BAR[t.status],
               clippedLeft && "rounded-l-none",
               clippedRight && "rounded-r-none",
-              t.overdue && "ring-2 ring-brand-accent ring-offset-1 ring-offset-white",
+              t.overdue && "ring-2 ring-danger ring-offset-1 ring-offset-white",
             )}
             style={{ left: left * W + 2, width: Math.max(W - 4, (right - left + 1) * W - 4) }}
           >

@@ -42,7 +42,7 @@ export default async function MeetingPage({
     supabase
       .from("meetings")
       .select("id, title, meeting_date")
-      .eq("department_id", meeting.department_id)
+      .eq(meeting.series_id ? "series_id" : "department_id", meeting.series_id ?? meeting.department_id)
       .or(`meeting_date.lt.${meeting.meeting_date},and(meeting_date.eq.${meeting.meeting_date},created_at.lt."${meeting.created_at}")`)
       .order("meeting_date", { ascending: false })
       .order("created_at", { ascending: false })
@@ -190,17 +190,6 @@ export default async function MeetingPage({
           <p className="text-sm text-muted-foreground">No minutes yet.</p>
         )}
       </section>
-
-      {meeting.decisions.length > 0 && (
-        <section className="surface p-4 md:p-6">
-          <h2 className="kicker mb-2 text-ink">Decisions</h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm">
-            {meeting.decisions.map((d, i) => (
-              <li key={i}>{d}</li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       <section>
         <h2 className="kicker mb-2 text-ink">Action items</h2>

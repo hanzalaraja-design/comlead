@@ -99,7 +99,7 @@ export function UserRow({
               className="rounded bg-transparent text-xs font-medium"
             >
               <option value="member">Member</option>
-              <option value="lead">Lead</option>
+              <option value="lead">Dept admin</option>
             </select>
             <button
               type="button"
@@ -136,7 +136,7 @@ export function UserRow({
                   className="h-7 field px-1 text-xs"
                 >
                   <option value="member">Member</option>
-                  <option value="lead">Lead</option>
+                  <option value="lead">Dept admin</option>
                 </select>
                 <Button
                   size="sm"

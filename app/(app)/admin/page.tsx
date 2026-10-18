@@ -4,7 +4,9 @@ import { requireAdmin } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { filtersToSearch } from "@/lib/tasks/filters";
-import { formatDate, formatTime, weekEndPKT, weekStartPKT, weekdayName } from "@/lib/time";
+import { formatDate, formatTime, todayPKT, weekEndPKT, weekStartPKT } from "@/lib/time";
+import { nextOnOrAfter, type Frequency } from "@/lib/series";
+import { CrownMark } from "@/components/brand";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Dashboard · Highfy Tasks" };
@@ -27,36 +29,47 @@ type PersonStats = {
   completed_this_week: number;
 };
 type MeetingWeek = {
-  department_id: string;
-  name: string;
-  slug: string;
-  meeting_weekday: number | null;
-  meeting_time: string | null;
+  id: string;
+  title: string;
+  date: string;
+  time: string;
   meeting_id: string | null;
-  meeting_date: string | null;
-  state: "held" | "no_minutes" | "missing" | "upcoming" | "no_schedule";
+  state: "held" | "no_minutes" | "missing" | "upcoming";
 };
 
 const MEETING_STATE: Record<MeetingWeek["state"], { label: string; className: string }> = {
   held: { label: "Minutes saved", className: "bg-subtle text-ink" },
-  no_minutes: { label: "Missing minutes", className: "bg-brand-accent text-ink" },
-  missing: { label: "Not held", className: "bg-brand-accent text-ink" },
+  no_minutes: { label: "Missing minutes", className: "bg-warning-soft text-warning-ink" },
+  missing: { label: "Not held", className: "bg-danger-soft text-danger-ink" },
   upcoming: { label: "Upcoming", className: "border border-line text-ink" },
-  no_schedule: { label: "No schedule set", className: "border border-line text-ink-muted" },
 };
 
 export default async function DashboardPage() {
   await requireAdmin();
   const supabase = await createClient();
-  const [deptRes, personRes, meetingRes] = await Promise.all([
+  const weekStart = weekStartPKT();
+  const weekEnd = weekEndPKT();
+  const today = todayPKT();
+  const [deptRes, personRes, seriesRes, held] = await Promise.all([
     supabase.rpc("dashboard_department_stats"),
     supabase.rpc("dashboard_person_stats"),
-    supabase.rpc("dashboard_meetings_this_week"),
+    supabase.from("meeting_series").select("id, title, frequency, start_date, meeting_time").eq("archived", false),
+    supabase.from("meetings").select("id, series_id, meeting_date, minutes").gte("meeting_date", weekStart).lte("meeting_date", weekEnd).not("series_id", "is", null),
   ]);
   const depts = (deptRes.data ?? []) as DeptStats[];
   const persons = ((personRes.data ?? []) as PersonStats[]).filter((p) => p.open_count || p.overdue_count || p.completed_this_week);
-  const meetings = (meetingRes.data ?? []) as MeetingWeek[];
-  const weekStart = weekStartPKT();
+  // Every planned meeting that falls in this week, and whether minutes were taken.
+  const meetings: MeetingWeek[] = ((seriesRes.data ?? []) as { id: string; title: string; frequency: Frequency; start_date: string; meeting_time: string }[])
+    .map((x) => ({ x, date: nextOnOrAfter(x, weekStart) }))
+    .filter((r): r is { x: (typeof r)["x"]; date: string } => !!r.date && r.date <= weekEnd)
+    .map(({ x, date }) => {
+      const m = (held.data ?? []).find((h) => h.series_id === x.id && h.meeting_date === date);
+      const state: MeetingWeek["state"] = m?.minutes ? "held" : date >= today ? "upcoming" : m ? "no_minutes" : "missing";
+      return { id: x.id, title: x.title, date, time: x.meeting_time, meeting_id: (m?.id as string) ?? null, state };
+    })
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const leaders = [...depts].filter((d) => d.completed_this_week > 0).sort((a, b) => b.completed_this_week - a.completed_this_week).slice(0, 6);
+  const topScore = leaders[0]?.completed_this_week ?? 0;
 
   const totals = depts.reduce(
     (t, d) => ({
@@ -80,7 +93,7 @@ export default async function DashboardPage() {
   };
   const all = deptLinks();
 
-  const error = deptRes.error || personRes.error || meetingRes.error;
+  const error = deptRes.error || personRes.error || seriesRes.error;
 
   return (
     <>
@@ -97,6 +110,32 @@ export default async function DashboardPage() {
         <Tile label="Blocked" value={totals.blocked} href={all.blocked} note="Waiting on something or someone." />
         <Tile label="Done this week" value={totals.done} href={all.done} note="Completed since Monday." />
       </div>
+
+      <section className="mb-8">
+        <h2 className="kicker mb-3 text-ink">This week&apos;s leaderboard</h2>
+        {leaders.length === 0 ? (
+          <p className="surface px-4 py-5 text-sm text-ink-muted">No tasks closed yet this week. First one takes the crown.</p>
+        ) : (
+          <ol className="surface space-y-3 p-4 md:p-6">
+            {leaders.map((d, i) => (
+              <li key={d.department_id} className="grid grid-cols-[1.5rem_8rem_minmax(0,1fr)_2.5rem] items-center gap-3 text-sm md:grid-cols-[1.5rem_11rem_minmax(0,1fr)_3rem]">
+                <span className="text-center font-semibold text-ink-muted">{i === 0 ? <CrownMark className="h-4 w-5" /> : i + 1}</span>
+                <Link href={`/departments/${d.slug}`} className="truncate font-semibold text-ink hover:underline">
+                  {d.name}
+                </Link>
+                <span className="h-2.5 overflow-hidden rounded-full bg-subtle">
+                  <span
+                    className={cn("block h-full rounded-full", i === 0 ? "bg-success" : "bg-success/60")}
+                    style={{ width: `${Math.max(6, (d.completed_this_week / topScore) * 100)}%` }}
+                  />
+                </span>
+                <span className="text-right font-semibold tabular-nums text-ink">{d.completed_this_week}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="mt-2 text-xs text-ink-muted">Tasks closed since Monday, by department. Teams, not people.</p>
+      </section>
 
       <section className="mb-8">
         <h2 className="kicker mb-3 text-ink">By department</h2>
@@ -176,20 +215,17 @@ export default async function DashboardPage() {
         <section>
           <h2 className="kicker mb-3 text-ink">Meetings this week</h2>
           <ul className="surface divide-y divide-line divide-line">
+            {meetings.length === 0 && <li className="px-3 py-4 text-sm text-ink-muted">No meetings planned this week.</li>}
             {meetings.map((m) => {
               const state = MEETING_STATE[m.state];
-              const href = m.meeting_id ? `/meetings/${m.meeting_id}` : `/meetings?dept=${m.slug}`;
+              const href = m.meeting_id ? `/meetings/${m.meeting_id}` : `/meetings/series/${m.id}?date=${m.date}`;
               return (
-                <li key={m.department_id}>
+                <li key={m.id}>
                   <Link href={href} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-muted/40">
                     <div className="min-w-0">
-                      <p className="font-bold">{m.name}</p>
+                      <p className="font-bold">{m.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {m.meeting_date
-                          ? formatDate(m.meeting_date, "EEE d MMM")
-                          : m.meeting_weekday
-                            ? `${weekdayName(m.meeting_weekday)}${m.meeting_time ? ` ${formatTime(m.meeting_time)}` : ""}`
-                            : "Not scheduled"}
+                        {formatDate(m.date, "EEE d MMM")} · {formatTime(m.time)}
                       </p>
                     </div>
                     <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", state.className)}>{state.label}</span>
@@ -206,7 +242,7 @@ export default async function DashboardPage() {
 
 // Orange marks only numbers that need attention (brand guide §1).
 const TONES = {
-  red: "rounded-full bg-brand-accent px-2 py-0.5 text-ink",
+  red: "rounded-full bg-danger-soft px-2 py-0.5 text-danger-ink",
   amber: "text-ink",
   green: "text-ink",
 };
@@ -219,7 +255,7 @@ function Tile({ label, value, href, note, hero }: { label: string; value: number
       <p
         className={cn(
           "mt-1 text-[32px] font-bold leading-none tabular-nums md:text-[40px]",
-          hero ? (value ? "text-brand-accent" : "text-white") : "text-ink",
+          hero ? (value ? "text-danger-soft" : "text-white") : "text-ink",
         )}
       >
         {value}
