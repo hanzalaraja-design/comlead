@@ -1,4 +1,5 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { addDays, addMinutes, format } from "date-fns";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -33,12 +34,24 @@ const escapeHtml = (s: string) =>
 
 const isNotFound = (e: unknown) => e instanceof GraphError && (e.status === 404 || e.status === 410);
 
+// When an Admin runs "Sync everything now", failures are collected here so the
+// page can show them instead of only writing them to the server log.
+const collector = new AsyncLocalStorage<{ label: string; message: string }[]>();
+
+export async function collectSyncErrors<T>(fn: () => Promise<T>): Promise<{ result: T; errors: { label: string; message: string }[] }> {
+  const errors: { label: string; message: string }[] = [];
+  const result = await collector.run(errors, fn);
+  return { result, errors };
+}
+
 async function guarded(label: string, fn: () => Promise<void>) {
   if (!isCalendarConfigured()) return;
   try {
     await fn();
   } catch (e) {
-    console.error(`[calendar] ${label} failed:`, e instanceof Error ? e.message : e);
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[calendar] ${label} failed:`, message);
+    collector.getStore()?.push({ label, message });
   }
 }
 
