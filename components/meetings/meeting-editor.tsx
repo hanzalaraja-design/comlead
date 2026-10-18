@@ -132,12 +132,13 @@ export function MeetingEditor({
     toast.success("Task created.");
   }
 
-  async function runAgenda() {
+  /** `auto`: the draft started by itself on open, so it stays quiet if there's nothing to say. */
+  async function runAgenda(auto = false) {
     setAiBusy("agenda");
     const res = await draftAgenda(meeting.id);
     setAiBusy(null);
     if (res.ok) setAgendaDraft(res.data!);
-    else toast.error(res.error);
+    else if (!auto) toast.error(res.error);
   }
 
   // A fresh weekly meeting gets an agenda drafted as soon as it opens.
@@ -145,7 +146,7 @@ export function MeetingEditor({
   useEffect(() => {
     if (autoAgenda.current || !aiEnabled || meeting.agenda || meeting.minutes) return;
     autoAgenda.current = true;
-    void Promise.resolve().then(runAgenda);
+    void Promise.resolve().then(() => runAgenda(true));
     // Runs once on open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -227,7 +228,7 @@ export function MeetingEditor({
         <div className="flex items-end justify-between gap-2">
           <Label htmlFor="m-agenda">Agenda</Label>
           {aiEnabled && (
-            <AiButton onClick={runAgenda} busy={aiBusy === "agenda"} disabled={aiBusy !== null}>
+            <AiButton onClick={() => runAgenda()} busy={aiBusy === "agenda"} disabled={aiBusy !== null}>
               {aiBusy === "agenda" ? "Drafting…" : "Draft agenda"}
             </AiButton>
           )}
