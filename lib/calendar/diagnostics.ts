@@ -26,9 +26,46 @@ export function explain(message: string): string {
   return message.slice(0, 300);
 }
 
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Mistakes in how the settings were typed into Vercel. Never reveals a value. */
+function settingProblems(): string[] {
+  const problems: string[] = [];
+  const names = Object.keys(process.env);
+  for (const v of VARS) {
+    const lookalikes = names.filter((n) => n !== v && n.trim().toUpperCase() === v);
+    if (lookalikes.length) problems.push(`Found ${lookalikes.map((n) => `"${n}"`).join(", ")}. The name must be exactly ${v}, in capitals.`);
+  }
+  const val = (v: string) => process.env[v]?.trim() ?? "";
+  if (val("MS_TENANT_ID") && !GUID.test(val("MS_TENANT_ID")))
+    problems.push("MS_TENANT_ID doesn't look like an ID. Copy the Directory (tenant) ID from the app's Overview page.");
+  if (val("MS_CLIENT_ID") && !GUID.test(val("MS_CLIENT_ID")))
+    problems.push("MS_CLIENT_ID doesn't look like an ID. Copy the Application (client) ID from the app's Overview page.");
+  if (val("MS_CLIENT_ID") && val("MS_CLIENT_ID") === val("MS_TENANT_ID"))
+    problems.push("MS_CLIENT_ID and MS_TENANT_ID are the same. One of them is wrong.");
+  if (val("MS_CLIENT_SECRET") && GUID.test(val("MS_CLIENT_SECRET")))
+    problems.push("MS_CLIENT_SECRET looks like the Secret ID. Use the secret's Value instead, which is only shown once when you create it.");
+  if (val("MS_CALENDAR_MAILBOX") && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val("MS_CALENDAR_MAILBOX")))
+    problems.push("MS_CALENDAR_MAILBOX should be an email address, such as tasks@highfy.pk.");
+  return problems;
+}
+
+/** Which deployment is answering, so a setting added to the wrong Vercel project shows up. */
+export function deploymentInfo(): string {
+  return [
+    process.env.VERCEL_ENV ?? "local",
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL,
+    process.env.VERCEL_GIT_COMMIT_SHA && `commit ${process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 7)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export async function runChecks(): Promise<Check[]> {
   const checks: Check[] = [];
-  const missing = VARS.filter((v) => !process.env[v]);
+  const missing = VARS.filter((v) => !process.env[v]?.trim());
+  const problems = settingProblems();
+  if (problems.length) checks.push({ name: "How the settings were entered", ok: false, detail: problems.join(" ") });
   checks.push({
     name: "Settings in Vercel",
     ok: missing.length === 0,

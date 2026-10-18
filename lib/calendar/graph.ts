@@ -9,18 +9,23 @@ import "server-only";
 const GRAPH = () => process.env.MS_GRAPH_URL ?? "https://graph.microsoft.com/v1.0";
 const LOGIN = () => process.env.MS_LOGIN_URL ?? "https://login.microsoftonline.com";
 
+/** A setting from Vercel, minus stray spaces or line breaks from pasting. */
+export function msEnv(name: "MS_TENANT_ID" | "MS_CLIENT_ID" | "MS_CLIENT_SECRET" | "MS_CALENDAR_MAILBOX"): string {
+  return process.env[name]?.trim() ?? "";
+}
+
 export function isCalendarConfigured(): boolean {
   return Boolean(
-    process.env.MS_TENANT_ID &&
-      process.env.MS_CLIENT_ID &&
-      process.env.MS_CLIENT_SECRET &&
-      process.env.MS_CALENDAR_MAILBOX &&
+    msEnv("MS_TENANT_ID") &&
+      msEnv("MS_CLIENT_ID") &&
+      msEnv("MS_CLIENT_SECRET") &&
+      msEnv("MS_CALENDAR_MAILBOX") &&
       process.env.SUPABASE_SERVICE_ROLE_KEY,
   );
 }
 
 export function calendarMailbox(): string {
-  return process.env.MS_CALENDAR_MAILBOX!;
+  return msEnv("MS_CALENDAR_MAILBOX").toLowerCase();
 }
 
 let cached: { token: string; expires: number } | null = null;
@@ -32,12 +37,12 @@ export function resetTokenCache() {
 
 async function token(): Promise<string> {
   if (cached && cached.expires > Date.now() + 60_000) return cached.token;
-  const res = await fetch(`${LOGIN()}/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`, {
+  const res = await fetch(`${LOGIN()}/${msEnv("MS_TENANT_ID")}/oauth2/v2.0/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: process.env.MS_CLIENT_ID!,
-      client_secret: process.env.MS_CLIENT_SECRET!,
+      client_id: msEnv("MS_CLIENT_ID"),
+      client_secret: msEnv("MS_CLIENT_SECRET"),
       scope: "https://graph.microsoft.com/.default",
       grant_type: "client_credentials",
     }),
