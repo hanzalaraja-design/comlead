@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Building2, Globe2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TimeSelect } from "@/components/time-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -121,7 +122,7 @@ export function SeriesForm({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="s-time">Time</Label>
-          <Input id="s-time" type="time" required value={v.meeting_time} onChange={(e) => set("meeting_time", e.target.value)} className="h-10" />
+          <TimeSelect id="s-time" required value={v.meeting_time} onChange={(t) => set("meeting_time", t)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="s-duration">Length</Label>

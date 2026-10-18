@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { TimeSelect } from "@/components/time-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -181,7 +182,7 @@ export function TaskForm(props: TaskFormProps) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="due_time">Due time</Label>
-            <Input id="due_time" name="due_time" type="time" defaultValue={task?.due_time?.slice(0, 5) ?? ""} disabled={!dueDate} className="h-10" />
+            <TimeSelect id="due_time" name="due_time" defaultValue={task?.due_time ?? ""} disabled={!dueDate} emptyLabel="No time" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="tags">Tags</Label>
