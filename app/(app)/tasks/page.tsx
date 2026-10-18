@@ -5,7 +5,7 @@ import { EmptyState, PageHeader } from "@/components/page-header";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskList } from "@/components/tasks/task-list";
 import { TaskViewTabs } from "@/components/tasks/task-view-tabs";
-import { getDepartments, requireViewer } from "@/lib/auth";
+import { requireViewer, viewerId } from "@/lib/auth";
 import { filtersToSearch, parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { TASK_LIMIT, fetchTasks } from "@/lib/tasks/queries";
@@ -17,10 +17,12 @@ export default async function TasksPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const viewer = await requireViewer();
-  const filters = parseFilters(await searchParams);
-  const [departments, options] = await Promise.all([getDepartments(), getFilterOptions()]);
-  const { tasks, truncated, error } = await fetchTasks(filters, { viewerId: viewer.id, departments });
+  const [id, filters] = await Promise.all([viewerId(), searchParams.then(parseFilters)]);
+  const [, options, { tasks, truncated, error }] = await Promise.all([
+    requireViewer(),
+    getFilterOptions(),
+    fetchTasks(filters, { viewerId: id }),
+  ]);
 
   return (
     <>

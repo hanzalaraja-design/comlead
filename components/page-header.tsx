@@ -20,9 +20,9 @@ export function PageHeader({
 }) {
   const crumbs = breadcrumb.slice(0, 4);
   return (
-    <header className="mb-6">
+    <header className="mb-4 md:mb-6">
       <div>
-        <nav aria-label="Breadcrumb" className="min-w-0 text-[13px] font-medium text-ink-muted">
+        <nav aria-label="Breadcrumb" className="hidden min-w-0 text-[13px] font-medium text-ink-muted md:block">
           {crumbs.map((c, i) => {
             const label = typeof c === "string" ? c : c.label;
             const hiddenOnPhone = i < crumbs.length - 2;
@@ -39,9 +39,9 @@ export function PageHeader({
           })}
         </nav>
       </div>
-      <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold leading-tight tracking-tight text-ink md:text-[32px]">{title}</h1>
+          <h1 className="text-[22px] font-semibold leading-tight tracking-tight text-ink md:mt-1 md:text-[32px]">{title}</h1>
           {description && <p className="mt-1 text-[13px] font-medium text-ink-muted">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

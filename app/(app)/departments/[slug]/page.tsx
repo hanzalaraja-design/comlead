@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { QuickAdd } from "@/components/tasks/quick-add";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
-import { getDepartments, isMemberOf, requireViewer } from "@/lib/auth";
+import { getDepartments, isMemberOf, requireViewer, viewerId } from "@/lib/auth";
 import { parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { fetchTasks } from "@/lib/tasks/queries";
@@ -21,15 +21,13 @@ export default async function DepartmentBoardPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ slug }, raw] = await Promise.all([params, searchParams]);
-  const viewer = await requireViewer();
-  const departments = await getDepartments();
-  const dept = departments.find((d) => d.slug === slug);
-  if (!dept) notFound();
-
+  const id = await viewerId();
   const base = { ...parseFilters(raw), dept: [slug] };
-  const ctx = { viewerId: viewer.id, departments };
-  const [options, open, done] = await Promise.all([
-    getFilterOptions({ departmentId: dept.id }),
+  const ctx = { viewerId: id };
+  const [viewer, departments, options, open, done] = await Promise.all([
+    requireViewer(),
+    getDepartments(),
+    getFilterOptions(),
     fetchTasks({ ...base, status: ["todo", "in_progress", "blocked"], sort: "due", dir: "asc" }, ctx),
     // Done column: the last two weeks only, so the board stays readable.
     fetchTasks(
@@ -38,6 +36,8 @@ export default async function DepartmentBoardPage({
       100,
     ),
   ]);
+  const dept = departments.find((d) => d.slug === slug);
+  if (!dept) notFound();
 
   const member = isMemberOf(viewer, dept.id);
 

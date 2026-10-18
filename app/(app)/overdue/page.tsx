@@ -1,7 +1,7 @@
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskList } from "@/components/tasks/task-list";
-import { getDepartments, requireViewer } from "@/lib/auth";
+import { getDepartments, requireViewer, viewerId } from "@/lib/auth";
 import { parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { fetchTasks, type TaskListRow } from "@/lib/tasks/queries";
@@ -14,10 +14,14 @@ export default async function OverduePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const viewer = await requireViewer();
-  const filters = { ...parseFilters(await searchParams), overdue: true };
-  const [departments, options] = await Promise.all([getDepartments(), getFilterOptions()]);
-  const { tasks, error } = await fetchTasks(filters, { viewerId: viewer.id, departments });
+  const [id, raw] = await Promise.all([viewerId(), searchParams]);
+  const filters = { ...parseFilters(raw), overdue: true };
+  const [, departments, options, { tasks, error }] = await Promise.all([
+    requireViewer(),
+    getDepartments(),
+    getFilterOptions(),
+    fetchTasks(filters, { viewerId: id }),
+  ]);
 
   const byDept = new Map<string, { name: string; tasks: TaskListRow[] }>();
   for (const t of tasks) {

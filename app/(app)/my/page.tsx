@@ -6,7 +6,7 @@ import { TaskList } from "@/components/tasks/task-list";
 import { QuickAdd } from "@/components/tasks/quick-add";
 import { CelebrateWhenCleared } from "@/components/progress/celebrate";
 import { PersonAvatar } from "@/components/person-avatar";
-import { getDepartments, getPeople, isMemberOf, requireViewer } from "@/lib/auth";
+import { getDepartments, getPeople, isMemberOf, requireViewer, viewerId } from "@/lib/auth";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { parseFilters } from "@/lib/tasks/filters";
@@ -44,39 +44,35 @@ type Mention = {
 };
 
 export default async function MyTasksPage() {
-  const viewer = await requireViewer();
-  const supabase = await createClient();
+  const [id, supabase] = await Promise.all([viewerId(), createClient()]);
   const today = todayPKT();
   const weekStart = weekStartPKT();
   const weekEnd = weekEndPKT();
 
-  const departments = await getDepartments();
-  const [{ tasks, error }, collabRes, mentionsRes, people] = await Promise.all([
-    fetchTasks(parseFilters({ owner: "me", sort: "due" }), { viewerId: viewer.id, departments }),
-    supabase.from("task_collaborators").select("task_id").eq("user_id", viewer.id),
+  // Everything at once: no query here waits for another.
+  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, people] = await Promise.all([
+    requireViewer(),
+    getDepartments(),
+    fetchTasks(parseFilters({ owner: "me", sort: "due" }), { viewerId: id }),
+    // Open tasks I'm a collaborator on but don't own.
+    supabase
+      .from("tasks")
+      .select(`${TASK_SELECT}, me:task_collaborators!inner(user_id)`)
+      .eq("me.user_id", id)
+      .in("status", OPEN_STATUSES)
+      .or(`owner_id.is.null,owner_id.neq.${id}`)
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .limit(100),
     supabase
       .from("task_mentions")
       .select("id, created_at, seen_at, mentioned_by, task:tasks(id, title), comment:task_comments(body)")
-      .eq("user_id", viewer.id)
+      .eq("user_id", id)
       .order("created_at", { ascending: false })
       .limit(15),
     getPeople(),
   ]);
 
-  // Tasks I'm helping with but don't own.
-  const collabIds = (collabRes.data ?? []).map((c) => c.task_id as string);
-  let collaborating: TaskListRow[] = [];
-  if (collabIds.length) {
-    const { data } = await supabase
-      .from("tasks")
-      .select(TASK_SELECT)
-      .in("id", collabIds)
-      .in("status", OPEN_STATUSES)
-      .or(`owner_id.is.null,owner_id.neq.${viewer.id}`)
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .limit(100);
-    collaborating = (data ?? []) as unknown as TaskListRow[];
-  }
+  const collaborating = (collabRes.data ?? []) as unknown as TaskListRow[];
   const mentions = ((mentionsRes.data ?? []) as unknown as Mention[]).filter(
     (m) => m.task && (!m.seen_at || m.created_at >= `${weekStart}T00:00:00`),
   );

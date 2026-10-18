@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 type Opt = { value: string; label: string };
@@ -31,17 +31,30 @@ export function MeetingFilters({ departments, people }: { departments: Opt[]; pe
   }, [q]);
 
   const sel = "h-9 field px-2 text-sm";
+  const active = ["dept", "attendee", "from", "to"].filter((k) => params.get(k)).length;
+  // Phones: filters fold away behind a button; open by themselves if one is set.
+  const [open, setOpen] = useState(active > 0);
 
   return (
     <div className="mb-4 space-y-2">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search all minutes and agendas…" className="h-10 pl-8" />
+      <div className="flex gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search minutes and agendas…" className="h-10 pl-8" />
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className={`inline-flex h-10 shrink-0 items-center gap-1 rounded-[12px] border px-3 text-sm md:hidden ${active ? "border-ink font-semibold text-ink" : "border-line text-ink-muted"}`}
+        >
+          <SlidersHorizontal className="h-4 w-4" /> Filters{active ? ` · ${active}` : ""}
+        </button>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className={`${open ? "flex" : "hidden"} flex-wrap gap-2 md:flex`}>
         {departments.length > 1 && (
           <select aria-label="Team" value={params.get("dept") ?? ""} onChange={(e) => set("dept", e.target.value)} className={sel}>
-            <option value="">All departments</option>
+            <option value="">All teams</option>
             {departments.map((d) => (
               <option key={d.value} value={d.value}>
                 {d.label}

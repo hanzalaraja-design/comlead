@@ -1,14 +1,14 @@
 import { AppNav } from "@/components/app-nav";
-import { requireViewer } from "@/lib/auth";
+import { requireViewer, viewerId } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const viewer = await requireViewer();
-  const supabase = await createClient();
-  const [{ count: mentions }, { count: overdue }] = await Promise.all([
-    supabase.from("task_mentions").select("id", { count: "exact", head: true }).eq("user_id", viewer.id).is("seen_at", null),
-    supabase.from("tasks").select("id", { count: "exact", head: true }).eq("owner_id", viewer.id).eq("overdue", true),
+  const [id, supabase] = await Promise.all([viewerId(), createClient()]);
+  const [viewer, { count: mentions }, { count: overdue }] = await Promise.all([
+    requireViewer(),
+    supabase.from("task_mentions").select("id", { count: "exact", head: true }).eq("user_id", id).is("seen_at", null),
+    supabase.from("tasks").select("id", { count: "exact", head: true }).eq("owner_id", id).eq("overdue", true),
   ]);
 
   return (

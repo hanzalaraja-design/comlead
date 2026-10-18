@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskViewTabs } from "@/components/tasks/task-view-tabs";
-import { getDepartments, requireViewer } from "@/lib/auth";
+import { requireViewer, viewerId } from "@/lib/auth";
 import { filtersToSearch, parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { fetchTasks } from "@/lib/tasks/queries";
@@ -19,12 +19,12 @@ export default async function TaskBoardPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const viewer = await requireViewer();
-  const filters = parseFilters(await searchParams);
-  const [departments, options] = await Promise.all([getDepartments(), getFilterOptions()]);
-  const ctx = { viewerId: viewer.id, departments };
+  const [id, filters] = await Promise.all([viewerId(), searchParams.then(parseFilters)]);
+  const ctx = { viewerId: id };
 
-  const [open, done] = await Promise.all([
+  const [, options, open, done] = await Promise.all([
+    requireViewer(),
+    getFilterOptions(),
     fetchTasks({ ...filters, status: ["todo", "in_progress", "blocked"], sort: "due", dir: "asc" }, ctx),
     // Done column: last two weeks only, so the board stays readable.
     fetchTasks(
