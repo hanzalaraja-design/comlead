@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskViewTabs } from "@/components/tasks/task-view-tabs";
 import { STATUS_STYLES } from "@/lib/labels";
-import { getDepartments, requireViewer } from "@/lib/auth";
+import { requireViewer } from "@/lib/auth";
 import { filtersToSearch, parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { fetchTasks, type TaskListRow } from "@/lib/tasks/queries";
@@ -33,8 +33,7 @@ export default async function CalendarPage({
 
   const base = parseFilters(raw);
   const filters = { ...base, due_from: days[0], due_to: days[days.length - 1], sort: "due" as const, dir: "asc" as const };
-  const [departments, options] = await Promise.all([getDepartments(), getFilterOptions()]);
-  const { tasks, error } = await fetchTasks(filters, { viewerId: viewer.id, departments }, 1000);
+  const [options, { tasks, error }] = await Promise.all([getFilterOptions(), fetchTasks(filters, { viewerId: viewer.id }, 1000)]);
 
   const byDay = new Map<string, TaskListRow[]>();
   for (const t of tasks) {

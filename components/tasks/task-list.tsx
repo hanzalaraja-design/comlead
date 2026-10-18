@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { NotebookPen } from "lucide-react";
 import { PersonAvatar } from "@/components/person-avatar";
-import { DueLabel, PriorityBadge, TagList } from "@/components/tasks/task-badges";
+import { DueLabel, PriorityBadge, StatusBadge, TagList } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { CompleteButton } from "@/components/tasks/complete-button";
@@ -104,9 +104,9 @@ function TaskListItem({
         </div>
       </div>
 
-      {/* Phone: one compact meta row */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 md:hidden">
-        <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
+      {/* Phone: one compact row. Tick to finish; status shows only when it's not To do. */}
+      <div className={cn("mt-2 flex flex-wrap items-center gap-2 md:hidden", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
+        {t.status !== "todo" && <StatusBadge status={t.status} />}
         <PriorityBadge priority={t.priority} />
         <DueLabel date={t.due_date} time={t.due_time} overdue={t.overdue} />
         {showOwner && (

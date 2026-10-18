@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { CornerDownLeft, Plus } from "lucide-react";
 import { quickAddTask } from "@/app/(app)/tasks/actions";
+import { cn } from "@/lib/utils";
 
 /** Type, press Enter, done: a task assigned to you. Details can be added later from the task. */
 export function QuickAdd({
@@ -56,7 +57,8 @@ export function QuickAdd({
           className="h-10 min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-muted"
         />
       </div>
-      <div className="flex items-center gap-2">
+      {/* On phones the picker and button appear once you start typing. */}
+      <div className={cn("flex items-center gap-2", !title.trim() && "hidden sm:flex")}>
         {/* Only asked when it isn't obvious. */}
         {departments.length + (allowPrivate ? 1 : 0) > 1 && (
           <select

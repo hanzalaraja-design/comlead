@@ -1,5 +1,7 @@
 import { cache } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { VIEWER_HEADER } from "@/lib/supabase/proxy";
 import { createClient } from "@/lib/supabase/server";
 import type { Department, DeptRole, Profile } from "@/lib/types";
 
@@ -24,11 +26,21 @@ export type Viewer = {
 /** The signed-in user and their profile, or null. Cached per request. */
 export const getViewer = cache(async (): Promise<Viewer | null> => {
   const supabase = await createClient();
-  // getClaims() checks the session token's signature locally (no round trip
-  // to Supabase Auth) when the project uses asymmetric JWT signing keys.
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims;
-  const user = claims ? { id: claims.sub, email: claims.email as string | undefined } : null;
+  // The proxy already verified the session for this request; fall back to
+  // checking it here only if that didn't happen.
+  let user: { id: string; email: string | undefined } | null = null;
+  const passed = (await headers()).get(VIEWER_HEADER);
+  if (passed) {
+    try {
+      const v = JSON.parse(passed) as { sub: string; email: string | null };
+      user = { id: v.sub, email: v.email ?? undefined };
+    } catch {}
+  }
+  if (!user) {
+    const { data } = await supabase.auth.getClaims();
+    const claims = data?.claims;
+    user = claims ? { id: claims.sub, email: claims.email as string | undefined } : null;
+  }
   if (!user || !isAllowedEmail(user.email)) return null;
 
   const [{ data: profile }, { data: memberships }] = await Promise.all([
@@ -49,6 +61,20 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
     isAnyLead: ms.some((m) => m.role === "lead"),
   };
 });
+
+/**
+ * The signed-in person's id straight from the proxy, without waiting for the
+ * profile. Lets a page start its own queries at the same time as requireViewer().
+ */
+export async function viewerId(): Promise<string> {
+  const passed = (await headers()).get(VIEWER_HEADER);
+  if (passed) {
+    try {
+      return (JSON.parse(passed) as { sub: string }).sub;
+    } catch {}
+  }
+  return (await requireViewer()).id;
+}
 
 /** For pages inside the app: must be signed in, Highfy, and approved. */
 export async function requireViewer(): Promise<Viewer> {

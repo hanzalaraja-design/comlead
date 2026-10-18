@@ -74,6 +74,17 @@
   body {
     @apply bg-background text-[15px] text-foreground;
   }
+  /* Phones: no grey flash on tap, no double-tap zoom delay. */
+  a, button, select, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  /* iPhones zoom into any field with text under 16px; keep fields at 16px on phones. */
+  @media (max-width: 767px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+  }
   /* Lucide icons: 1.75px stroke. */
   svg.lucide {
     stroke-width: 1.75;

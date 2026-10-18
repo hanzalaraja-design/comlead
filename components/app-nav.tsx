@@ -45,7 +45,7 @@ const MOBILE: NavItem[] = [
   { href: "/my", label: "My tasks", icon: CheckSquare },
   { href: "/tasks", label: "Tasks", icon: List },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
-  { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/departments", label: "Teams", icon: Building2 },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -73,6 +73,7 @@ function NavLinks({
         <li key={item.href}>
           <Link
             href={item.href}
+            prefetch
             onClick={onNavigate}
             className={cn(
               "flex items-center gap-3 rounded-[12px] px-3 py-2 text-[15px] font-medium transition-colors",
@@ -200,6 +201,7 @@ export function AppNav({ isAdmin, name, email, badges }: { isAdmin: boolean; nam
             <li key={item.href}>
               <Link
                 href={item.href}
+                prefetch
                 className={cn(
                   "flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
                   isActive(pathname, item.href) ? "font-semibold text-brand-primary" : "text-ink-muted",

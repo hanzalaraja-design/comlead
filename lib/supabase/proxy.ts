@@ -4,10 +4,19 @@ import { hasEnvVars } from "../utils";
 
 const ALLOWED_DOMAIN = "@highfy.pk";
 
+/**
+ * The proxy verifies the session on every request and passes who it is to the
+ * page in this header, so pages don't verify it a second time. Any copy sent
+ * by the browser is removed first. Data access is still checked by the
+ * database against the person's own token.
+ */
+export const VIEWER_HEADER = "x-highfy-viewer";
+
 // Reachable without a session.
 const PUBLIC_PATHS = ["/login", "/auth/", "/api/cron/"];
 
 export async function updateSession(request: NextRequest) {
+  request.headers.delete(VIEWER_HEADER);
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -82,7 +91,10 @@ export async function updateSession(request: NextRequest) {
   // If this is not done, you may be causing the browser and server to go out
   // of sync and terminate the user's session prematurely!
 
-  return supabaseResponse;
+  if (!user) return supabaseResponse;
+  const headers = new Headers(request.headers);
+  headers.set(VIEWER_HEADER, JSON.stringify({ sub: user.sub, email: user.email ?? null }));
+  return copyCookies(supabaseResponse, NextResponse.next({ request: { headers } }));
 }
 
 function copyCookies(from: NextResponse, to: NextResponse) {

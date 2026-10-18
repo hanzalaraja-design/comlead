@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { addDaysISO, startOfDayPKT } from "@/lib/time";
-import type { Department, TaskRow } from "@/lib/types";
+import type { TaskRow } from "@/lib/types";
 import type { TaskFilters } from "./filters";
 
 export const TASK_SELECT = `
@@ -25,11 +25,12 @@ export const TASK_LIMIT = 500;
  */
 export async function fetchTasks(
   filters: TaskFilters,
-  ctx: { viewerId: string; departments: Department[] },
+  ctx: { viewerId: string },
   limit = TASK_LIMIT,
 ): Promise<{ tasks: TaskListRow[]; truncated: boolean; error?: string }> {
   const supabase = await createClient();
-  let q = supabase.from("tasks").select(TASK_SELECT);
+  // Team filter by slug through an inner join, so it doesn't need the team list first.
+  let q = supabase.from("tasks").select(filters.dept.length ? `${TASK_SELECT}, dept_filter:departments!inner(slug)` : TASK_SELECT);
 
   // Status: default is open tasks only.
   if (filters.status !== "all") {
@@ -46,11 +47,7 @@ export async function fetchTasks(
     else q = q.in("owner_id", ids);
   }
 
-  if (filters.dept.length) {
-    const ids = ctx.departments.filter((d) => filters.dept.includes(d.slug)).map((d) => d.id);
-    // Unknown / invisible slug → nothing.
-    q = q.in("department_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
-  }
+  if (filters.dept.length) q = q.in("dept_filter.slug", filters.dept);
   if (filters.meeting) q = q.eq("meeting_id", filters.meeting);
   if (filters.tags.length) q = q.overlaps("tags", filters.tags);
   if (filters.overdue) q = q.eq("overdue", true);

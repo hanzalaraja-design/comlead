@@ -68,7 +68,7 @@ export default async function MeetingPage({
   const carryForward = prev && (
     <section className="surface bg-muted/30 p-4">
       <h2 className="kicker mb-1 flex items-center gap-2 text-ink">
-        <History className="h-4 w-4" /> Last week&apos;s action items
+        <History className="h-4 w-4" /> Last time&apos;s action items
       </h2>
       <p className="mb-3 text-xs text-muted-foreground">
         From{" "}
@@ -97,7 +97,18 @@ export default async function MeetingPage({
           ]}
           title="Edit minutes"
         />
-        {carryForward}
+        <div className="hidden md:block">{carryForward}</div>
+        {prev && (
+          <details className="surface p-4 md:hidden">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-ink">
+              <History className="h-4 w-4" /> Last time&apos;s action items
+              <span className="rounded-full bg-subtle px-2 text-xs font-normal text-ink-muted">{prevItems.length}</span>
+            </summary>
+            <div className="mt-3">
+              {prevItems.length ? <TaskList tasks={prevItems} showDepartment={false} /> : <p className="text-sm text-muted-foreground">No action items last time.</p>}
+            </div>
+          </details>
+        )}
         {viewer.isAdmin && !isAiConfigured() && (
           <p className="text-sm text-ink-muted">
             The meeting assistant is off on this deployment.{" "}
