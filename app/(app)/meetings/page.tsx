@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { CalendarClock, CheckSquare, Globe2, Pencil, Plus, Users } from "lucide-react";
+import { CalendarClock, CheckSquare, Globe2, History, Pencil, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { MeetingFilters } from "@/components/meetings/meeting-filters";
@@ -93,11 +93,18 @@ export default async function MeetingsPage({
         description="Plan meetings, take minutes, turn them into tasks."
         actions={
           canCreate && (
-            <Button asChild size="sm">
-              <Link href={`/meetings/new${dept ? `?dept=${dept.slug}` : ""}`}>
-                <Plus className="h-4 w-4" /> New meeting
-              </Link>
-            </Button>
+            <>
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/meetings/new?past=1${dept ? `&dept=${dept.id}` : ""}`}>
+                  <History className="h-4 w-4" /> Record a past meeting
+                </Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link href={`/meetings/new${dept ? `?dept=${dept.id}` : ""}`}>
+                  <Plus className="h-4 w-4" /> New meeting
+                </Link>
+              </Button>
+            </>
           )
         }
       />

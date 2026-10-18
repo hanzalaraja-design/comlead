@@ -6,18 +6,23 @@ import { todayPKT } from "@/lib/time";
 
 export const metadata = { title: "New meeting · Highfy Tasks" };
 
-export default async function NewMeetingPage({ searchParams }: { searchParams: Promise<{ dept?: string }> }) {
+export default async function NewMeetingPage({ searchParams }: { searchParams: Promise<{ dept?: string; past?: string }> }) {
   const viewer = await requireViewer();
-  const [{ dept }, departments, people] = await Promise.all([searchParams, departmentsForSetup(viewer), getPeople()]);
+  const [{ dept, past: pastParam }, departments, people] = await Promise.all([searchParams, departmentsForSetup(viewer), getPeople()]);
+  const past = pastParam === "1";
   const mine = departments.filter((d) => d.mine);
   const home = mine.find((d) => d.id === dept) ?? mine[0];
 
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader
-        breadcrumb={[{ label: "Meetings", href: "/meetings" }, "New meeting"]}
-        title="New meeting"
-        description="Set it once. It goes to everyone's Outlook, and the agenda and minutes live here."
+        breadcrumb={[{ label: "Meetings", href: "/meetings" }, past ? "Past meeting" : "New meeting"]}
+        title={past ? "Record a past meeting" : "New meeting"}
+        description={
+          past
+            ? "For a meeting that already happened. No invite is sent; you go straight to the minutes."
+            : "Set it once. It goes to everyone's Outlook, and the agenda and minutes live here."
+        }
       />
       {!home ? (
         <EmptyState>You need to be in a department to set up a meeting. Ask an Admin to add you.</EmptyState>
@@ -27,11 +32,12 @@ export default async function NewMeetingPage({ searchParams }: { searchParams: P
           departments={departments}
           people={people}
           canCancel={false}
+          past={past}
           initial={{
             title: "",
             department_id: home.id,
             kind: "internal",
-            frequency: "weekly",
+            frequency: past ? "once" : "weekly",
             start_date: todayPKT(),
             meeting_time: "11:00",
             duration_minutes: 60,
