@@ -67,7 +67,7 @@ export function TeamManager({
                 disabled={pending}
                 className="rounded p-1 text-muted-foreground hover:text-danger"
                 onClick={() => {
-                  if (confirm(`Remove ${personName(m.person)} from this department?`)) {
+                  if (confirm(`Remove ${personName(m.person)} from this team?`)) {
                     run(() => removeMember(departmentId, m.person.id), "Removed");
                   }
                 }}

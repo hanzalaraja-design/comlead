@@ -7,7 +7,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
 import { TaskList } from "@/components/tasks/task-list";
 import { MeetingEditor } from "@/components/meetings/meeting-editor";
-import { canLead, getDepartmentMembers, getDepartments, getPeople, getSubTeams, requireViewer } from "@/lib/auth";
+import { canLead, getDepartmentMembers, getDepartments, getPeople, requireViewer } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { isAiConfigured } from "@/lib/ai/claude";
@@ -31,10 +31,9 @@ export default async function MeetingPage({
   if (!meetingData) notFound();
   const meeting = meetingData as Meeting;
 
-  const [departments, people, subTeams, members, attendeesRes, itemsRes, prevRes] = await Promise.all([
+  const [departments, people, members, attendeesRes, itemsRes, prevRes] = await Promise.all([
     getDepartments(),
     getPeople(),
-    getSubTeams(),
     getDepartmentMembers(),
     supabase.from("meeting_attendees").select("user_id").eq("meeting_id", id),
     supabase.from("tasks").select(TASK_SELECT).eq("meeting_id", id).order("created_at"),
@@ -51,7 +50,6 @@ export default async function MeetingPage({
   ]);
 
   const dept = departments.find((d) => d.id === meeting.department_id);
-  const subTeam = subTeams.find((s) => s.id === meeting.sub_team_id);
   const peopleById = new Map(people.map((p) => [p.id, p]));
   const attendeeIds = (attendeesRes.data ?? []).map((a) => a.user_id as string);
   const items = (itemsRes.data ?? []) as unknown as TaskListRow[];
@@ -144,7 +142,6 @@ export default async function MeetingPage({
           <>
             {formatDate(meeting.meeting_date, "EEEE d MMMM yyyy")}
             {meeting.meeting_time && ` · ${formatTime(meeting.meeting_time)}`}
-            {subTeam && ` · ${subTeam.name}`}
           </>
         }
         actions={

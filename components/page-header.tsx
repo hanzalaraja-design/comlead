@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { CrownMark } from "@/components/brand";
 import { cn } from "@/lib/utils";
 
 export type Crumb = string | { label: string; href: string };
 
 /**
- * Every page: breadcrumb eyebrow, headline, crown top-right (brand guide §3).
+ * Every page: breadcrumb eyebrow and headline.
  * On phones the breadcrumb keeps its last two levels.
  */
 export function PageHeader({
@@ -22,7 +21,7 @@ export function PageHeader({
   const crumbs = breadcrumb.slice(0, 4);
   return (
     <header className="mb-6">
-      <div className="flex items-start justify-between gap-3">
+      <div>
         <nav aria-label="Breadcrumb" className="min-w-0 text-[13px] font-medium text-ink-muted">
           {crumbs.map((c, i) => {
             const label = typeof c === "string" ? c : c.label;
@@ -39,7 +38,6 @@ export function PageHeader({
             );
           })}
         </nav>
-        <CrownMark />
       </div>
       <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">

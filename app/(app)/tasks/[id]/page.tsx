@@ -92,7 +92,6 @@ export default async function TaskPage({
           task={task}
           collaboratorIds={collaboratorIds}
           departments={isLead ? formData.departments : formData.departments.filter((d) => d.id === task.department_id)}
-          subTeams={formData.subTeams}
           people={formData.people}
           membersByDept={formData.membersByDept}
           canReassign={canReassign}
@@ -214,9 +213,8 @@ export default async function TaskPage({
               </ul>
             </Detail>
           )}
-          <Detail label="Department">
+          <Detail label="Team">
             {task.department?.name}
-            {task.sub_team && <span className="text-muted-foreground"> · {task.sub_team.name}</span>}
           </Detail>
           {task.meeting && (
             <Detail label="From meeting">

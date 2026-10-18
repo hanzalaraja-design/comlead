@@ -64,7 +64,6 @@ export function MeetingEditor({
   const [title, setTitle] = useState(meeting.title ?? "");
   const [date, setDate] = useState(meeting.meeting_date);
   const [time, setTime] = useState(meeting.meeting_time?.slice(0, 5) ?? "");
-  const subTeam = meeting.sub_team_id ?? "";
   const [attendees, setAttendees] = useState(attendeeIds);
   const [agenda, setAgenda] = useState(meeting.agenda ?? "");
   const [minutes, setMinutes] = useState(meeting.minutes ?? "");
@@ -178,7 +177,6 @@ export function MeetingEditor({
         title: title || null,
         meeting_date: date,
         meeting_time: time || null,
-        sub_team_id: subTeam || null,
         attendees,
         agenda: agenda || null,
         minutes: minutes || null,

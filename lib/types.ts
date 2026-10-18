@@ -26,13 +26,8 @@ export type Department = {
   meeting_weekday: number | null;
   meeting_time: string | null;
   meeting_duration_minutes: number;
-};
-
-export type SubTeam = {
-  id: string;
-  department_id: string;
-  name: string;
-  archived: boolean;
+  /** A department, or a project team that people from several departments join. */
+  kind: "department" | "project";
 };
 
 export type Membership = {
@@ -47,7 +42,6 @@ export type Task = {
   description: string | null;
   /** null = personal task, visible only to its owner. */
   department_id: string | null;
-  sub_team_id: string | null;
   owner_id: string | null;
   status: TaskStatus;
   priority: TaskPriority;
@@ -67,14 +61,12 @@ export type Task = {
 export type TaskRow = Task & {
   owner: PersonRef | null;
   department: Pick<Department, "id" | "name" | "slug"> | null;
-  sub_team: Pick<SubTeam, "id" | "name"> | null;
   meeting: { id: string; title: string | null; meeting_date: string } | null;
 };
 
 export type Meeting = {
   id: string;
   department_id: string;
-  sub_team_id: string | null;
   title: string | null;
   meeting_date: string;
   meeting_time: string | null;

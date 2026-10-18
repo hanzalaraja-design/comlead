@@ -89,10 +89,8 @@ function TaskListItem({
           {showDepartment && t.department && (
             <span>
               {t.department.name}
-              {t.sub_team && ` · ${t.sub_team.name}`}
             </span>
           )}
-          {!showDepartment && t.sub_team && <span>{t.sub_team.name}</span>}
           {t.meeting && (
             <span className="inline-flex items-center gap-1">
               <NotebookPen className="h-3 w-3" /> From meeting

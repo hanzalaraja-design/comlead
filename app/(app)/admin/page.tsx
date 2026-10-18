@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 import { filtersToSearch } from "@/lib/tasks/filters";
 import { formatDate, formatTime, todayPKT, weekEndPKT, weekStartPKT } from "@/lib/time";
 import { nextOnOrAfter, type Frequency } from "@/lib/series";
-import { CrownMark } from "@/components/brand";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Dashboard · Highfy Tasks" };
@@ -114,12 +113,12 @@ export default async function DashboardPage() {
       <section className="mb-8">
         <h2 className="kicker mb-3 text-ink">This week&apos;s leaderboard</h2>
         {leaders.length === 0 ? (
-          <p className="surface px-4 py-5 text-sm text-ink-muted">No tasks closed yet this week. First one takes the crown.</p>
+          <p className="surface px-4 py-5 text-sm text-ink-muted">No tasks closed yet this week. First one takes the top spot.</p>
         ) : (
           <ol className="surface space-y-3 p-4 md:p-6">
             {leaders.map((d, i) => (
               <li key={d.department_id} className="grid grid-cols-[1.5rem_8rem_minmax(0,1fr)_2.5rem] items-center gap-3 text-sm md:grid-cols-[1.5rem_11rem_minmax(0,1fr)_3rem]">
-                <span className="text-center font-semibold text-ink-muted">{i === 0 ? <CrownMark className="h-4 w-5" /> : i + 1}</span>
+                <span className="text-center font-semibold text-ink-muted">{i + 1}</span>
                 <Link href={`/departments/${d.slug}`} className="truncate font-semibold text-ink hover:underline">
                   {d.name}
                 </Link>
@@ -134,7 +133,7 @@ export default async function DashboardPage() {
             ))}
           </ol>
         )}
-        <p className="mt-2 text-xs text-ink-muted">Tasks closed since Monday, by department. Teams, not people.</p>
+        <p className="mt-2 text-xs text-ink-muted">Tasks closed since Monday, by team. Teams, not people.</p>
       </section>
 
       <section className="mb-8">
@@ -143,7 +142,7 @@ export default async function DashboardPage() {
           <table className="w-full min-w-[32rem] text-sm">
             <thead className="bg-subtle text-[13px] text-ink">
               <tr>
-                <th className="px-3 py-2 text-left font-bold">Department</th>
+                <th className="px-3 py-2 text-left font-bold">Team</th>
                 <th className="px-3 py-2 text-right font-bold">Open</th>
                 <th className="px-3 py-2 text-right font-bold">Overdue</th>
                 <th className="px-3 py-2 text-right font-bold">Blocked</th>

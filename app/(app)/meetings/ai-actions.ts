@@ -286,7 +286,6 @@ export async function createSuggestedTask(
     .insert({
       ...parsed.data,
       department_id: ctx.meeting.department_id,
-      sub_team_id: ctx.meeting.sub_team_id,
       meeting_id: meetingId,
       source: "meeting",
       created_by: ctx.viewerId,

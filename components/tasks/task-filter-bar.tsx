@@ -14,7 +14,6 @@ import type { TaskPriority, TaskSource, TaskStatus } from "@/lib/types";
 
 export type FilterOptions = {
   departments: Option[]; // value = slug
-  subTeams: Option[];    // value = id, hint = department
   people: Option[];      // value = id
   tags: string[];
   meetings: Option[];    // value = id
@@ -69,7 +68,6 @@ export function TaskFilterBar({
 
   // Less-used filters live behind "More" and open by themselves when one is set.
   const secondary =
-    (filters.sub.length ? 1 : 0) +
     (filters.tags.length ? 1 : 0) +
     (filters.source.length ? 1 : 0) +
     (filters.meeting ? 1 : 0) +
@@ -124,7 +122,7 @@ export function TaskFilterBar({
         )}
         {!hide.includes("dept") && options.departments.length > 1 && (
           <MultiSelect
-            label="Department"
+            label="Team"
             options={options.departments}
             value={filters.dept}
             onChange={(v) => apply({ dept: v })}
@@ -160,9 +158,6 @@ export function TaskFilterBar({
 
       {more && (
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
-        {options.subTeams.length > 0 && (
-          <MultiSelect label="Sub-team" options={options.subTeams} value={filters.sub} onChange={(v) => apply({ sub: v })} />
-        )}
         {options.tags.length > 0 && (
           <MultiSelect
             label="Tags"

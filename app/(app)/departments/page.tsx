@@ -23,43 +23,50 @@ export default async function DepartmentsPage() {
 
   return (
     <>
-      <PageHeader breadcrumb={["Departments", "All departments"]} title="Departments" />
+      <PageHeader breadcrumb={["Teams"]} title="Teams" />
       {!depts?.length ? (
-        <EmptyState>You aren&apos;t in a department yet. Ask an Admin to add you.</EmptyState>
+        <EmptyState>You aren&apos;t in a team yet. Ask an Admin to add you.</EmptyState>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {(depts as Department[]).map((d) => {
-            const s = statsBy.get(d.id);
-            const role = roleBy.get(d.id);
+        <div className="space-y-8">
+          {(["department", "project"] as const).map((kind) => {
+            const list = (depts as Department[]).filter((d) => (d.kind ?? "department") === kind);
+            if (!list.length) return null;
             return (
-              <li key={d.id}>
-                <Link href={`/departments/${d.slug}`} className="block surface p-4 hover:bg-muted/40">
-                  <div className="flex items-center justify-between gap-2">
-                    <h2 className="font-semibold">{d.name}</h2>
-                    {role && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        {role === "lead" ? "Dept admin" : "Member"}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {meetingsBy.get(d.id)
-                      ? `${meetingsBy.get(d.id)} meeting${meetingsBy.get(d.id) === 1 ? "" : "s"} planned`
-                      : "No meetings planned"}
-                  </p>
-                  {s && (
-                    <dl className="mt-3 grid grid-cols-4 gap-2 text-center">
-                      <Stat label="Open" value={s.open_count} />
-                      <Stat label="Overdue" value={s.overdue_count} tone={s.overdue_count ? "red" : undefined} />
-                      <Stat label="Blocked" value={s.blocked_count} tone={s.blocked_count ? "amber" : undefined} />
-                      <Stat label="Done wk" value={s.completed_this_week} />
-                    </dl>
-                  )}
-                </Link>
-              </li>
+              <section key={kind}>
+                <h2 className="kicker mb-2 text-ink">{kind === "project" ? "Project teams" : "Departments"}</h2>
+                <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {list.map((d) => {
+                    const s = statsBy.get(d.id);
+                    const role = roleBy.get(d.id);
+                    return (
+                      <li key={d.id}>
+                        <Link href={`/departments/${d.slug}`} className="block surface p-4 hover:bg-muted/40">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-semibold">{d.name}</h3>
+                            {role === "lead" && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Admin</span>}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {meetingsBy.get(d.id)
+                              ? `${meetingsBy.get(d.id)} meeting${meetingsBy.get(d.id) === 1 ? "" : "s"} planned`
+                              : "No meetings planned"}
+                          </p>
+                          {s && (
+                            <dl className="mt-3 grid grid-cols-4 gap-2 text-center">
+                              <Stat label="Open" value={s.open_count} />
+                              <Stat label="Overdue" value={s.overdue_count} tone={s.overdue_count ? "red" : undefined} />
+                              <Stat label="Blocked" value={s.blocked_count} tone={s.blocked_count ? "amber" : undefined} />
+                              <Stat label="Done wk" value={s.completed_this_week} />
+                            </dl>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
             );
           })}
-        </ul>
+        </div>
       )}
     </>
   );

@@ -22,14 +22,15 @@ Tailwind CSS and shadcn/ui. All dates and "today" logic use Asia/Karachi (PKT).
 | Meetings: set up one-off, weekly, fortnightly or monthly meetings (internal or external), sent to Outlook; upcoming list; archive and search; agenda, minutes, action items, last time's carry-forward | `/meetings`, `/meetings/new`, `/meetings/series/[id]`, `/meetings/[id]` |
 | Activity: per person per day with summary, team view per day | `/activity` |
 | CEO dashboard with department leaderboard (click any number for the list behind it) | `/admin` |
-| People approval, per-department roles, departments and sub-teams | `/admin/users`, `/departments/[slug]/team` |
+| People approval, per-team roles, departments and project teams | `/admin/users`, `/departments/[slug]/team` |
 
 ### Access rules (enforced in the database with RLS)
 
 - **Admin** (company-wide): everything.
 - **Dept admin** (per department, stored as role `lead`): full control of that department. Can add/remove Members.
 - **Member** (per department): can create tasks, and edit tasks they own, collaborate on or created.
-- People see **only the departments they belong to**, plus any task they own or collaborate on. A person can be in any number of departments, as Member in some and Dept admin in others.
+- Work is organised in **teams**: a team is either a **department** or a **project team** (people from several departments working together). Both work the same way. There are no sub-teams.
+- People see **only the teams they belong to**, plus any task they own or collaborate on. A person can be in any number of teams, as Member in some and Dept admin in others.
 - **@mentions** add the tagged person as a collaborator (so they can open the task) and put it in their inbox.
 - **Meetings**: any department member can set one up for their department and invite other departments, people and (for external meetings) outside email addresses. Whoever set it up and the department's admins can change or cancel it. Everyone invited can open its agenda and minutes; anyone in the meeting can write them and add action items.
 - Only Dept admins/Admin reassign someone else's (non-meeting) task or move tasks between departments.

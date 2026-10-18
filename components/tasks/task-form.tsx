@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/multi-select";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { PRIORITIES, STATUSES, personName } from "@/lib/labels";
-import type { Department, PersonRef, SubTeam, Task, TaskStatus } from "@/lib/types";
+import type { Department, PersonRef, Task, TaskStatus } from "@/lib/types";
 import { createTask, updateTask } from "@/app/(app)/tasks/actions";
 
 export type TaskFormProps = {
@@ -19,7 +19,6 @@ export type TaskFormProps = {
   collaboratorIds?: string[];
   /** Departments the task may be placed in. */
   departments: Pick<Department, "id" | "name">[];
-  subTeams: SubTeam[];
   people: PersonRef[];
   /** department_id → member user ids, to suggest owners. */
   membersByDept: Record<string, string[]>;
@@ -43,10 +42,9 @@ export function TaskForm(props: TaskFormProps) {
   const [collaborators, setCollaborators] = useState<string[]>(props.collaboratorIds ?? []);
   // The extras stay folded away unless the task already uses them.
   const [more, setMore] = useState(
-    !!task && !!(task.description || task.tags.length || task.due_time || task.sub_team_id || (props.collaboratorIds ?? []).length),
+    !!task && !!(task.description || task.tags.length || task.due_time || (props.collaboratorIds ?? []).length),
   );
 
-  const subTeams = props.subTeams.filter((s) => s.department_id === departmentId && (!s.archived || s.id === task?.sub_team_id));
   const ownerIds = new Set(props.membersByDept[departmentId] ?? []);
   if (task?.owner_id) ownerIds.add(task.owner_id);
   if (props.defaultOwnerId) ownerIds.add(props.defaultOwnerId);
@@ -119,7 +117,7 @@ export function TaskForm(props: TaskFormProps) {
 
         {pickDepartment && (
           <div className="space-y-1.5">
-            <Label htmlFor="department_id">Department</Label>
+            <Label htmlFor="department_id">Team</Label>
             <select id="department_id" name="department_id" className={selectClass} value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
               {props.departments.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -177,19 +175,6 @@ export function TaskForm(props: TaskFormProps) {
             <Label htmlFor="due_time">Due time</Label>
             <Input id="due_time" name="due_time" type="time" defaultValue={task?.due_time?.slice(0, 5) ?? ""} disabled={!dueDate} className="h-10" />
           </div>
-          {subTeams.length > 0 && (
-            <div className="space-y-1.5">
-              <Label htmlFor="sub_team_id">Sub-team</Label>
-              <select id="sub_team_id" name="sub_team_id" className={selectClass} defaultValue={task?.sub_team_id ?? ""} key={departmentId}>
-                <option value="">None</option>
-                {subTeams.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
           <div className="space-y-1.5">
             <Label htmlFor="tags">Tags</Label>
             <Input id="tags" name="tags" defaultValue={task?.tags.join(", ")} placeholder="Q4, Birthday Bash" className="h-10" />

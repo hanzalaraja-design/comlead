@@ -47,7 +47,7 @@ function slugify(name: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export async function createDepartment(name: string): Promise<ActionResult> {
+export async function createDepartment(name: string, kind: "department" | "project" = "department"): Promise<ActionResult> {
   await requireAdmin();
   const n = name.trim();
   const slug = slugify(n);
@@ -56,7 +56,7 @@ export async function createDepartment(name: string): Promise<ActionResult> {
   const { data: last } = await supabase.from("departments").select("sort_order").order("sort_order", { ascending: false }).limit(1);
   const { error } = await supabase
     .from("departments")
-    .insert({ name: n, slug, sort_order: ((last?.[0]?.sort_order as number) ?? 0) + 1 });
+    .insert({ name: n, slug, kind: kind === "project" ? "project" : "department", sort_order: ((last?.[0]?.sort_order as number) ?? 0) + 1 });
   if (error) return { ok: false, error: friendlyError(error) };
   revalidatePath("/", "layout");
   return { ok: true };
@@ -98,25 +98,7 @@ export async function moveDepartment(id: string, direction: -1 | 1): Promise<Act
   return { ok: true };
 }
 
-export async function createSubTeam(departmentId: string, name: string): Promise<ActionResult> {
+export async function setDepartmentKind(id: string, kind: "department" | "project"): Promise<ActionResult> {
   await requireAdmin();
-  const n = name.trim();
-  if (!uuid.safeParse(departmentId).success || !n) return { ok: false, error: "Enter a name." };
-  const supabase = await createClient();
-  const { error } = await supabase.from("sub_teams").insert({ department_id: departmentId, name: n });
-  if (error) return { ok: false, error: friendlyError(error) };
-  revalidatePath("/", "layout");
-  return { ok: true };
-}
-
-export async function renameSubTeam(id: string, name: string): Promise<ActionResult> {
-  await requireAdmin();
-  const n = name.trim();
-  if (!n) return { ok: false, error: "Enter a name." };
-  return update("sub_teams", id, { name: n });
-}
-
-export async function setSubTeamArchived(id: string, archived: boolean): Promise<ActionResult> {
-  await requireAdmin();
-  return update("sub_teams", id, { archived: !!archived });
+  return update("departments", id, { kind: kind === "project" ? "project" : "department" });
 }

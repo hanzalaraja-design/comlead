@@ -28,7 +28,7 @@ const MAIN: NavItem[] = [
   { href: "/my", label: "My tasks", icon: CheckSquare },
   { href: "/tasks", label: "All tasks", icon: List },
   { href: "/overdue", label: "Overdue", icon: TriangleAlert },
-  { href: "/departments", label: "Departments", icon: Building2 },
+  { href: "/departments", label: "Teams", icon: Building2 },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
   { href: "/activity", label: "Activity", icon: Activity },
 ];

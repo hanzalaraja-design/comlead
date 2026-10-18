@@ -57,7 +57,7 @@ export function QuickAdd({
         {/* Only asked when it isn't obvious. */}
         {departments.length > 1 && (
           <select
-            aria-label="Department"
+            aria-label="Team"
             value={dept}
             onChange={(e) => setDept(e.target.value)}
             className="h-9 field max-w-[11rem] px-2 text-sm"

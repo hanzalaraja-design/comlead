@@ -44,7 +44,7 @@ export default async function DepartmentBoardPage({
   return (
     <>
       <PageHeader
-        breadcrumb={[{ label: "Departments", href: "/departments" }, dept.name, "Board"]}
+        breadcrumb={[{ label: "Teams", href: "/departments" }, dept.name, "Board"]}
         title={dept.name}
         description={member ? undefined : "You're on a task here, so you can see it."}
         actions={

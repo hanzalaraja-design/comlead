@@ -158,7 +158,7 @@ export function SeriesForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="s-home">Department</Label>
+          <Label htmlFor="s-home">Team</Label>
           <select id="s-home" value={v.department_id} onChange={(e) => set("department_id", e.target.value)} className="h-10 w-full field px-3">
             {homeOptions.map((d) => (
               <option key={d.id} value={d.id}>
@@ -169,15 +169,15 @@ export function SeriesForm({
           <p className="text-xs text-ink-muted">Its people can see the minutes and manage the meeting.</p>
         </div>
         <div className="space-y-1.5">
-          <Label>Invite departments</Label>
+          <Label>Invite teams</Label>
           <MultiSelect
-            label="Departments"
+            label="Teams"
             className="h-10 w-full justify-between rounded-[12px]"
             options={departments.filter((d) => d.invitable).map((d) => ({ value: d.id, label: d.name }))}
             value={v.department_ids}
             onChange={(ids) => set("department_ids", ids)}
           />
-          <p className="text-xs text-ink-muted">Everyone in these departments gets the invite.</p>
+          <p className="text-xs text-ink-muted">Everyone in these teams gets the invite.</p>
         </div>
       </div>
 

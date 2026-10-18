@@ -40,7 +40,7 @@ export function MeetingFilters({ departments, people }: { departments: Opt[]; pe
       </div>
       <div className="flex flex-wrap gap-2">
         {departments.length > 1 && (
-          <select aria-label="Department" value={params.get("dept") ?? ""} onChange={(e) => set("dept", e.target.value)} className={sel}>
+          <select aria-label="Team" value={params.get("dept") ?? ""} onChange={(e) => set("dept", e.target.value)} className={sel}>
             <option value="">All departments</option>
             {departments.map((d) => (
               <option key={d.value} value={d.value}>

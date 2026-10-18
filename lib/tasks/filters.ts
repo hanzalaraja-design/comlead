@@ -16,8 +16,6 @@ export type TaskFilters = {
   owner: string[];
   /** Department slugs. */
   dept: string[];
-  /** Sub-team ids. */
-  sub: string[];
   meeting?: string;
   tags: string[];
   overdue: boolean;
@@ -81,7 +79,6 @@ export function parseFilters(raw: RawParams): TaskFilters {
     source: list(raw, "source").filter((p) => SOURCES.some((x) => x.value === p)) as TaskSource[],
     owner: list(raw, "owner").filter((o) => o === "me" || o === "none" || UUID_RE.test(o)),
     dept: list(raw, "dept").filter((d) => /^[a-z0-9-]+$/.test(d)),
-    sub: list(raw, "sub").filter((s) => UUID_RE.test(s)),
     meeting: UUID_RE.test(one(raw, "meeting") ?? "") ? one(raw, "meeting") : undefined,
     tags: list(raw, "tags").slice(0, 20),
     overdue: one(raw, "overdue") === "1",
@@ -106,7 +103,6 @@ export function filtersToSearch(f: Partial<TaskFilters>): string {
   if (f.source?.length) p.set("source", f.source.join(","));
   if (f.owner?.length) p.set("owner", f.owner.join(","));
   if (f.dept?.length) p.set("dept", f.dept.join(","));
-  if (f.sub?.length) p.set("sub", f.sub.join(","));
   if (f.meeting) p.set("meeting", f.meeting);
   if (f.tags?.length) p.set("tags", f.tags.join(","));
   if (f.overdue) p.set("overdue", "1");
@@ -126,7 +122,6 @@ export function countActiveFilters(f: TaskFilters): number {
     (f.source.length ? 1 : 0) +
     (f.owner.length ? 1 : 0) +
     (f.dept.length ? 1 : 0) +
-    (f.sub.length ? 1 : 0) +
     (f.meeting ? 1 : 0) +
     (f.tags.length ? 1 : 0) +
     (f.overdue ? 1 : 0) +
