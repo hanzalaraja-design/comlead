@@ -13,6 +13,7 @@ import { MultiSelect } from "@/components/multi-select";
 import { personName } from "@/lib/labels";
 import { FREQUENCIES, describeSeries, type Frequency } from "@/lib/series";
 import { cn } from "@/lib/utils";
+import { todayPKT } from "@/lib/time";
 import type { PersonRef } from "@/lib/types";
 import { cancelSeries, saveSeries } from "@/app/(app)/meetings/series-actions";
 
@@ -70,6 +71,7 @@ export function SeriesForm({
   departments,
   people,
   canCancel,
+  past = false,
 }: {
   id: string | null;
   initial: SeriesFormValues;
@@ -77,6 +79,8 @@ export function SeriesForm({
   departments: { id: string; name: string; invitable: boolean; mine: boolean }[];
   people: PersonRef[];
   canCancel: boolean;
+  /** Recording a meeting that already happened: one-off, no invite, straight to the minutes. */
+  past?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -97,6 +101,12 @@ export function SeriesForm({
         toast.error(res.error);
         return;
       }
+      // A one-off that's today or already over: go straight to its minutes.
+      if (!id && v.frequency === "once" && v.start_date <= todayPKT()) {
+        toast.success(past ? "Saved. Write the minutes below." : "Meeting set up.");
+        router.push(`/meetings/series/${res.data!.id}?date=${v.start_date}`);
+        return;
+      }
       toast.success(id ? "Meeting updated. Outlook will follow." : "Meeting set up. Invites are on their way.");
       router.push("/meetings");
       router.refresh();
@@ -110,15 +120,25 @@ export function SeriesForm({
         <Input id="s-title" value={v.title} onChange={(e) => set("title", e.target.value)} placeholder="Marketing weekly" className="h-10" required />
       </div>
 
-      <div className="space-y-2">
-        <Label>How often</Label>
-        <Segmented label="How often" value={v.frequency} onChange={(f) => set("frequency", f)} options={FREQUENCIES} />
-      </div>
+      {!past && (
+        <div className="space-y-2">
+          <Label>How often</Label>
+          <Segmented label="How often" value={v.frequency} onChange={(f) => set("frequency", f)} options={FREQUENCIES} />
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-1.5">
-          <Label htmlFor="s-date">{v.frequency === "once" ? "Date" : "First meeting"}</Label>
-          <Input id="s-date" type="date" required value={v.start_date} onChange={(e) => set("start_date", e.target.value)} className="h-10" />
+          <Label htmlFor="s-date">{past ? "When was it?" : v.frequency === "once" ? "Date" : "First meeting"}</Label>
+          <Input
+            id="s-date"
+            type="date"
+            required
+            value={v.start_date}
+            max={past ? todayPKT() : undefined}
+            onChange={(e) => set("start_date", e.target.value)}
+            className="h-10"
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="s-time">Time</Label>
@@ -140,11 +160,11 @@ export function SeriesForm({
           </select>
         </div>
       </div>
-      {v.start_date && v.meeting_time && (
+      {!past && v.start_date && v.meeting_time && (
         <p className="-mt-3 text-sm text-ink-muted">{describeSeries({ frequency: v.frequency, start_date: v.start_date, meeting_time: v.meeting_time })}</p>
       )}
 
-      <div className="space-y-2">
+      <div className={past ? "hidden" : "space-y-2"}>
         <Label>Type</Label>
         <Segmented
           label="Type"
@@ -170,7 +190,7 @@ export function SeriesForm({
           <p className="text-xs text-ink-muted">Its people can see the minutes and manage the meeting.</p>
         </div>
         <div className="space-y-1.5">
-          <Label>Invite teams</Label>
+          <Label>{past ? "Teams that were there" : "Invite teams"}</Label>
           <MultiSelect
             label="Teams"
             className="h-10 w-full justify-between rounded-[12px]"
@@ -178,13 +198,13 @@ export function SeriesForm({
             value={v.department_ids}
             onChange={(ids) => set("department_ids", ids)}
           />
-          <p className="text-xs text-ink-muted">Everyone in these teams gets the invite.</p>
+          <p className="text-xs text-ink-muted">{past ? "Everyone in these teams is listed as an attendee." : "Everyone in these teams gets the invite."}</p>
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label>Invite people</Label>
-        <p className="text-xs text-ink-muted">You&apos;re always invited to meetings you set up.</p>
+        <Label>{past ? "Who else was there" : "Invite people"}</Label>
+        {!past && <p className="text-xs text-ink-muted">You&apos;re always invited to meetings you set up.</p>}
         <MultiSelect
           label="People"
           className="h-10 w-full justify-between rounded-[12px]"
@@ -211,7 +231,7 @@ export function SeriesForm({
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
         <Button type="submit" disabled={pending} className="min-w-32">
-          {pending ? "Saving…" : id ? "Save changes" : "Set up meeting"}
+          {pending ? "Saving…" : id ? "Save changes" : past ? "Write minutes" : "Set up meeting"}
         </Button>
         <Button type="button" variant="ghost" onClick={() => router.back()}>
           Back

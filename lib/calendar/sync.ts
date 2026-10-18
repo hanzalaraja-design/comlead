@@ -5,7 +5,7 @@ import { addDays, addMinutes, format } from "date-fns";
 import { nextOnOrAfter, type Frequency } from "@/lib/series";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { priorityLabel } from "@/lib/labels";
-import { parseISODate, todayPKT, WEEKDAYS } from "@/lib/time";
+import { nowPKT, parseISODate, todayPKT, WEEKDAYS } from "@/lib/time";
 import { GraphError, calendarMailbox, graph, isCalendarConfigured, userPath } from "./graph";
 
 /**
@@ -117,6 +117,9 @@ export function syncSeries(seriesId: string) {
       if (link && (!s || s.archived)) await cancelSeries(db, link, "This meeting has been cancelled in Highfy Tasks.");
       return; // A past one-off keeps its event as it was.
     }
+
+    // A one-off that's already over (e.g. a past meeting being recorded) gets no invite.
+    if (s.frequency === "once" && !link && `${first}T${String(s.meeting_time).slice(0, 5)}` < format(nowPKT(), "yyyy-MM-dd'T'HH:mm")) return;
 
     const attendees = await seriesAttendees(db, s.id, s.kind === "external" ? s.external_emails : [], s.created_by);
     const time = String(s.meeting_time).slice(0, 5);
