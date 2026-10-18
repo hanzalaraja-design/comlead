@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel, PriorityBadge, TagList } from "@/components/tasks/task-badges";
@@ -33,6 +33,47 @@ export function KanbanBoard({
   const [blockTarget, setBlockTarget] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [, startTransition] = useTransition();
+  const board = useRef<HTMLDivElement>(null);
+  const cards = useRef(new Map<string, HTMLElement>());
+  const lastPos = useRef(new Map<string, { x: number; y: number; status: TaskStatus }>());
+
+  // When a card changes column, slide it from where it was to where it is now
+  // (positions are measured against the board, so page scrolling doesn't count).
+  useLayoutEffect(() => {
+    const root = board.current?.getBoundingClientRect();
+    if (!root) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const next = new Map<string, { x: number; y: number; status: TaskStatus }>();
+    for (const t of tasks) {
+      const el = cards.current.get(t.id);
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      const pos = { x: r.left - root.left, y: r.top - root.top, status: t.status };
+      next.set(t.id, pos);
+      const prev = lastPos.current.get(t.id);
+      if (!prev || reduce) continue;
+      const dx = prev.x - pos.x;
+      const dy = prev.y - pos.y;
+      if (prev.status !== t.status) {
+        // The card that moved: lift, glide across, settle with a brief highlight.
+        el.animate(
+          [
+            { transform: `translate(${dx}px, ${dy}px) scale(1.03)`, boxShadow: "0 12px 28px rgba(30,28,26,.18)", zIndex: 20 },
+            { transform: "translate(0, 0) scale(1)", boxShadow: "0 0 0 2px hsl(var(--brand-primary) / .35)", zIndex: 20, offset: 0.85 },
+            { transform: "translate(0, 0) scale(1)", boxShadow: "0 0 0 0 transparent", zIndex: 20 },
+          ],
+          { duration: 520, easing: "cubic-bezier(.2,.8,.2,1)" },
+        );
+      } else if (Math.abs(dy) > 1 || Math.abs(dx) > 1) {
+        // Cards that shuffle up or down to make room.
+        el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }], {
+          duration: 300,
+          easing: "ease-out",
+        });
+      }
+    }
+    lastPos.current = next;
+  }, [tasks]);
 
   // Take fresh server data after a refresh.
   const [prevInitial, setPrevInitial] = useState(initial);
@@ -69,7 +110,7 @@ export function KanbanBoard({
 
   return (
     <>
-      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0">
+      <div ref={board} className="relative -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0">
         {COLUMNS.map((col) => {
           const items = tasks.filter((t) => t.status === col);
           return (
@@ -98,6 +139,10 @@ export function KanbanBoard({
                 {items.map((t) => (
                   <li
                     key={t.id}
+                    ref={(el) => {
+                      if (el) cards.current.set(t.id, el);
+                      else cards.current.delete(t.id);
+                    }}
                     draggable={canEdit}
                     onDragStart={() => setDragId(t.id)}
                     onDragEnd={() => {
