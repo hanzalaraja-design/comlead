@@ -86,6 +86,7 @@ function TaskListItem({
           </Link>
         </div>
         <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
+          {!t.department_id && <span className="font-medium text-brand-primary">Private</span>}
           {showDepartment && t.department && (
             <span>
               {t.department.name}

@@ -20,7 +20,11 @@ const optionalUuid = z
 const taskSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   description: z.string().max(100_000).optional(),
-  department_id: uuid,
+  // "private" (or empty) = a private task: no team, only its owner sees it.
+  department_id: z
+    .string()
+    .transform((v) => (v && v !== "private" ? v : null))
+    .pipe(uuid.nullable()),
   owner_id: optionalUuid,
   status: z.enum(["todo", "in_progress", "blocked", "done", "cancelled"]),
   priority: z.enum(["urgent", "high", "medium", "low"]),
@@ -66,6 +70,11 @@ function readTaskForm(formData: FormData) {
   });
 }
 
+/** Private tasks always belong to whoever saves them and never sit in a meeting. */
+function shape<T extends { department_id: string | null; owner_id: string | null; meeting_id: string | null }>(v: T, viewerId: string): T {
+  return v.department_id ? v : { ...v, owner_id: viewerId, meeting_id: null };
+}
+
 function revalidateTaskViews(taskId?: string) {
   revalidatePath("/", "layout");
   if (taskId) revalidatePath(`/tasks/${taskId}`);
@@ -75,7 +84,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
   const viewer = await requireViewer();
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
-  const v = parsed.data;
+  const v = shape(parsed.data, viewer.id);
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -112,11 +121,11 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
 }
 
 export async function updateTask(taskId: string, formData: FormData): Promise<ActionResult> {
-  await requireViewer();
+  const viewer = await requireViewer();
   if (!uuid.safeParse(taskId).success) return { ok: false, error: "Invalid task" };
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
-  const v = parsed.data;
+  const v = shape(parsed.data, viewer.id);
 
   const supabase = await createClient();
   const { data: updated, error } = await supabase
@@ -173,14 +182,13 @@ const statusSchema = z.object({
 /**
  * Quick add: a title and Enter. A few words at the end set details:
  * "today" / "tomorrow" / "fri" for the due date, "!" for high or "!!" for urgent.
- * The task is assigned to whoever adds it, in their (first) department.
+ * The task is assigned to whoever adds it. No team = a private task only they see.
  */
 export async function quickAddTask(input: string, departmentId: string | null): Promise<ActionResult<{ id: string }>> {
   const viewer = await requireViewer();
   let title = input.trim().replace(/\s+/g, " ");
-  const dept = departmentId ?? viewer.memberDeptIds[0];
-  if (!dept || !uuid.safeParse(dept).success)
-    return { ok: false, error: viewer.isAdmin ? "Pick a team for this task." : "Ask an Admin to add you to a team first." };
+  const dept = departmentId || null;
+  if (dept && !uuid.safeParse(dept).success) return { ok: false, error: "Pick a team for this task." };
 
   let priority: "urgent" | "high" | "medium" = "medium";
   const bang = /\s*(!{1,2})$/.exec(title);

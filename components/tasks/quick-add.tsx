@@ -9,12 +9,15 @@ import { quickAddTask } from "@/app/(app)/tasks/actions";
 export function QuickAdd({
   departments,
   defaultDepartmentId = null,
+  allowPrivate = false,
 }: {
   departments: { id: string; name: string }[];
   defaultDepartmentId?: string | null;
+  /** Offer "Private (only you)", first and selected by default. */
+  allowPrivate?: boolean;
 }) {
   const [title, setTitle] = useState("");
-  const [dept, setDept] = useState<string>(defaultDepartmentId ?? departments[0]?.id ?? "");
+  const [dept, setDept] = useState<string>(defaultDepartmentId ?? (allowPrivate ? "" : departments[0]?.id ?? ""));
   const [pending, startTransition] = useTransition();
   const input = useRef<HTMLInputElement>(null);
 
@@ -24,7 +27,7 @@ export function QuickAdd({
     setTitle("");
     startTransition(async () => {
       const res = await quickAddTask(value, dept || null);
-      if (res.ok) toast.success("Added. It's yours.");
+      if (res.ok) toast.success(dept ? "Added. It's yours." : "Added to your private list.");
       else {
         setTitle(value);
         toast.error(res.error);
@@ -55,13 +58,14 @@ export function QuickAdd({
       </div>
       <div className="flex items-center gap-2">
         {/* Only asked when it isn't obvious. */}
-        {departments.length > 1 && (
+        {departments.length + (allowPrivate ? 1 : 0) > 1 && (
           <select
             aria-label="Team"
             value={dept}
             onChange={(e) => setDept(e.target.value)}
             className="h-9 field max-w-[11rem] px-2 text-sm"
           >
+            {allowPrivate && <option value="">Private (only you)</option>}
             {departments.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}

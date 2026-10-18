@@ -31,12 +31,18 @@ export type TaskFormProps = {
 };
 
 const selectClass = "h-10 w-full field px-3 text-sm disabled:opacity-60";
+const PRIVATE = "private";
 
 export function TaskForm(props: TaskFormProps) {
   const { task } = props;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [departmentId, setDepartmentId] = useState(task?.department_id ?? props.defaultDepartmentId ?? props.departments[0]?.id ?? "");
+  // New tasks start private unless opened from a team; a team task can't be made private again.
+  const offerPrivate = !task || task.department_id === null;
+  const [departmentId, setDepartmentId] = useState(
+    task ? task.department_id ?? PRIVATE : props.defaultDepartmentId ?? PRIVATE,
+  );
+  const isPrivate = departmentId === PRIVATE;
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo");
   const [dueDate, setDueDate] = useState(task?.due_date ?? "");
   const [collaborators, setCollaborators] = useState<string[]>(props.collaboratorIds ?? []);
@@ -49,7 +55,7 @@ export function TaskForm(props: TaskFormProps) {
   if (task?.owner_id) ownerIds.add(task.owner_id);
   if (props.defaultOwnerId) ownerIds.add(props.defaultOwnerId);
   const ownerOptions = props.people.filter((p) => ownerIds.has(p.id));
-  const pickDepartment = props.departments.length > 1 && (!task || props.canMove);
+  const pickDepartment = (props.departments.length > 1 || offerPrivate) && (!task || props.canMove || offerPrivate);
 
   function onSubmit(formData: FormData) {
     for (const c of collaborators) formData.append("collaborators", c);
@@ -89,9 +95,10 @@ export function TaskForm(props: TaskFormProps) {
             name="owner_id"
             className={selectClass}
             defaultValue={task ? task.owner_id ?? "" : props.defaultOwnerId ?? ""}
-            disabled={!!task && !props.canReassign}
+            disabled={(!!task && !props.canReassign) || isPrivate}
+            key={isPrivate ? "private" : "team"}
           >
-            <option value="">Unassigned</option>
+            {isPrivate ? <option value="">You</option> : <option value="">Unassigned</option>}
             {ownerOptions.map((p) => (
               <option key={p.id} value={p.id}>
                 {personName(p)}
@@ -119,6 +126,7 @@ export function TaskForm(props: TaskFormProps) {
           <div className="space-y-1.5">
             <Label htmlFor="department_id">Team</Label>
             <select id="department_id" name="department_id" className={selectClass} value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+              {offerPrivate && <option value={PRIVATE}>Private (only you)</option>}
               {props.departments.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}

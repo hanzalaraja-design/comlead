@@ -138,7 +138,7 @@ export default async function MyTasksPage() {
       </section>
 
       <div className="mb-6">
-        <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} />
+        <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} allowPrivate />
       </div>
 
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}

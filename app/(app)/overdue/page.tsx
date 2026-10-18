@@ -22,7 +22,7 @@ export default async function OverduePage({
   const byDept = new Map<string, { name: string; tasks: TaskListRow[] }>();
   for (const t of tasks) {
     const key = t.department_id ?? "personal";
-    if (!byDept.has(key)) byDept.set(key, { name: t.department?.name ?? "Personal", tasks: [] });
+    if (!byDept.has(key)) byDept.set(key, { name: t.department?.name ?? "Private", tasks: [] });
     byDept.get(key)!.tasks.push(t);
   }
   const order = new Map(departments.map((d, i) => [d.id, i]));
