@@ -22,7 +22,7 @@ export async function getFilterOptions(opts: { departmentId?: string } = {}): Pr
 
   return {
     departments: departments.filter((d) => !d.archived).map((d) => ({ value: d.slug, label: d.name })),
-    people: people.map((p) => ({ value: p.id, label: personName(p), hint: p.email })),
+    people: people.map((p) => ({ value: p.id, label: personName(p), search: p.email })),
     tags: ((tagsRes.data ?? []) as unknown as (string | { visible_task_tags: string })[]).map((t) =>
       typeof t === "string" ? t : t.visible_task_tags,
     ),

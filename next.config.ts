@@ -6,9 +6,10 @@ const nextConfig: NextConfig = {
     // tab is instant. Any save refreshes them straight away.
     staleTimes: { dynamic: 30, static: 180 },
     serverActions: {
-      // Task attachments are uploaded straight to Supabase Storage from the
-      // browser, so server actions only carry form data.
-      bodySizeLimit: "2mb",
+      // Task attachments go straight to Supabase Storage from the browser.
+      // The largest server action body is photos of meeting notes, shrunk in
+      // the browser to well under 1 MB each, up to four at a time.
+      bodySizeLimit: "6mb",
     },
   },
 };

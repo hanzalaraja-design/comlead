@@ -44,7 +44,6 @@ export function TeamManager({
             <PersonAvatar person={m.person} className="h-8 w-8" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{personName(m.person)}</p>
-              <p className="truncate text-xs text-muted-foreground">{m.person.email}</p>
             </div>
             {isAdmin ? (
               <select

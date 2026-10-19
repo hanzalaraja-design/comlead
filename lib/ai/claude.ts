@@ -65,9 +65,12 @@ export async function structuredCall<T>({
   effort = "low",
   maxTokens = 8000,
   label,
+  images = [],
 }: {
   system: string;
   prompt: string;
+  /** Photos sent before the prompt, as base64 without the data: prefix. */
+  images?: { mediaType: "image/jpeg" | "image/png" | "image/webp"; data: string }[];
   schema: Record<string, unknown>;
   parser: z.ZodType<T>;
   effort?: "low" | "medium";
@@ -87,7 +90,20 @@ export async function structuredCall<T>({
       fallbacks: "default",
       output_config: { effort, format: { type: "json_schema", schema } },
       system,
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        {
+          role: "user",
+          content: images.length
+            ? [
+                ...images.map((img) => ({
+                  type: "image" as const,
+                  source: { type: "base64" as const, media_type: img.mediaType, data: img.data },
+                })),
+                { type: "text" as const, text: prompt },
+              ]
+            : prompt,
+        },
+      ],
     });
   } catch (error) {
     console.error(`[ai:${label}]`, error);

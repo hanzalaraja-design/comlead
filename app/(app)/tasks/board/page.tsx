@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskViewTabs } from "@/components/tasks/task-view-tabs";
+import { TeamTabs } from "@/components/tasks/team-tabs";
 import { requireViewer, viewerId } from "@/lib/auth";
 import { filtersToSearch, parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
@@ -49,6 +50,7 @@ export default async function TaskBoardPage({
         }
       />
       <TaskViewTabs active="board" search={filtersToSearch({ ...filters, status: [] })} />
+      <TeamTabs path={"/tasks/board"} filters={filters} departments={options.departments} />
       <TaskFilterBar filters={filters} options={options} hide={["status", "sort"]} />
       {(open.error || done.error) && <p className="mb-3 text-sm text-danger">{open.error || done.error}</p>}
       <KanbanBoard tasks={[...open.tasks, ...done.tasks]} canEdit showDepartment />

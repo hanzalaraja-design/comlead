@@ -22,8 +22,10 @@ import {
   draftAgenda,
   suggestActionItems,
   tidyMinutes,
+  minutesFromPhotos,
   type SuggestedItem,
   type TidyDraft,
+  type MinutesPhoto,
 } from "@/app/(app)/meetings/ai-actions";
 
 export type ActionItemRow = {
@@ -72,7 +74,9 @@ export function MeetingEditor({
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
 
   // Assistant drafts: held here until the person accepts or discards them.
-  const [aiBusy, setAiBusy] = useState<null | "tidy" | "suggest" | "agenda">(null);
+  const [aiBusy, setAiBusy] = useState<null | "tidy" | "suggest" | "agenda" | "photo">(null);
+  const [photoDraft, setPhotoDraft] = useState<TidyDraft | null>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
   const [minutesKey, setMinutesKey] = useState(0);
   const [tidyDraft, setTidyDraft] = useState<TidyDraft | null>(null);
   const [agendaDraft, setAgendaDraft] = useState<string | null>(null);
@@ -85,6 +89,43 @@ export function MeetingEditor({
     setAiBusy(null);
     if (res.ok) setTidyDraft(res.data!);
     else toast.error(res.error);
+  }
+
+  async function runPhotos(files: FileList | null) {
+    if (!files?.length) return;
+    if (files.length > 4) {
+      toast.error("Add up to 4 photos at a time.");
+      return;
+    }
+    setAiBusy("photo");
+    try {
+      const photos = await Promise.all([...files].map(shrinkPhoto));
+      const res = await minutesFromPhotos(meeting.id, photos);
+      if (res.ok) setPhotoDraft(res.data!);
+      else toast.error(res.error);
+    } catch {
+      toast.error("Couldn't open that photo. Try a JPEG or PNG.");
+    } finally {
+      setAiBusy(null);
+      if (photoInput.current) photoInput.current.value = "";
+    }
+  }
+
+  function acceptPhoto() {
+    if (!photoDraft) return;
+    const before = minutes;
+    setMinutes(isBlank(before) ? photoDraft.html : before + photoDraft.html);
+    setMinutesKey((k) => k + 1);
+    setPhotoDraft(null);
+    toast.success("Added to the minutes. Save to keep them.", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setMinutes(before);
+          setMinutesKey((k) => k + 1);
+        },
+      },
+    });
   }
 
   function acceptTidy() {
@@ -216,7 +257,7 @@ export function MeetingEditor({
             <MultiSelect
               label="Attendees"
               className="h-10 w-full justify-between rounded-md"
-              options={people.map((p) => ({ value: p.id, label: personName(p), hint: p.email }))}
+              options={people.map((p) => ({ value: p.id, label: personName(p), search: p.email }))}
               value={attendees}
               onChange={setAttendees}
               searchable
@@ -258,9 +299,22 @@ export function MeetingEditor({
         <div className="flex items-end justify-between gap-2">
           <Label>Minutes</Label>
           {aiEnabled && (
-            <AiButton onClick={runTidy} busy={aiBusy === "tidy"} disabled={aiBusy !== null || !minutes}>
-              {aiBusy === "tidy" ? "Tidying…" : "Tidy up"}
-            </AiButton>
+            <div className="flex flex-wrap justify-end gap-1.5">
+              <input
+                ref={photoInput}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(e) => runPhotos(e.target.files)}
+              />
+              <AiButton onClick={() => photoInput.current?.click()} busy={aiBusy === "photo"} disabled={aiBusy !== null}>
+                {aiBusy === "photo" ? "Reading photo…" : "Photo of notes"}
+              </AiButton>
+              <AiButton onClick={runTidy} busy={aiBusy === "tidy"} disabled={aiBusy !== null || !minutes}>
+                {aiBusy === "tidy" ? "Tidying…" : "Tidy up"}
+              </AiButton>
+            </div>
           )}
         </div>
         <RichTextEditor
@@ -271,6 +325,18 @@ export function MeetingEditor({
           minHeight="12rem"
           placeholder="What was discussed…"
         />
+        {photoDraft && (
+          <DraftPanel
+            title="Minutes from your photo"
+            acceptLabel={isBlank(minutes) ? "Use these minutes" : "Add below my notes"}
+            onAccept={acceptPhoto}
+            onDiscard={() => setPhotoDraft(null)}
+          >
+            <div className="rounded-[12px] bg-white p-3">
+              <RichTextView html={photoDraft.html} className="text-sm" />
+            </div>
+          </DraftPanel>
+        )}
         {tidyDraft && (
           <DraftPanel title="Tidied minutes" acceptLabel="Replace my notes" onAccept={acceptTidy} onDiscard={() => setTidyDraft(null)}>
             <div className="rounded-[12px] bg-white p-3">
@@ -398,7 +464,7 @@ export function MeetingEditor({
         </Button>
       </div>
 
-      <div className="sticky bottom-16 z-20 -mx-4 flex items-center gap-2 border-t bg-white/95 px-4 py-3 backdrop-blur md:bottom-0 md:mx-0 md:rounded-lg md:border md:px-3">
+      <div className="phone-sticky sticky bottom-16 z-20 -mx-4 flex items-center gap-2 border-t bg-white/95 px-4 py-3 backdrop-blur md:bottom-0 md:mx-0 md:rounded-lg md:border md:px-3">
         <Button onClick={save} disabled={pending || !date} className="min-w-28">
           {pending ? "Saving…" : "Save minutes"}
         </Button>
@@ -425,4 +491,25 @@ export function MeetingEditor({
       </div>
     </div>
   );
+}
+
+const isBlank = (html: string) => !html.replace(/<[^>]*>/g, "").trim();
+
+/** Shrink a photo in the browser so it uploads fast and stays readable: JPEG, longest side 1800px. */
+async function shrinkPhoto(file: File): Promise<MinutesPhoto> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const scale = Math.min(1, 1800 / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const data = canvas.toDataURL("image/jpeg", 0.82).split(",")[1];
+    return { mediaType: "image/jpeg", data };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }

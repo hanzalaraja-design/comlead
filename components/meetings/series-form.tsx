@@ -208,7 +208,7 @@ export function SeriesForm({
         <MultiSelect
           label="People"
           className="h-10 w-full justify-between rounded-[12px]"
-          options={people.map((p) => ({ value: p.id, label: personName(p), hint: p.email }))}
+          options={people.map((p) => ({ value: p.id, label: personName(p), search: p.email }))}
           value={v.user_ids}
           onChange={(ids) => set("user_ids", ids)}
           searchable

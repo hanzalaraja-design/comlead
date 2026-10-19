@@ -6,7 +6,7 @@ import { CornerDownLeft, Plus } from "lucide-react";
 import { quickAddTask } from "@/app/(app)/tasks/actions";
 import { cn } from "@/lib/utils";
 
-/** Type, press Enter, done: a task assigned to you. Details can be added later from the task. */
+/** Type, press Enter, done. Private tasks are yours; team tasks go to the team's admin. */
 export function QuickAdd({
   departments,
   defaultDepartmentId = null,
@@ -28,7 +28,16 @@ export function QuickAdd({
     setTitle("");
     startTransition(async () => {
       const res = await quickAddTask(value, dept || null);
-      if (res.ok) toast.success(dept ? "Added. It's yours." : "Added to your private list.");
+      if (res.ok)
+        toast.success(
+          !dept
+            ? "Added to your private list."
+            : res.data!.owner === "you"
+              ? "Added. It's yours."
+              : res.data!.owner
+                ? `Added for ${res.data!.owner} to hand out.`
+                : "Added to the team, unassigned.",
+        );
       else {
         setTitle(value);
         toast.error(res.error);
@@ -54,7 +63,7 @@ export function QuickAdd({
           placeholder="Add a task. Try: Send quote to Ali tomorrow!"
           aria-label="New task"
           maxLength={320}
-          className="h-10 min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-muted"
+          className="h-10 min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-muted"
         />
       </div>
       {/* On phones the picker and button appear once you start typing. */}
