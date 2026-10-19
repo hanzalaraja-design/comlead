@@ -195,7 +195,7 @@ export function AppNav({ isAdmin, name, email, badges }: { isAdmin: boolean; nam
       </Sheet>
 
       {/* Phone bottom tabs */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav className="phone-tabbar fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         <ul className="grid grid-cols-4">
           {MOBILE.map((item) => (
             <li key={item.href}>

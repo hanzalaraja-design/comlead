@@ -141,6 +141,63 @@ ${notes}
   });
 }
 
+const MAX_PHOTOS = 4;
+const photoParser = z
+  .array(
+    z.object({
+      mediaType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      // Photos are shrunk in the browser first; this is a backstop (about 1.5 MB each).
+      data: z.string().min(100).max(2_000_000).regex(/^[A-Za-z0-9+/=]+$/),
+    }),
+  )
+  .min(1)
+  .max(MAX_PHOTOS);
+
+export type MinutesPhoto = z.input<typeof photoParser>[number];
+
+/** Read photos of notes (handwritten, whiteboard, printed) and draft minutes from them. The photos are not kept. */
+export async function minutesFromPhotos(meetingId: string, photos: MinutesPhoto[]): Promise<ActionResult<TidyDraft>> {
+  return run(async () => {
+    const ctx = await editableMeeting(meetingId);
+    if ("error" in ctx) return { ok: false, error: ctx.error };
+    const parsed = photoParser.safeParse(photos);
+    if (!parsed.success) return { ok: false, error: `Add up to ${MAX_PHOTOS} photos (JPEG or PNG).` };
+
+    const names = await attendeeNames(ctx);
+    const out = await structuredCall({
+      label: "photo-minutes",
+      effort: "medium",
+      parser: tidyParser,
+      schema: tidySchema,
+      images: parsed.data,
+      system: `You read photos of meeting notes (handwritten pages, whiteboards, printed agendas or screens) and turn them into clear, structured minutes for Highfy, a company in Pakistan.
+
+${VOICE}
+
+How to read the photos:
+- Read every photo in order. Use only what is written in them; if a word is unclear, keep your best reading and do not guess at facts.
+- Ignore anything that is clearly not meeting notes (desk clutter, page numbers, doodles).
+- If the photos contain no readable notes, return no sections.
+
+How to structure the minutes:
+- Group the notes into a few short sections by topic. Each heading is a short noun phrase, such as "Q3 sales" or "Hiring".
+- Each point is one complete, short sentence in past tense, saying what was discussed or agreed and by whom where the notes say so.
+- Keep every fact. Do not add facts, opinions, owners or dates the notes do not contain.
+- Expand obvious shorthand, but keep names, numbers and acronyms as written.
+- Do not include a section for action items; those are handled separately.
+- The notes may mix English and Roman Urdu. Write the minutes in English.`,
+      prompt: `Meeting: ${meetingLabel(ctx.meeting)}
+Attendees: ${names.join(", ") || "not recorded"}
+
+The photos above are the notes from this meeting. Write the minutes.`,
+    });
+
+    const sections = out.sections.filter((s) => s.points.some((p) => p));
+    if (!sections.length) return { ok: false, error: "Couldn't read any notes in that photo. Try a clearer, closer shot." };
+    return { ok: true, data: { html: minutesToHtml(sections) } };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // 2. Suggested action items
 // ---------------------------------------------------------------------------

@@ -161,3 +161,35 @@
     opacity: 0.9;
   }
 }
+
+/* Swipeable rows without a scrollbar. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* iPhone zooms into any text box under 16px when it's tapped. Keep them at 16px on phones. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+  }
+}
+
+/*
+ * While typing on a phone, the keyboard takes half the screen. Hide the tab bar
+ * and let pinned footers sit in the page, so nothing floats over the text or
+ * jumps about as iOS moves the viewport.
+ */
+@media (max-width: 767px) {
+  body:has(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, [contenteditable="true"]):focus) .phone-tabbar {
+    display: none;
+  }
+  body:has(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, [contenteditable="true"]):focus) .phone-sticky {
+    position: static;
+  }
+}

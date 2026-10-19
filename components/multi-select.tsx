@@ -5,7 +5,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-export type Option = { value: string; label: string; hint?: string };
+export type Option = { value: string; label: string; hint?: string; /** Also matched by search, never shown. */ search?: string };
 
 /** Button + popover checklist. Used by the task filters. */
 export function MultiSelect({
@@ -26,7 +26,7 @@ export function MultiSelect({
   const [query, setQuery] = useState("");
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? options.filter((o) => o.label.toLowerCase().includes(q) || o.hint?.toLowerCase().includes(q)) : options;
+    return q ? options.filter((o) => o.label.toLowerCase().includes(q) || o.hint?.toLowerCase().includes(q) || o.search?.toLowerCase().includes(q)) : options;
   }, [options, query]);
 
   const selectedLabels = options.filter((o) => value.includes(o.value)).map((o) => o.label);

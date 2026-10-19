@@ -9,6 +9,7 @@ import { isBlankHtml, sanitizeRichText } from "@/lib/sanitize";
 import { syncLater } from "@/lib/calendar/schedule";
 import { syncTask } from "@/lib/calendar/sync";
 import { addDaysISO, parseISODate, todayPKT } from "@/lib/time";
+import { personName } from "@/lib/labels";
 
 const uuid = z.string().uuid();
 const optionalUuid = z
@@ -184,7 +185,10 @@ const statusSchema = z.object({
  * "today" / "tomorrow" / "fri" for the due date, "!" for high or "!!" for urgent.
  * The task is assigned to whoever adds it. No team = a private task only they see.
  */
-export async function quickAddTask(input: string, departmentId: string | null): Promise<ActionResult<{ id: string }>> {
+export async function quickAddTask(
+  input: string,
+  departmentId: string | null,
+): Promise<ActionResult<{ id: string; owner: string | null }>> {
   const viewer = await requireViewer();
   let title = input.trim().replace(/\s+/g, " ");
   const dept = departmentId || null;
@@ -214,15 +218,32 @@ export async function quickAddTask(input: string, departmentId: string | null): 
   if (title.length > 300) return { ok: false, error: "That's a bit long for a title." };
 
   const supabase = await createClient();
+  // Private tasks are yours. Team tasks go to the team's admin (the one who joined first)
+  // to hand out; if you're one of its admins, to you; with no admin, unassigned.
+  let owner: string | null = viewer.id;
+  let ownerName: string | null = null;
+  if (dept && !viewer.leadDeptIds.includes(dept)) {
+    const { data: lead } = await supabase
+      .from("department_members")
+      .select("user_id, profile:profiles(full_name, email)")
+      .eq("department_id", dept)
+      .eq("role", "lead")
+      .order("created_at")
+      .limit(1)
+      .maybeSingle();
+    owner = (lead?.user_id as string | undefined) ?? null;
+    const p = lead?.profile as unknown as { full_name: string | null; email: string } | null;
+    ownerName = p ? personName(p) : null;
+  }
   const { data, error } = await supabase
     .from("tasks")
-    .insert({ title, department_id: dept, owner_id: viewer.id, priority, due_date: due, created_by: viewer.id })
+    .insert({ title, department_id: dept, owner_id: owner, priority, due_date: due, created_by: viewer.id })
     .select("id")
     .single();
   if (error || !data) return { ok: false, error: friendlyError(error) };
   revalidateTaskViews(data.id);
   syncLater(() => syncTask(data.id));
-  return { ok: true, data: { id: data.id as string } };
+  return { ok: true, data: { id: data.id as string, owner: owner === viewer.id ? "you" : ownerName } };
 }
 
 export async function setTaskStatus(

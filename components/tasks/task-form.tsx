@@ -174,7 +174,7 @@ export function TaskForm(props: TaskFormProps) {
             <MultiSelect
               label="Add people"
               className="h-10 w-full justify-between rounded-md"
-              options={props.people.map((p) => ({ value: p.id, label: personName(p), hint: p.email }))}
+              options={props.people.map((p) => ({ value: p.id, label: personName(p), search: p.email }))}
               value={collaborators}
               onChange={setCollaborators}
               searchable
