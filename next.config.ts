@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // scripts/screenshots.ts builds its demo copy into a separate folder.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   experimental: {
     // Keep recently visited pages for a short while, so switching back to a
     // tab is instant. Any save refreshes them straight away.
