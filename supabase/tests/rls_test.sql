@@ -632,6 +632,61 @@ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- Homepage placements: Ops books (as Commercial), Brand designs (as Design)
+-- ---------------------------------------------------------------------------
+
+insert into public.departments (name, slug, sort_order) values ('Ops', 'ops', 2), ('Brand', 'brand', 6)
+on conflict (slug) do nothing;
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-4000-a000-000000000007', 'rlstest.commercial@highfy.pk', '{"full_name":"Commercial Person"}'),
+  ('00000000-0000-4000-a000-000000000008', 'rlstest.design@highfy.pk',     '{"full_name":"Design Person"}');
+update public.profiles set status = 'active' where id in ('00000000-0000-4000-a000-000000000007', '00000000-0000-4000-a000-000000000008');
+insert into public.department_members (department_id, user_id)
+select d.id, x.id::uuid from (values ('ops', '00000000-0000-4000-a000-000000000007'), ('brand', '00000000-0000-4000-a000-000000000008')) as x(slug, id)
+  join public.departments d on d.slug = x.slug;
+update public.placement_settings
+   set commercial_department_id = (select id from public.departments where slug = 'ops'),
+       design_department_id = (select id from public.departments where slug = 'brand'),
+       tech_department_id = null;
+
+select pg_temp.login('00000000-0000-4000-a000-000000000007', 'rlstest.commercial@highfy.pk');
+set local role authenticated;
+select pg_temp.allowed($$insert into public.placements (id, section_key, position, brand, starts_on, ends_on, created_by)
+  values ('00000000-0000-4000-f000-000000000001', 'hero', 7, 'Test brand', public.pkt_today(), public.pkt_today() + 5,
+          '00000000-0000-4000-a000-000000000007')$$, 'Commercial can book a slot');
+do $$
+begin
+  begin
+    insert into public.placements (section_key, position, brand, starts_on, created_by)
+    values ('hero', 7, 'Clash', public.pkt_today() + 2, '00000000-0000-4000-a000-000000000007');
+    raise exception 'FAIL: double-booked a slot';
+  exception when raise_exception then
+    raise notice 'ok   - a slot cannot be double-booked';
+  end;
+end $$;
+select pg_temp.denied($$update public.placements set stage = 'ready' where id = '00000000-0000-4000-f000-000000000001'$$,
+  'Commercial cannot mark the banner ready');
+reset role;
+
+select pg_temp.login('00000000-0000-4000-a000-000000000008', 'rlstest.design@highfy.pk');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.placements where brand = 'Test brand') = 1, 'Design sees the booking');
+select pg_temp.denied($$update public.placements set brand = 'Other' where id = '00000000-0000-4000-f000-000000000001'$$,
+  'Design cannot change the brand');
+select pg_temp.denied($$insert into public.placements (section_key, position, brand, starts_on, created_by)
+  values ('hero', 8, 'Sneaky', public.pkt_today(), '00000000-0000-4000-a000-000000000008')$$, 'Design cannot book');
+select pg_temp.allowed($$update public.placements set artwork_path = '00000000-0000-4000-f000-000000000001/artwork/a.png', stage = 'ready'
+  where id = '00000000-0000-4000-f000-000000000001'$$, 'Design can upload the banner');
+select pg_temp.denied($$update public.placements set stage = 'live' where id = '00000000-0000-4000-f000-000000000001'$$,
+  'Design cannot put it live');
+reset role;
+
+select pg_temp.login('00000000-0000-4000-a000-000000000005', 'rlstest.pending@highfy.pk');
+set local role authenticated;
+select pg_temp.ok((select count(*) from public.placements) = 0, 'people outside the three teams see no placements');
+reset role;
+
 select 'ALL RLS TESTS PASSED' as result;
 
 rollback;

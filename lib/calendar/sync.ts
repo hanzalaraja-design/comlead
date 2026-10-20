@@ -21,7 +21,7 @@ const OPEN = ["todo", "in_progress", "blocked"];
 type Db = ReturnType<typeof createAdminClient>;
 type Link = { id: string; mailbox: string; outlook_event_id: string; synced_hash: string };
 
-function siteUrl(): string {
+export function siteUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
   if (explicit) return explicit;
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
