@@ -44,7 +44,7 @@ export function HomepageMap({
         <span className="text-xs text-ink-muted">highfy.pk</span>
       </div>
       {sections.map((s) => (
-        <section key={s.key} className="flex flex-col gap-1.5">
+        <section key={s.key} className="flex min-w-0 flex-col gap-1.5">
           <h3 className="flex items-baseline justify-between text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
             <span>{s.name}</span>
             {s.slots > 1 && <span className="font-medium normal-case tracking-normal">{s.slots} slots</span>}

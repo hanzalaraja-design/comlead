@@ -394,12 +394,12 @@ export function PlacementsBoard({
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(360px,420px)_1fr] lg:items-start">
-        <div className={cn("flex flex-col gap-3", tab !== "map" && "max-lg:hidden")}>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] lg:items-start">
+        <div className={cn("flex min-w-0 flex-col gap-3", tab !== "map" && "max-lg:hidden")}>
           {controls}
           {map}
         </div>
-        <div className={cn("flex flex-col gap-3", tab !== "list" && "max-lg:hidden")}>
+        <div className={cn("flex min-w-0 flex-col gap-3", tab !== "list" && "max-lg:hidden")}>
           <h2 className="hidden items-center gap-2 text-lg font-semibold text-ink lg:flex">
             {QUEUE_TITLE[role]}
             {queueCount > 0 && <span className="rounded-full bg-brand-primary px-2 text-xs leading-5 text-white">{queueCount}</span>}
