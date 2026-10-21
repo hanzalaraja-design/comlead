@@ -212,3 +212,63 @@ async function setStage(id: string, stage: "live" | "ended", from: string[]): Pr
 
 export const markLive = async (id: string) => setStage(id, "live", ["ready"]);
 export const markTakenDown = async (id: string) => setStage(id, "ended", ["live", "ready"]);
+
+export type BulkRow = BookingInput & { section_key: string; position: number };
+
+/**
+ * Commercial books many slots at once (the Schedule's "Add many", or a paste
+ * from a sheet). Each row is saved on its own so one clash doesn't lose the
+ * rest; Design gets one email listing everything new.
+ */
+export async function bookMany(rows: BulkRow[]): Promise<ActionResult<{ saved: number; failed: { row: number; error: string }[] }>> {
+  const { viewer, supabase } = await context();
+  if (!Array.isArray(rows) || rows.length === 0) return { ok: false, error: "Add at least one row." };
+  if (rows.length > 200) return { ok: false, error: "That's more than 200 rows. Split it in two." };
+
+  const { data: sectionData } = await supabase.from("placement_sections").select("*");
+  const sections = (sectionData ?? []) as Section[];
+  const failed: { row: number; error: string }[] = [];
+  const saved: Placement[] = [];
+
+  for (const [i, r] of rows.entries()) {
+    const section = sections.find((s) => s.key === r.section_key);
+    if (!section || !Number.isInteger(r.position) || r.position < 1 || r.position > section.slots) {
+      failed.push({ row: i, error: "That slot doesn't exist." });
+      continue;
+    }
+    const c = check(r);
+    if ("error" in c) {
+      failed.push({ row: i, error: c.error! });
+      continue;
+    }
+    const { data, error } = await supabase
+      .from("placements")
+      .insert({ section_key: r.section_key, position: r.position, ...c.data, created_by: viewer.id })
+      .select(PLACEMENT_COLUMNS)
+      .single();
+    if (error || !data) failed.push({ row: i, error: friendlyError(error) });
+    else saved.push(data as unknown as Placement);
+  }
+
+  if (saved.length) {
+    const today = todayPKT();
+    const lines = saved
+      .sort((a, b) => a.starts_on.localeCompare(b.starts_on))
+      .map((p) => {
+        const s = sections.find((x) => x.key === p.section_key)!;
+        return `${p.brand} — ${slotName(s, p.position)} — ${datesText(p, today)}${p.comms ? ` — “${p.comms}”` : ""}`;
+      });
+    emailTeamLater(
+      "design",
+      `${saved.length} new banner${saved.length === 1 ? "" : "s"} to design`,
+      emailHtml({
+        intro: `${viewer.profile.full_name ?? "Commercial"} booked ${saved.length} placement${saved.length === 1 ? "" : "s"}. They need banners.`,
+        rows: lines.map((l, i) => [String(i + 1), l] as [string, string]),
+        link: placementsUrl(),
+        linkLabel: "Open in Highfy Tasks",
+      }),
+    );
+    revalidatePath("/placements");
+  }
+  return { ok: true, data: { saved: saved.length, failed } };
+}

@@ -32,6 +32,7 @@ import { markLive, markTakenDown } from "@/app/(app)/placements/actions";
 import { HomepageMap } from "./homepage-map";
 import { PlacementPanel, useArtworkUpload, type PanelMode } from "./placement-panel";
 import { STATUS_CHIP } from "./styles";
+import { BulkAdd, SchedulePlanner } from "./schedule";
 
 const subscribeWide = (cb: () => void) => {
   const m = window.matchMedia("(min-width: 1024px)");
@@ -72,7 +73,8 @@ export function PlacementsBoard({
   const router = useRouter();
   const wide = useWide();
   const [role, setRole] = useState<PlacementRole>(defaultRole);
-  const [tab, setTab] = useState<"map" | "list">("map");
+  const [tab, setTab] = useState<"map" | "list" | "schedule">("map");
+  const [bulk, setBulk] = useState(false);
   const [date, setDate] = useState(today);
   const [mode, setMode] = useState<PanelMode | null>(() => (openId && placements.some((p) => p.id === openId) ? { kind: "view", id: openId } : null));
   const upload = useArtworkUpload();
@@ -373,40 +375,72 @@ export function PlacementsBoard({
         </div>
       )}
 
-      {/* Phones: one thing at a time. */}
-      <div className="flex gap-5 border-b border-line lg:hidden">
-        {(["map", "list"] as const).map((t) => (
+      {/* Phones: one thing at a time. Desktop: the homepage with its list, or the month. */}
+      <div className="flex gap-5 border-b border-line">
+        {(["map", "list", "schedule"] as const).map((t) => {
+          // On desktop the list sits beside the homepage, so "Homepage" covers both.
+          const on = tab === t || (wide && t === "map" && tab === "list");
+          return (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            aria-pressed={tab === t}
+            aria-pressed={on}
             className={cn(
               "-mb-px inline-flex min-h-11 items-center gap-1.5 border-b-2 px-1 text-[15px] font-semibold",
-              tab === t ? "border-brand-primary text-ink" : "border-transparent text-ink-muted",
+              t === "list" && "lg:hidden",
+              on ? "border-brand-primary text-ink" : "border-transparent text-ink-muted",
             )}
           >
-            {t === "map" ? "Homepage" : QUEUE_TITLE[role]}
+            {t === "map" ? "Homepage" : t === "list" ? QUEUE_TITLE[role] : "Schedule"}
             {t === "list" && queueCount > 0 && (
               <span className="rounded-full bg-brand-primary px-1.5 text-xs leading-5 text-white">{queueCount}</span>
             )}
           </button>
-        ))}
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] lg:items-start">
-        <div className={cn("flex min-w-0 flex-col gap-3", tab !== "map" && "max-lg:hidden")}>
-          {controls}
-          {map}
+      {tab === "schedule" ? (
+        <SchedulePlanner
+          sections={sections}
+          placements={placements}
+          today={today}
+          canBook={canBook}
+          onOpen={open}
+          onBook={(s, n, from) => book(s, n, from)}
+          onAddMany={() => setBulk(true)}
+        />
+      ) : (
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] lg:items-start">
+          <div className={cn("flex min-w-0 flex-col gap-3", tab !== "map" && "max-lg:hidden")}>
+            {controls}
+            {map}
+          </div>
+          <div className={cn("flex min-w-0 flex-col gap-3", tab !== "list" && "max-lg:hidden")}>
+            <h2 className="hidden items-center gap-2 text-lg font-semibold text-ink lg:flex">
+              {QUEUE_TITLE[role]}
+              {queueCount > 0 && <span className="rounded-full bg-brand-primary px-2 text-xs leading-5 text-white">{queueCount}</span>}
+            </h2>
+            {list}
+          </div>
         </div>
-        <div className={cn("flex min-w-0 flex-col gap-3", tab !== "list" && "max-lg:hidden")}>
-          <h2 className="hidden items-center gap-2 text-lg font-semibold text-ink lg:flex">
-            {QUEUE_TITLE[role]}
-            {queueCount > 0 && <span className="rounded-full bg-brand-primary px-2 text-xs leading-5 text-white">{queueCount}</span>}
-          </h2>
-          {list}
-        </div>
-      </div>
+      )}
+
+      <Sheet open={bulk} onOpenChange={setBulk}>
+        <SheetContent
+          side={wide ? "right" : "bottom"}
+          className={cn("gap-0 overflow-y-auto bg-white p-0", wide ? "w-full sm:max-w-5xl" : "max-h-[92svh] rounded-t-[22px]")}
+        >
+          <SheetHeader className="px-5 pb-2 pt-5">
+            <SheetDescription className="text-xs">Schedule</SheetDescription>
+            <SheetTitle className="pr-8 text-xl text-ink">Add many bookings</SheetTitle>
+          </SheetHeader>
+          <div className="px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            {bulk && <BulkAdd sections={sections} placements={placements} today={today} onDone={() => setBulk(false)} />}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Sheet open={!!mode} onOpenChange={(o) => !o && setMode(null)}>
         <SheetContent
