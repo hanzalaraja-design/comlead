@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarDays, Upload } from "lucide-react";
+import { CalendarDays, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,7 @@ import {
   type PlacementRole,
   type Section,
 } from "@/lib/placements";
-import { markLive, markTakenDown } from "@/app/(app)/placements/actions";
+import { markLive, markOnFigma, markTakenDown } from "@/app/(app)/placements/actions";
 import { HomepageMap } from "./homepage-map";
 import { PlacementPanel, useArtworkUpload, type PanelMode } from "./placement-panel";
 import { STATUS_CHIP } from "./styles";
@@ -49,8 +49,8 @@ const useWide = () =>
 const QUEUE_TITLE: Record<PlacementRole, string> = { commercial: "Needs you", design: "To design", tech: "To put live" };
 const QUEUE_INTRO: Record<PlacementRole, string> = {
   commercial: "Bookings ending in the next 3 days with nothing after them, and empty slots. You also get these by email.",
-  design: "Only what needs a banner or a change. Live placements stay out of your way.",
-  tech: "Only what needs to go on the site or come off it.",
+  design: "Only what needs a banner or a change. When it's on Figma, tap Uploaded on Figma and Tech takes it from there.",
+  tech: "Banners Design has put on Figma, ready to go on the site, and what needs to come off it.",
 };
 
 export function PlacementsBoard({
@@ -270,8 +270,8 @@ export function PlacementsBoard({
               items: toDesign(placements).map((p) =>
                 card(p, {
                   action: (
-                    <Button size="sm" className="flex-1" onClick={() => upload.pick(p.id)} disabled={upload.busy === p.id}>
-                      <Upload className="h-4 w-4" /> {upload.busy === p.id ? "Uploading…" : "Upload banner"}
+                    <Button size="sm" className="flex-1" disabled={pending} onClick={() => act(() => markOnFigma(p.id), "Done. Tech has been told it's on Figma.")}>
+                      <Check className="h-4 w-4" /> Uploaded on Figma
                     </Button>
                   ),
                 }),
@@ -284,7 +284,7 @@ export function PlacementsBoard({
               empty: "Nothing waiting to go live.",
               items: toPutLive(placements).map((p) =>
                 card(p, {
-                  sub: `${slotName(sectionOf(p.section_key), p.position)} · goes live ${relativeDay(p.starts_on, today)}`,
+                  sub: `${slotName(sectionOf(p.section_key), p.position)} · on Figma · goes live ${relativeDay(p.starts_on, today)}`,
                   action: (
                     <Button size="sm" className="flex-1" disabled={pending} onClick={() => act(() => markLive(p.id), `${p.brand} is live.`)}>
                       Mark live

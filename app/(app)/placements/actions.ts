@@ -170,7 +170,32 @@ export async function endPlacementToday(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-/** Design has uploaded the banner (to Storage, from the browser). Tech is told. */
+/** Design has put the banner on Figma. Tech is told to pick it up from there. */
+export async function markOnFigma(id: string): Promise<ActionResult> {
+  const { viewer, supabase } = await context();
+  if (!uuid.safeParse(id).success) return { ok: false, error: "Booking not found." };
+  const before = await load(supabase, id);
+  if (!before) return { ok: false, error: "Booking not found." };
+  const { data, error } = await supabase.from("placements").update({ stage: "ready", changed_from: null }).eq("id", id).select("id");
+  if (error) return { ok: false, error: friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "Only Design can mark a banner done." };
+
+  const update = before.p.stage === "live";
+  emailTeamLater(
+    "tech",
+    `${update ? "Updated banner" : "Banner"} on Figma: ${before.p.brand}, ${slotName(before.section, before.p.position)}`,
+    emailHtml({
+      intro: `${viewer.profile.full_name ?? "Design"} has put the ${update ? "updated " : ""}banner on Figma. Pick it from there and put it live.`,
+      rows: details(before.p, before.section),
+      link: placementsUrl(id),
+      linkLabel: "Open in Highfy Tasks",
+    }),
+  );
+  revalidatePath("/placements");
+  return { ok: true };
+}
+
+/** Design has added a preview image (to Storage, from the browser), so the map shows the real banner. Tech is told. */
 export async function submitArtwork(id: string, path: string): Promise<ActionResult> {
   const { viewer, supabase } = await context();
   if (!uuid.safeParse(id).success || !path.startsWith(`${id}/artwork/`)) return { ok: false, error: "That file doesn't belong to this booking." };
@@ -190,7 +215,7 @@ export async function submitArtwork(id: string, path: string): Promise<ActionRes
     "tech",
     `${before.p.stage === "live" ? "Updated banner" : "Banner ready"} to put live: ${after.p.brand}, ${slotName(after.section, after.p.position)}`,
     emailHtml({
-      intro: `${viewer.profile.full_name ?? "Design"} uploaded the ${before.p.stage === "live" ? "updated " : ""}banner. It's ready to go on the site.`,
+      intro: `${viewer.profile.full_name ?? "Design"} has finished the ${before.p.stage === "live" ? "updated " : ""}banner. It's on Figma, with a preview attached here, ready to go on the site.`,
       rows: details(after.p, after.section),
       link: placementsUrl(id),
       linkLabel: "Open in Highfy Tasks",
