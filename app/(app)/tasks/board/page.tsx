@@ -40,7 +40,7 @@ export default async function TaskBoardPage({
       <PageHeader
         breadcrumb={[{ label: "Tasks", href: "/tasks" }, "Board"]}
         title="Board"
-        description="By status, across the departments you can see. Done shows the last 2 weeks."
+        description="By status, across the teams you can see."
         actions={
           <Button asChild size="sm">
             <Link href="/tasks/new">
@@ -54,6 +54,12 @@ export default async function TaskBoardPage({
       <TaskFilterBar filters={filters} options={options} hide={["status", "sort"]} />
       {(open.error || done.error) && <p className="mb-3 text-sm text-danger">{open.error || done.error}</p>}
       <KanbanBoard tasks={[...open.tasks, ...done.tasks]} canEdit showDepartment />
+      <p className="mt-3 text-sm text-ink-muted">
+        Done shows the last 2 weeks.{" "}
+        <Link href="/tasks?status=done&sort=completed&dir=desc" className="font-medium text-brand-primary hover:underline">
+          See all completed
+        </Link>
+      </p>
     </>
   );
 }

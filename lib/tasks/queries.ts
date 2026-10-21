@@ -7,7 +7,7 @@ import type { TaskFilters } from "./filters";
 export const TASK_SELECT = `
   id, title, description, department_id, owner_id, status, priority,
   due_date, due_time, source, meeting_id, tags, blocked_reason, created_by,
-  created_at, updated_at, completed_at, overdue,
+  created_at, updated_at, completed_at, overdue, set_id,
   owner:profiles!tasks_owner_id_fkey(id, email, full_name, avatar_url),
   department:departments(id, name, slug),
   meeting:meetings!tasks_meeting_id_fkey(id, title, meeting_date)

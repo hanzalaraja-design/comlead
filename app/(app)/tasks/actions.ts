@@ -27,6 +27,8 @@ const taskSchema = z.object({
     .transform((v) => (v && v !== "private" ? v : null))
     .pipe(uuid.nullable()),
   owner_id: optionalUuid,
+  // New team tasks only: one copy for each person, linked as a set.
+  owner_ids: z.array(uuid).max(50),
   status: z.enum(["todo", "in_progress", "blocked", "done", "cancelled"]),
   priority: z.enum(["urgent", "high", "medium", "low"]),
   due_date: z
@@ -60,6 +62,7 @@ function readTaskForm(formData: FormData) {
     description: formData.get("description") ?? undefined,
     department_id: formData.get("department_id") ?? "",
     owner_id: formData.get("owner_id") ?? undefined,
+    owner_ids: formData.getAll("owner_ids").map(String).filter(Boolean),
     status: formData.get("status") ?? "todo",
     priority: formData.get("priority") ?? "medium",
     due_date: formData.get("due_date") ?? undefined,
@@ -81,44 +84,47 @@ function revalidateTaskViews(taskId?: string) {
   if (taskId) revalidatePath(`/tasks/${taskId}`);
 }
 
-export async function createTask(formData: FormData): Promise<ActionResult<{ id: string }>> {
+export async function createTask(formData: FormData): Promise<ActionResult<{ id: string; count: number }>> {
   const viewer = await requireViewer();
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
   const v = shape(parsed.data, viewer.id);
+  // Several owners: everyone gets their own task, so each can tick it off.
+  const owners = v.department_id && v.owner_ids.length ? [...new Set(v.owner_ids)] : [v.owner_id];
+  const setId = owners.length > 1 ? crypto.randomUUID() : null;
 
   const supabase = await createClient();
+  const row = {
+    title: v.title,
+    description: isBlankHtml(v.description) ? null : sanitizeRichText(v.description),
+    department_id: v.department_id,
+    status: v.status,
+    priority: v.priority,
+    due_date: v.due_date,
+    due_time: v.due_date ? v.due_time : null,
+    tags: v.tags,
+    blocked_reason: v.status === "blocked" ? v.blocked_reason || null : null,
+    meeting_id: v.meeting_id,
+    created_by: viewer.id,
+    set_id: setId,
+  };
   const { data, error } = await supabase
     .from("tasks")
-    .insert({
-      title: v.title,
-      description: isBlankHtml(v.description) ? null : sanitizeRichText(v.description),
-      department_id: v.department_id,
-      owner_id: v.owner_id,
-      status: v.status,
-      priority: v.priority,
-      due_date: v.due_date,
-      due_time: v.due_date ? v.due_time : null,
-      tags: v.tags,
-      blocked_reason: v.status === "blocked" ? v.blocked_reason || null : null,
-      meeting_id: v.meeting_id,
-      created_by: viewer.id,
-    })
-    .select("id")
-    .single();
-  if (error) return { ok: false, error: friendlyError(error) };
+    .insert(owners.map((owner_id) => ({ ...row, owner_id })))
+    .select("id, owner_id");
+  if (error || !data?.length) return { ok: false, error: friendlyError(error) };
 
-  const collaborators = v.collaborators.filter((c) => c !== v.owner_id);
-  if (collaborators.length) {
-    const { error: cErr } = await supabase
-      .from("task_collaborators")
-      .insert(collaborators.map((user_id) => ({ task_id: data.id, user_id })));
+  const links = data.flatMap((t) =>
+    v.collaborators.filter((c) => c !== t.owner_id).map((user_id) => ({ task_id: t.id as string, user_id })),
+  );
+  if (links.length) {
+    const { error: cErr } = await supabase.from("task_collaborators").insert(links);
     if (cErr) return { ok: false, error: friendlyError(cErr) };
   }
 
-  revalidateTaskViews(data.id);
-  syncLater(() => syncTask(data.id));
-  return { ok: true, data: { id: data.id } };
+  revalidateTaskViews(data[0].id as string);
+  for (const t of data) syncLater(() => syncTask(t.id as string));
+  return { ok: true, data: { id: data[0].id as string, count: data.length } };
 }
 
 export async function updateTask(taskId: string, formData: FormData): Promise<ActionResult> {

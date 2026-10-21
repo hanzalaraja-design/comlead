@@ -74,6 +74,7 @@ export function TaskFilterBar({
     (["due", "created", "completed"] as const).filter((k) => filters[`${k}_from`] || filters[`${k}_to`]).length;
   const [more, setMore] = useState(secondary > 0);
   const statusValue = filters.status === "all" ? STATUSES.map((s) => s.value) : filters.status;
+  const showingDone = Array.isArray(filters.status) && filters.status.length === 1 && filters.status[0] === "done";
   const active = countActiveFilters(filters);
 
   return (
@@ -96,6 +97,21 @@ export function TaskFilterBar({
               apply({ status: v.length === STATUSES.length ? "all" : (v as TaskStatus[]) })
             }
           />
+        )}
+        {!hide.includes("status") && (
+          <button
+            type="button"
+            aria-pressed={showingDone}
+            onClick={() =>
+              apply(showingDone ? { status: [], sort: "due", dir: undefined } : { status: ["done"], sort: "completed", dir: "desc", overdue: false })
+            }
+            className={cn(
+              "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs",
+              showingDone ? "border-success-soft bg-success-soft font-semibold text-success-ink" : "text-muted-foreground hover:bg-accent",
+            )}
+          >
+            Completed
+          </button>
         )}
         {!hide.includes("overdue") && (
           <button

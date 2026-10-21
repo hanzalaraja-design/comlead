@@ -1,17 +1,18 @@
 import Link from "next/link";
-import { AtSign, CheckCircle2, TriangleAlert, Users } from "lucide-react";
+import { AtSign, CheckCircle2, ChevronDown, TriangleAlert, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { TaskList } from "@/components/tasks/task-list";
 import { QuickAdd } from "@/components/tasks/quick-add";
 import { CelebrateWhenCleared } from "@/components/progress/celebrate";
 import { PersonAvatar } from "@/components/person-avatar";
+import { MarkMentionsRead } from "@/components/my/mention-buttons";
 import { getDepartments, getPeople, isMemberOf, requireViewer, viewerId } from "@/lib/auth";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { parseFilters } from "@/lib/tasks/filters";
 import { TASK_SELECT, comparePriority, fetchTasks, type TaskListRow } from "@/lib/tasks/queries";
-import { formatDate, formatPKT, todayPKT, weekEndPKT, weekStartPKT } from "@/lib/time";
+import { addDaysISO, formatDate, formatPKT, todayPKT, weekEndPKT } from "@/lib/time";
 import { clearedLine, emptyLine, todayLine } from "@/lib/voice";
 
 export const metadata = { title: "My tasks · Highfy Tasks" };
@@ -46,11 +47,10 @@ type Mention = {
 export default async function MyTasksPage() {
   const [id, supabase] = await Promise.all([viewerId(), createClient()]);
   const today = todayPKT();
-  const weekStart = weekStartPKT();
   const weekEnd = weekEndPKT();
 
   // Everything at once: no query here waits for another.
-  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, people] = await Promise.all([
+  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, people, done] = await Promise.all([
     requireViewer(),
     getDepartments(),
     fetchTasks(parseFilters({ owner: "me", sort: "due" }), { viewerId: id }),
@@ -70,13 +70,17 @@ export default async function MyTasksPage() {
       .order("created_at", { ascending: false })
       .limit(15),
     getPeople(),
+    // Done in the last two weeks, newest first.
+    fetchTasks(
+      { ...parseFilters({ owner: "me" }), status: ["done"], completed_from: addDaysISO(today, -14), sort: "completed", dir: "desc" },
+      { viewerId: id },
+    ),
   ]);
 
   const collaborating = (collabRes.data ?? []) as unknown as TaskListRow[];
-  const mentions = ((mentionsRes.data ?? []) as unknown as Mention[]).filter(
-    (m) => m.task && (!m.seen_at || m.created_at >= `${weekStart}T00:00:00`),
-  );
-  const unseen = mentions.filter((m) => !m.seen_at).length;
+  // Only mentions you haven't read; opening the task or ticking one clears it.
+  const mentions = ((mentionsRes.data ?? []) as unknown as Mention[]).filter((m) => m.task && !m.seen_at);
+  const unseen = mentions.length;
   const peopleById = new Map(people.map((p) => [p.id, p]));
 
   const grouped = new Map<GroupKey, TaskListRow[]>(GROUPS.map((g) => [g.key, []]));
@@ -124,13 +128,14 @@ export default async function MyTasksPage() {
           <section>
             <h2 className="kicker mb-2 flex items-center gap-2 text-ink">
               <AtSign className="h-4 w-4" /> Mentioned
-              {unseen > 0 && <span className="rounded-full bg-brand-primary px-2 py-0.5 text-xs text-white">{unseen} new</span>}
+              <span className="rounded-full bg-brand-primary px-2 py-0.5 text-xs text-white">{unseen} new</span>
+              {unseen > 1 && <MarkMentionsRead className="ml-auto normal-case tracking-normal" />}
             </h2>
             <ul className="divide-y divide-line surface">
               {mentions.map((m) => {
                 const by = m.mentioned_by ? peopleById.get(m.mentioned_by) : undefined;
                 return (
-                  <li key={m.id} className={cn("relative flex gap-3 px-4 py-3 hover:bg-subtle/60", !m.seen_at && "bg-brand-bg/40")}>
+                  <li key={m.id} className="relative flex gap-3 bg-brand-bg/40 px-4 py-3 hover:bg-subtle/60">
                     <PersonAvatar person={by} className="mt-0.5 h-7 w-7" />
                     <div className="min-w-0 flex-1">
                       <Link href={`/tasks/${m.task!.id}#comments`} className="font-semibold text-ink after:absolute after:inset-0">
@@ -140,7 +145,10 @@ export default async function MyTasksPage() {
                         <span className="font-medium text-ink">{personName(by)}:</span> {m.comment?.body}
                       </p>
                     </div>
-                    <span className="shrink-0 text-xs text-ink-muted">{formatPKT(m.created_at, "d MMM")}</span>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="text-xs text-ink-muted">{formatPKT(m.created_at, "d MMM")}</span>
+                      <MarkMentionsRead id={m.id} className="-mr-1.5" />
+                    </div>
                   </li>
                 );
               })}
@@ -181,6 +189,21 @@ export default async function MyTasksPage() {
             </div>
           )}
         </section>
+
+        {done.tasks.length > 0 && (
+          <details className="group">
+            <summary className="kicker mb-2 flex cursor-pointer list-none items-center gap-2 text-ink [&::-webkit-details-marker]:hidden">
+              <CheckCircle2 className="h-4 w-4 text-success" /> Completed
+              <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs text-success-ink">{done.tasks.length}</span>
+              <span className="text-xs font-normal normal-case tracking-normal text-ink-muted">last 2 weeks</span>
+              <ChevronDown className="ml-auto h-4 w-4 transition-transform group-open:rotate-180" />
+            </summary>
+            <TaskList tasks={done.tasks} showOwner={false} showCompleted />
+            <Link href="/tasks?owner=me&status=done&sort=completed&dir=desc" className="mt-2 inline-block text-sm font-medium text-brand-primary hover:underline">
+              See everything you&apos;ve completed
+            </Link>
+          </details>
+        )}
 
         {collaborating.length > 0 && (
           <section>
