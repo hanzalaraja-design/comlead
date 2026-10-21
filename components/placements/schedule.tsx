@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { addDaysISO, parseISODate } from "@/lib/time";
 import { slotLabel, slotName, statusOf, usesProducts, type Placement, type Section } from "@/lib/placements";
 import { bookMany } from "@/app/(app)/placements/actions";
-import { STATUS_CHIP } from "./styles";
+import { STATUS_CARD } from "./styles";
 
 const iso = (d: Date) => format(d, "yyyy-MM-dd");
 const DAY = 30; // px per day column
@@ -130,7 +130,7 @@ export function SchedulePlanner({
                           title={`${p.brand}${p.comms ? ` · ${p.comms}` : ""}`}
                           className={cn(
                             "z-[5] my-1 truncate rounded-[8px] px-2 text-left text-[11px] font-semibold",
-                            STATUS_CHIP[k],
+                            STATUS_CARD[k],
                             p.starts_on < month && "rounded-l-none",
                             (p.ends_on === null || p.ends_on > last) && "rounded-r-none",
                           )}
@@ -343,7 +343,7 @@ export function BulkAdd({
                       .filter((x) => x.section.key === s.key)
                       .map((x) => (
                         <option key={x.id} value={x.id}>
-                          {s.slots === 1 ? s.name : slotLabel(s, x.position)}
+                          {slotName(s, x.position)}
                         </option>
                       ))}
                   </optgroup>
