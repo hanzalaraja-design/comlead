@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Download, ImagePlus, Upload, X } from "lucide-react";
+import { Check, Download, ImagePlus, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,7 @@ import {
   cancelPlacement,
   endPlacementToday,
   markLive,
+  markOnFigma,
   markTakenDown,
   submitArtwork,
   updatePlacement,
@@ -74,7 +75,7 @@ export function useArtworkUpload() {
         try {
           const [path] = await uploadFiles(id, "artwork", [file]);
           const res = await submitArtwork(id, path);
-          if (res.ok) toast.success("Banner uploaded. Tech has been told.");
+          if (res.ok) toast.success("Preview added. Tech has been told it's ready.");
           else toast.error(res.error);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Upload failed.");
@@ -192,7 +193,7 @@ function Details({
       </div>
 
       <ol className="grid grid-cols-3 gap-1 text-center text-[11px] font-semibold" aria-label="Progress">
-        {["Booked", "Banner ready", "Live"].map((label, i) => (
+        {["Booked", "On Figma", "Live"].map((label, i) => (
           <li
             key={label}
             aria-current={i === step ? "step" : undefined}
@@ -270,15 +271,20 @@ function Details({
             )}
           </>
         )}
+        {role === "design" && needsDesign(p) && (
+          <Button disabled={pending} onClick={() => run(() => markOnFigma(p.id), "Done. Tech has been told it's on Figma.")}>
+            <Check className="h-4 w-4" /> Uploaded on Figma
+          </Button>
+        )}
         {role === "design" && (
-          <Button onClick={() => upload.pick(p.id)} disabled={upload.busy === p.id}>
+          <Button variant="ghost" onClick={() => upload.pick(p.id)} disabled={upload.busy === p.id}>
             <Upload className="h-4 w-4" />
-            {upload.busy === p.id ? "Uploading…" : needsDesign(p) ? "Upload banner" : "Replace banner"}
+            {upload.busy === p.id ? "Uploading…" : art ? "Replace the preview image" : "Add a preview image (optional)"}
           </Button>
         )}
         {role === "tech" && p.stage === "ready" && (
           <Button disabled={pending} onClick={() => run(() => markLive(p.id), `${p.brand} is live.`)}>
-            Mark live
+            Picked from Figma, mark live
           </Button>
         )}
         {role === "tech" && p.stage === "live" && (
