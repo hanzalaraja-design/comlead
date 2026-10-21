@@ -47,6 +47,9 @@ export function TaskForm(props: TaskFormProps) {
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo");
   const [dueDate, setDueDate] = useState(task?.due_date ?? "");
   const [collaborators, setCollaborators] = useState<string[]>(props.collaboratorIds ?? []);
+  // New team tasks can go to several people at once: one task each.
+  const [owners, setOwners] = useState<string[]>(props.defaultOwnerId ? [props.defaultOwnerId] : []);
+  const pickOwners = !task && !isPrivate;
   // The extras stay folded away unless the task already uses them.
   const [more, setMore] = useState(
     !!task && !!(task.description || task.tags.length || task.due_time || (props.collaboratorIds ?? []).length),
@@ -60,6 +63,11 @@ export function TaskForm(props: TaskFormProps) {
 
   function onSubmit(formData: FormData) {
     for (const c of collaborators) formData.append("collaborators", c);
+    if (pickOwners) {
+      formData.delete("owner_id");
+      formData.set("owner_id", owners[0] ?? "");
+      for (const o of owners) formData.append("owner_ids", o);
+    }
     startTransition(async () => {
       if (task) {
         const res = await updateTask(task.id, formData);
@@ -70,7 +78,7 @@ export function TaskForm(props: TaskFormProps) {
       } else {
         const res = await createTask(formData);
         if (res.ok && res.data) {
-          toast.success("Task created.");
+          toast.success(res.data.count > 1 ? `${res.data.count} tasks created, one for each person.` : "Task created.");
           router.push(`/tasks/${res.data.id}`);
         } else if (!res.ok) toast.error(res.error);
       }
@@ -90,7 +98,17 @@ export function TaskForm(props: TaskFormProps) {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-1.5">
-          <Label htmlFor="owner_id">Owner</Label>
+          <Label htmlFor="owner_id">{pickOwners ? "Owner (pick several to give everyone their own)" : "Owner"}</Label>
+          {pickOwners ? (
+            <MultiSelect
+              label="Unassigned"
+              options={ownerOptions.map((p) => ({ value: p.id, label: personName(p), search: p.email }))}
+              value={owners}
+              onChange={setOwners}
+              searchable
+              className="h-10 w-full justify-between rounded-[12px] text-sm"
+            />
+          ) : (
           <select
             id="owner_id"
             name="owner_id"
@@ -106,6 +124,10 @@ export function TaskForm(props: TaskFormProps) {
               </option>
             ))}
           </select>
+          )}
+          {pickOwners && owners.length > 1 && (
+            <p className="text-xs text-ink-muted">{owners.length} separate tasks, linked so you can see who&apos;s done.</p>
+          )}
           {!!task && !props.canReassign && <input type="hidden" name="owner_id" value={task.owner_id ?? ""} />}
         </div>
         <div className="space-y-1.5">

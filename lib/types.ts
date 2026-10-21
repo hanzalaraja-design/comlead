@@ -55,6 +55,8 @@ export type Task = {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  /** Same task given to several people: their copies share this. */
+  set_id?: string | null;
 };
 
 /** Task row with the joins used by list views. */

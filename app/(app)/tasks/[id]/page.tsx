@@ -5,7 +5,7 @@ import { NotebookPen, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
-import { DueLabel, PriorityBadge, TagList } from "@/components/tasks/task-badges";
+import { DueLabel, PriorityBadge, StatusBadge, TagList } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
@@ -18,7 +18,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTaskFormData } from "@/lib/tasks/form-data";
 import { TASK_SELECT, type TaskListRow } from "@/lib/tasks/queries";
 import { formatDate, formatPKT } from "@/lib/time";
-import type { ActivityEntry, PersonRef } from "@/lib/types";
+import type { ActivityEntry, PersonRef, TaskStatus } from "@/lib/types";
 
 export default async function TaskPage({
   params,
@@ -58,6 +58,11 @@ export default async function TaskPage({
       .limit(50),
     getPeople(),
   ]);
+  // Everyone who got this same task, when it was given to several people at once.
+  const { data: setData } = task.set_id
+    ? await supabase.from("tasks").select("id, status, owner_id, due_date").eq("set_id", task.set_id).is("deleted_at", null)
+    : { data: null };
+  const set = (setData ?? []) as { id: string; status: TaskStatus; owner_id: string | null; due_date: string | null }[];
 
   const peopleById = new Map<string, PersonRef>(people.map((p) => [p.id, p]));
   // Opening the task counts as reading any mentions of you in it.
@@ -142,6 +147,29 @@ export default async function TaskPage({
             )}
             {task.description && <RichTextView html={task.description} />}
           </div>
+
+          {set.length > 1 && (
+            <section className="surface p-4 md:p-6">
+              <h2 className="kicker mb-3 flex items-center gap-2 text-ink">
+                Given to {set.length} people
+                <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs text-success-ink">
+                  {set.filter((t) => t.status === "done").length} of {set.length} done
+                </span>
+              </h2>
+              <ul className="divide-y divide-line">
+                {set.map((t) => (
+                  <li key={t.id} className="relative flex items-center gap-3 py-2">
+                    <PersonAvatar person={person(t.owner_id)} className="h-7 w-7" />
+                    <Link href={`/tasks/${t.id}`} className="flex-1 text-sm font-medium text-ink after:absolute after:inset-0">
+                      {personName(person(t.owner_id))}
+                      {t.id === task.id && <span className="ml-1.5 text-xs font-normal text-ink-muted">(this one)</span>}
+                    </Link>
+                    <StatusBadge status={t.status} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section id="comments" className="surface scroll-mt-6 p-4 md:p-6">
             <h2 className="kicker mb-3 text-ink">Comments</h2>

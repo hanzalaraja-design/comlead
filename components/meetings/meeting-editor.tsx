@@ -158,8 +158,11 @@ export function MeetingEditor({
     setSuggestions((xs) => xs && xs.map((x) => (x.key === key ? { ...x, ...patch } : x)));
   }
 
-  async function createFromSuggestion(item: SuggestedItem) {
-    if (!item.title.trim()) return toast.error("Give the task a title first.");
+  async function createFromSuggestion(item: SuggestedItem, quiet = false): Promise<boolean> {
+    if (!item.title.trim()) {
+      toast.error("Give the task a title first.");
+      return false;
+    }
     setCreating(item.key);
     const res = await createSuggestedTask(meeting.id, {
       title: item.title,
@@ -168,10 +171,23 @@ export function MeetingEditor({
       priority: item.priority,
     });
     setCreating(null);
-    if (!res.ok) return toast.error(res.error);
+    if (!res.ok) {
+      toast.error(res.error);
+      return false;
+    }
     setExisting((xs) => [...xs, res.data!]);
     setSuggestions((xs) => xs && xs.filter((x) => x.key !== item.key));
-    toast.success("Task created.");
+    if (!quiet) toast.success("Task created.");
+    return true;
+  }
+
+  // Suggestions start ticked; "Create" makes every ticked one in one go.
+  const [unticked, setUnticked] = useState<Set<string>>(new Set());
+  const ticked = (suggestions ?? []).filter((x) => !unticked.has(x.key));
+  async function createTicked() {
+    let made = 0;
+    for (const item of ticked) if (await createFromSuggestion(item, true)) made++;
+    if (made) toast.success(made === 1 ? "Task created." : `${made} tasks created.`);
   }
 
   /** `auto`: the draft started by itself on open, so it stays quiet if there's nothing to say. */
@@ -358,6 +374,23 @@ export function MeetingEditor({
         <p className="text-xs text-muted-foreground">Each action item becomes a task in this department when you save.</p>
         {suggestions && suggestions.length > 0 && (
           <DraftPanel title="Suggested action items" discardLabel="Dismiss all" onDiscard={() => setSuggestions(null)}>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[hsl(var(--brand-primary))]"
+                  checked={ticked.length === suggestions.length}
+                  ref={(el) => {
+                    if (el) el.indeterminate = ticked.length > 0 && ticked.length < suggestions.length;
+                  }}
+                  onChange={(e) => setUnticked(e.target.checked ? new Set() : new Set(suggestions.map((x) => x.key)))}
+                />
+                Select all
+              </label>
+              <Button type="button" size="sm" className="ml-auto" disabled={creating !== null || ticked.length === 0} onClick={createTicked}>
+                {creating ? "Creating…" : `Create ${ticked.length === 1 ? "1 task" : `${ticked.length} tasks`}`}
+              </Button>
+            </div>
             <ul className="space-y-2">
               {suggestions.map((item) => (
                 <li key={item.key} className="space-y-2 rounded-[12px] border border-line bg-white p-2">
@@ -377,13 +410,27 @@ export function MeetingEditor({
                     {prioritySelect(item.priority, (v) => editSuggestion(item.key, { priority: v }))}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="checkbox"
+                      aria-label={`Include “${item.title}”`}
+                      className="size-4 accent-[hsl(var(--brand-primary))]"
+                      checked={!unticked.has(item.key)}
+                      onChange={(e) =>
+                        setUnticked((u) => {
+                          const n = new Set(u);
+                          if (e.target.checked) n.delete(item.key);
+                          else n.add(item.key);
+                          return n;
+                        })
+                      }
+                    />
                     {item.reason && <p className="mr-auto text-xs text-ink-muted">{item.reason}</p>}
                     <Button
                       type="button"
                       size="sm"
                       className="ml-auto"
                       disabled={creating !== null}
-                      onClick={() => createFromSuggestion(item)}
+                      onClick={() => void createFromSuggestion(item)}
                     >
                       {creating === item.key ? "Creating…" : "Create task"}
                     </Button>
