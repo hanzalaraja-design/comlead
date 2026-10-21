@@ -15,6 +15,7 @@ import {
   Settings,
   Sparkles,
   CalendarSync,
+  Images,
   TriangleAlert,
   Users,
 } from "lucide-react";
@@ -38,7 +39,11 @@ const ADMIN: NavItem[] = [
   { href: "/admin/users", label: "People", icon: Users },
   { href: "/admin/assistant", label: "Meeting assistant", icon: Sparkles },
   { href: "/admin/outlook", label: "Outlook", icon: CalendarSync },
+  { href: "/admin/placements", label: "Placements", icon: Images },
 ];
+
+// Only for the teams that book, design and put up homepage banners.
+const PLACEMENTS: NavItem = { href: "/placements", label: "Placements", icon: Images };
 
 // Bottom bar on phones: the four things people open most.
 const MOBILE: NavItem[] = [
@@ -94,7 +99,13 @@ function NavLinks({
                       ? "bg-danger-soft text-danger-ink"
                       : "bg-brand-primary text-white",
                 )}
-                aria-label={item.href === "/overdue" ? `${badges[item.href]} overdue` : `${badges[item.href]} new mentions`}
+                aria-label={
+                  item.href === "/overdue"
+                    ? `${badges[item.href]} overdue`
+                    : item.href === "/placements"
+                      ? `${badges[item.href]} to do`
+                      : `${badges[item.href]} new mentions`
+                }
               >
                 {badges[item.href]}
               </span>
@@ -108,6 +119,7 @@ function NavLinks({
 
 function NavBody({
   isAdmin,
+  placements,
   name,
   email,
   pathname,
@@ -115,6 +127,7 @@ function NavBody({
   badges,
 }: {
   isAdmin: boolean;
+  placements: boolean;
   name: string;
   email: string;
   pathname: string;
@@ -123,7 +136,7 @@ function NavBody({
 }) {
   return (
     <div className="flex h-full flex-col gap-6">
-      <NavLinks items={MAIN} pathname={pathname} onNavigate={onNavigate} badges={badges} />
+      <NavLinks items={placements ? [...MAIN, PLACEMENTS] : MAIN} pathname={pathname} onNavigate={onNavigate} badges={badges} />
       {isAdmin && (
         <div>
           <p className="mb-1 px-3 text-xs font-medium text-ink-muted">Admin</p>
@@ -155,7 +168,19 @@ function NavBody({
   );
 }
 
-export function AppNav({ isAdmin, name, email, badges }: { isAdmin: boolean; name: string; email: string; badges?: Badges }) {
+export function AppNav({
+  isAdmin,
+  placements = false,
+  name,
+  email,
+  badges,
+}: {
+  isAdmin: boolean;
+  placements?: boolean;
+  name: string;
+  email: string;
+  badges?: Badges;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -167,7 +192,7 @@ export function AppNav({ isAdmin, name, email, badges }: { isAdmin: boolean; nam
           <HighfyLogo className="w-24" />
           <span className="pb-1 text-sm font-semibold text-ink-muted">Tasks</span>
         </Link>
-        <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} badges={badges} />
+        <NavBody isAdmin={isAdmin} placements={placements} name={name} email={email} pathname={pathname} badges={badges} />
       </aside>
 
       {/* Phone top bar */}
@@ -190,7 +215,7 @@ export function AppNav({ isAdmin, name, email, badges }: { isAdmin: boolean; nam
           <SheetHeader className="p-0 pb-2">
             <SheetTitle className="text-ink">Menu</SheetTitle>
           </SheetHeader>
-          <NavBody isAdmin={isAdmin} name={name} email={email} pathname={pathname} onNavigate={() => setOpen(false)} badges={badges} />
+          <NavBody isAdmin={isAdmin} placements={placements} name={name} email={email} pathname={pathname} onNavigate={() => setOpen(false)} badges={badges} />
         </SheetContent>
       </Sheet>
 
