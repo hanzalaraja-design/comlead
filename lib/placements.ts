@@ -113,7 +113,7 @@ export function statusText(k: StatusKey, p: Placement, today: string): string {
     case "changed":
       return "Changed";
     case "ready":
-      return "Ready for tech";
+      return "On Figma";
     case "live":
       return "Live";
     case "ending":
