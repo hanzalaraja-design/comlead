@@ -57,6 +57,7 @@ export type Task = {
   completed_at: string | null;
   /** Same task given to several people: their copies share this. */
   set_id?: string | null;
+  project_id?: string | null;
 };
 
 /** Task row with the joins used by list views. */
@@ -64,6 +65,24 @@ export type TaskRow = Task & {
   owner: PersonRef | null;
   department: Pick<Department, "id" | "name" | "slug"> | null;
   meeting: { id: string; title: string | null; meeting_date: string } | null;
+  project?: Pick<Project, "id" | "name" | "slug"> | null;
+};
+
+export type ProjectKind = "project" | "campaign";
+
+/** A folder of tasks people from any team share. */
+export type Project = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  kind: ProjectKind;
+  launch_date: string | null;
+  /** Home team: everyone in it is in the project. */
+  department_id: string | null;
+  archived: boolean;
+  created_by: string | null;
+  created_at: string;
 };
 
 export type Meeting = {

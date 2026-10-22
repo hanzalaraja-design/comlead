@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, KanbanSquare, List } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SCOPES, viewHref, type TaskScope, type TaskView } from "@/lib/tasks/scope";
+import { SCOPES, viewHref, type ScopeRef, type TaskScope, type TaskView } from "@/lib/tasks/scope";
 
 const VIEWS = [
   { key: "list", label: "List", icon: List },
@@ -10,10 +10,22 @@ const VIEWS = [
 ] as const;
 
 /**
- * Tasks has three ways in (My tasks, My team, All teams) and each can be seen
- * as a list, board or calendar. `search` keeps the filters when switching view.
+ * Tasks has four ways in (My tasks, My team, All teams, Projects) and each can
+ * be seen as a list, board or calendar. `search` keeps the filters when
+ * switching view; `base` points the views at one project.
  */
-export function TaskTabs({ scope, view, search = "" }: { scope: TaskScope; view: TaskView; search?: string }) {
+export function TaskTabs({
+  scope,
+  view,
+  search = "",
+  base,
+}: {
+  scope: TaskScope;
+  /** Omit on pages with no views (the project list). */
+  view?: TaskView;
+  search?: string;
+  base?: ScopeRef;
+}) {
   return (
     <div className="-mx-4 mb-4 flex flex-col gap-2 border-b border-line px-4 md:mx-0 md:flex-row md:items-end md:justify-between md:px-0">
       <nav aria-label="Tasks" className="no-scrollbar flex gap-5 overflow-x-auto">
@@ -31,11 +43,11 @@ export function TaskTabs({ scope, view, search = "" }: { scope: TaskScope; view:
           </Link>
         ))}
       </nav>
-      <nav aria-label="View" className="mb-2 flex gap-1 self-start rounded-full bg-subtle p-1 md:self-auto">
+      {view && <nav aria-label="View" className="mb-2 flex gap-1 self-start rounded-full bg-subtle p-1 md:self-auto">
         {VIEWS.map((v) => (
           <Link
             key={v.key}
-            href={viewHref(scope, v.key, search)}
+            href={viewHref(base ?? scope, v.key, search)}
             aria-current={view === v.key ? "page" : undefined}
             className={cn(
               "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors",
@@ -46,7 +58,7 @@ export function TaskTabs({ scope, view, search = "" }: { scope: TaskScope; view:
             {v.label}
           </Link>
         ))}
-      </nav>
+      </nav>}
     </div>
   );
 }

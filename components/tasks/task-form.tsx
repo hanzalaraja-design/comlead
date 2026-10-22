@@ -23,7 +23,11 @@ export type TaskFormProps = {
   people: PersonRef[];
   /** department_id → member user ids, to suggest owners. */
   membersByDept: Record<string, string[]>;
+  /** Projects the task may go in, and who's in each. */
+  projects?: { id: string; name: string; department_id: string | null }[];
+  membersByProject?: Record<string, string[]>;
   defaultDepartmentId?: string;
+  defaultProjectId?: string;
   defaultOwnerId?: string;
   meetingId?: string;
   /** Members can't reassign someone else's task or move it between departments. */
@@ -38,12 +42,23 @@ export function TaskForm(props: TaskFormProps) {
   const { task } = props;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  // New tasks start private unless opened from a team; a team task can't be made private again.
+  const projects = props.projects ?? [];
+  const [projectId, setProjectId] = useState(task ? task.project_id ?? "" : props.defaultProjectId ?? "");
+  // A project's task goes in the project's team when you're in it.
+  const projectTeam = (id: string) => {
+    const home = projects.find((p) => p.id === id)?.department_id;
+    return home && props.departments.some((d) => d.id === home) ? home : PRIVATE;
+  };
+  // New tasks start private unless opened from a team or project; a team task can't be made private again,
+  // but in a project it can leave the team.
   const offerPrivate = !task || task.department_id === null;
+  const offerNoTeam = offerPrivate || !!projectId;
   const [departmentId, setDepartmentId] = useState(
-    task ? task.department_id ?? PRIVATE : props.defaultDepartmentId ?? PRIVATE,
+    task
+      ? task.department_id ?? PRIVATE
+      : props.defaultDepartmentId ?? (props.defaultProjectId ? projectTeam(props.defaultProjectId) : PRIVATE),
   );
-  const isPrivate = departmentId === PRIVATE;
+  const isPrivate = departmentId === PRIVATE && !projectId;
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo");
   const [dueDate, setDueDate] = useState(task?.due_date ?? "");
   const [collaborators, setCollaborators] = useState<string[]>(props.collaboratorIds ?? []);
@@ -55,11 +70,11 @@ export function TaskForm(props: TaskFormProps) {
     !!task && !!(task.description || task.tags.length || task.due_time || (props.collaboratorIds ?? []).length),
   );
 
-  const ownerIds = new Set(props.membersByDept[departmentId] ?? []);
+  const ownerIds = new Set([...(props.membersByDept[departmentId] ?? []), ...(props.membersByProject?.[projectId] ?? [])]);
   if (task?.owner_id) ownerIds.add(task.owner_id);
   if (props.defaultOwnerId) ownerIds.add(props.defaultOwnerId);
   const ownerOptions = props.people.filter((p) => ownerIds.has(p.id));
-  const pickDepartment = (props.departments.length > 1 || offerPrivate) && (!task || props.canMove || offerPrivate);
+  const pickDepartment = (props.departments.length > 1 || offerNoTeam) && (!task || props.canMove || offerNoTeam);
 
   function onSubmit(formData: FormData) {
     for (const c of collaborators) formData.append("collaborators", c);
@@ -149,10 +164,35 @@ export function TaskForm(props: TaskFormProps) {
           <div className="space-y-1.5">
             <Label htmlFor="department_id">Team</Label>
             <select id="department_id" name="department_id" className={selectClass} value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-              {offerPrivate && <option value={PRIVATE}>Private (only you)</option>}
+              {offerNoTeam && <option value={PRIVATE}>{projectId ? "No team (just the project)" : "Private (only you)"}</option>}
               {props.departments.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {(projects.length > 0 || !!task?.project_id) && (
+          <div className="space-y-1.5">
+            <Label htmlFor="project_id">Project</Label>
+            <select
+              id="project_id"
+              name="project_id"
+              className={selectClass}
+              value={projectId}
+              onChange={(e) => {
+                const next = e.target.value;
+                setProjectId(next);
+                // New tasks follow the project to its team; leaving a project can't leave a task teamless and shared.
+                if (!task && next) setDepartmentId(projectTeam(next));
+                else if (!next && departmentId === PRIVATE && !offerPrivate) setDepartmentId(task?.department_id ?? PRIVATE);
+              }}
+            >
+              <option value="">No project</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
                 </option>
               ))}
             </select>

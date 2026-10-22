@@ -24,7 +24,8 @@ type Raw = Record<string, string | string[] | undefined>;
  */
 export async function loadMyTeam(raw: Raw) {
   const [viewer, departments] = await Promise.all([requireViewer(), getDepartments()]);
-  const live = departments.filter((d) => !d.archived);
+  // Project teams live under Projects.
+  const live = departments.filter((d) => !d.archived && d.kind !== "project");
   // Teams you're actually in; an Admin outside every team can pick any.
   const mine = live.filter((d) => viewer.memberDeptIds.includes(d.id));
   const choices = mine.length ? mine : viewer.isAdmin ? live : [];

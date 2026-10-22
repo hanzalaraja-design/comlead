@@ -15,6 +15,7 @@ import type { TaskPriority, TaskSource, TaskStatus } from "@/lib/types";
 
 export type FilterOptions = {
   departments: Option[]; // value = slug
+  projects: Option[];    // value = slug
   people: Option[];      // value = id
   tags: string[];
   meetings: Option[];    // value = id
@@ -31,7 +32,7 @@ export function TaskFilterBar({
   filters: TaskFilters;
   options: FilterOptions;
   /** Filters fixed by the page (e.g. the department board hides "dept"). */
-  hide?: ("dept" | "owner" | "status" | "sort" | "overdue" | "when")[];
+  hide?: ("dept" | "project" | "owner" | "status" | "sort" | "overdue" | "when")[];
   /** Extra query params the page needs kept (e.g. the calendar month). */
   preserve?: Record<string, string>;
 }) {
@@ -151,6 +152,14 @@ export function TaskFilterBar({
             options={options.departments}
             value={filters.dept}
             onChange={(v) => apply({ dept: v })}
+          />
+        )}
+        {!hide.includes("project") && options.projects.length > 0 && (
+          <MultiSelect
+            label="Project"
+            options={options.projects}
+            value={filters.project}
+            onChange={(v) => apply({ project: v })}
           />
         )}
         <MultiSelect

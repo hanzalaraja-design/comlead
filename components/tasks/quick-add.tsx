@@ -11,11 +11,14 @@ export function QuickAdd({
   departments,
   defaultDepartmentId = null,
   allowPrivate = false,
+  projectId,
 }: {
   departments: { id: string; name: string }[];
   defaultDepartmentId?: string | null;
   /** Offer "Private (only you)", first and selected by default. */
   allowPrivate?: boolean;
+  /** Inside a project: the task goes in it, and it's yours. */
+  projectId?: string;
 }) {
   const [title, setTitle] = useState("");
   const [dept, setDept] = useState<string>(defaultDepartmentId ?? (allowPrivate ? "" : departments[0]?.id ?? ""));
@@ -27,10 +30,12 @@ export function QuickAdd({
     const value = title;
     setTitle("");
     startTransition(async () => {
-      const res = await quickAddTask(value, dept || null);
+      const res = await quickAddTask(value, dept || null, projectId);
       if (res.ok)
         toast.success(
-          !dept
+          projectId
+            ? "Added to the project. It's yours."
+            : !dept
             ? "Added to your private list."
             : res.data!.owner === "you"
               ? "Added. It's yours."
@@ -69,7 +74,7 @@ export function QuickAdd({
       {/* On phones the picker and button appear once you start typing. */}
       <div className={cn("flex items-center gap-2", !title.trim() && "hidden sm:flex")}>
         {/* Only asked when it isn't obvious. */}
-        {departments.length + (allowPrivate ? 1 : 0) > 1 && (
+        {!projectId && departments.length + (allowPrivate ? 1 : 0) > 1 && (
           <select
             aria-label="Team"
             value={dept}

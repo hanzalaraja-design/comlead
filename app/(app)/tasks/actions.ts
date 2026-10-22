@@ -53,6 +53,7 @@ const taskSchema = z.object({
     ),
   blocked_reason: z.string().trim().max(1000).optional(),
   meeting_id: optionalUuid,
+  project_id: optionalUuid,
   collaborators: z.array(uuid).max(50),
 });
 
@@ -70,13 +71,21 @@ function readTaskForm(formData: FormData) {
     tags: formData.get("tags") ?? undefined,
     blocked_reason: formData.get("blocked_reason") ?? undefined,
     meeting_id: formData.get("meeting_id") ?? undefined,
+    project_id: formData.get("project_id") ?? undefined,
     collaborators: formData.getAll("collaborators").map(String).filter(Boolean),
   });
 }
 
-/** Private tasks always belong to whoever saves them and never sit in a meeting. */
-function shape<T extends { department_id: string | null; owner_id: string | null; meeting_id: string | null }>(v: T, viewerId: string): T {
-  return v.department_id ? v : { ...v, owner_id: viewerId, meeting_id: null };
+/**
+ * Private tasks (no team, no project) always belong to whoever saves them.
+ * Only team tasks sit in a meeting.
+ */
+function shape<T extends { department_id: string | null; project_id: string | null; owner_id: string | null; meeting_id: string | null }>(
+  v: T,
+  viewerId: string,
+): T {
+  if (v.department_id) return v;
+  return v.project_id ? { ...v, meeting_id: null } : { ...v, owner_id: viewerId, meeting_id: null };
 }
 
 function revalidateTaskViews(taskId?: string) {
@@ -90,7 +99,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
   const v = shape(parsed.data, viewer.id);
   // Several owners: everyone gets their own task, so each can tick it off.
-  const owners = v.department_id && v.owner_ids.length ? [...new Set(v.owner_ids)] : [v.owner_id];
+  const owners = (v.department_id || v.project_id) && v.owner_ids.length ? [...new Set(v.owner_ids)] : [v.owner_id];
   const setId = owners.length > 1 ? crypto.randomUUID() : null;
 
   const supabase = await createClient();
@@ -105,6 +114,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
     tags: v.tags,
     blocked_reason: v.status === "blocked" ? v.blocked_reason || null : null,
     meeting_id: v.meeting_id,
+    project_id: v.project_id,
     created_by: viewer.id,
     set_id: setId,
   };
@@ -141,6 +151,7 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
       title: v.title,
       description: isBlankHtml(v.description) ? null : sanitizeRichText(v.description),
       department_id: v.department_id,
+      project_id: v.project_id,
       owner_id: v.owner_id,
       status: v.status,
       priority: v.priority,
@@ -194,11 +205,14 @@ const statusSchema = z.object({
 export async function quickAddTask(
   input: string,
   departmentId: string | null,
+  projectId?: string,
 ): Promise<ActionResult<{ id: string; owner: string | null }>> {
   const viewer = await requireViewer();
   let title = input.trim().replace(/\s+/g, " ");
   const dept = departmentId || null;
   if (dept && !uuid.safeParse(dept).success) return { ok: false, error: "Pick a team for this task." };
+  const project = projectId || null;
+  if (project && !uuid.safeParse(project).success) return { ok: false, error: "That project wasn't found." };
 
   let priority: "urgent" | "high" | "medium" = "medium";
   const bang = /\s*(!{1,2})$/.exec(title);
@@ -228,7 +242,8 @@ export async function quickAddTask(
   // to hand out; if you're one of its admins, to you; with no admin, unassigned.
   let owner: string | null = viewer.id;
   let ownerName: string | null = null;
-  if (dept && !viewer.leadDeptIds.includes(dept)) {
+  // In a project, what you add is yours.
+  if (dept && !project && !viewer.leadDeptIds.includes(dept)) {
     const { data: lead } = await supabase
       .from("department_members")
       .select("user_id, profile:profiles(full_name, email)")
@@ -243,7 +258,7 @@ export async function quickAddTask(
   }
   const { data, error } = await supabase
     .from("tasks")
-    .insert({ title, department_id: dept, owner_id: owner, priority, due_date: due, created_by: viewer.id })
+    .insert({ title, department_id: dept, project_id: project, owner_id: owner, priority, due_date: due, created_by: viewer.id })
     .select("id")
     .single();
   if (error || !data) return { ok: false, error: friendlyError(error) };
