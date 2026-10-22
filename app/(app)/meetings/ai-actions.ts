@@ -315,7 +315,8 @@ ${notes}
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(300),
-  owner_id: uuid.nullable(),
+  // Several people: one task each, linked as a set.
+  owner_ids: z.array(uuid).max(50),
   due_date: dateStr.nullable(),
   priority,
 });
@@ -333,26 +334,32 @@ export type CreatedItem = {
 export async function createSuggestedTask(
   meetingId: string,
   input: z.input<typeof createSchema>,
-): Promise<ActionResult<CreatedItem>> {
+): Promise<ActionResult<CreatedItem[]>> {
   const ctx = await editableMeeting(meetingId);
   if ("error" in ctx) return { ok: false, error: ctx.error };
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Some values aren't valid." };
+  const { owner_ids, ...item } = parsed.data;
+  const owners = owner_ids.length ? [...new Set(owner_ids)] : [null];
+  const set_id = owners.length > 1 ? crypto.randomUUID() : null;
   const { data, error } = await ctx.supabase
     .from("tasks")
-    .insert({
-      ...parsed.data,
-      department_id: ctx.meeting.department_id,
-      meeting_id: meetingId,
-      source: "meeting",
-      created_by: ctx.viewerId,
-    })
-    .select("id, title, owner_id, due_date, priority, status")
-    .single();
-  if (error || !data) return { ok: false, error: friendlyError(error) };
+    .insert(
+      owners.map((owner_id) => ({
+        ...item,
+        owner_id,
+        department_id: ctx.meeting.department_id,
+        meeting_id: meetingId,
+        source: "meeting",
+        created_by: ctx.viewerId,
+        set_id,
+      })),
+    )
+    .select("id, title, owner_id, due_date, priority, status");
+  if (error || !data?.length) return { ok: false, error: friendlyError(error) };
   revalidatePath("/", "layout");
   syncLater(() => syncTasksForMeeting(meetingId));
-  return { ok: true, data: data as CreatedItem };
+  return { ok: true, data: data as CreatedItem[] };
 }
 
 // ---------------------------------------------------------------------------

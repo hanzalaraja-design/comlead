@@ -32,7 +32,8 @@ const saveSchema = z.object({
   agenda: z.string().max(20_000).nullable(),
   minutes: z.string().max(200_000).nullable(),
   existingItems: z.array(actionItem.extend({ id: uuid })).max(200),
-  newItems: z.array(actionItem).max(100),
+  // New items can go to several people: one task each, linked as a set.
+  newItems: z.array(actionItem.omit({ owner_id: true }).extend({ owner_ids: z.array(uuid).max(50) })).max(100),
 });
 
 export type SaveMeetingInput = z.input<typeof saveSchema>;
@@ -108,16 +109,21 @@ export async function saveMeeting(meetingId: string, input: SaveMeetingInput): P
 
   if (v.newItems.length) {
     const { error: e } = await supabase.from("tasks").insert(
-      v.newItems.map((item) => ({
-        title: item.title,
-        owner_id: item.owner_id,
-        due_date: item.due_date,
-        priority: item.priority,
-        department_id: meeting.department_id,
+      v.newItems.flatMap((item) => {
+        const owners = item.owner_ids.length ? [...new Set(item.owner_ids)] : [null];
+        const set_id = owners.length > 1 ? crypto.randomUUID() : null;
+        return owners.map((owner_id) => ({
+          title: item.title,
+          owner_id,
+          due_date: item.due_date,
+          priority: item.priority,
+          department_id: meeting.department_id,
           meeting_id: meetingId,
-        source: "meeting",
-        created_by: viewer.id,
-      })),
+          source: "meeting",
+          created_by: viewer.id,
+          set_id,
+        }));
+      }),
     );
     if (e) return { ok: false, error: friendlyError(e) };
   }

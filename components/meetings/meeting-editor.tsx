@@ -37,7 +37,9 @@ export type ActionItemRow = {
   status: TaskStatus;
 };
 
-type DraftItem = { key: string; title: string; owner_id: string | null; due_date: string | null; priority: TaskPriority };
+// New action items (typed or suggested) can go to several people: one task each.
+type DraftItem = { key: string; title: string; owner_ids: string[]; due_date: string | null; priority: TaskPriority };
+type Suggestion = Omit<SuggestedItem, "owner_id"> & { owner_ids: string[] };
 
 const fieldClass = "h-9 field px-2 text-sm";
 
@@ -80,7 +82,7 @@ export function MeetingEditor({
   const [minutesKey, setMinutesKey] = useState(0);
   const [tidyDraft, setTidyDraft] = useState<TidyDraft | null>(null);
   const [agendaDraft, setAgendaDraft] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<SuggestedItem[] | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
 
   async function runTidy() {
@@ -150,15 +152,15 @@ export function MeetingEditor({
     const res = await suggestActionItems(meeting.id, minutes, [...existing, ...drafts].map((x) => x.title));
     setAiBusy(null);
     if (!res.ok) return toast.error(res.error);
-    setSuggestions(res.data!);
+    setSuggestions(res.data!.map(({ owner_id, ...x }) => ({ ...x, owner_ids: owner_id ? [owner_id] : [] })));
     if (!res.data!.length) toast("No new action items found in these minutes.");
   }
 
-  function editSuggestion(key: string, patch: Partial<SuggestedItem>) {
+  function editSuggestion(key: string, patch: Partial<Suggestion>) {
     setSuggestions((xs) => xs && xs.map((x) => (x.key === key ? { ...x, ...patch } : x)));
   }
 
-  async function createFromSuggestion(item: SuggestedItem, quiet = false): Promise<boolean> {
+  async function createFromSuggestion(item: Suggestion, quiet = false): Promise<boolean> {
     if (!item.title.trim()) {
       toast.error("Give the task a title first.");
       return false;
@@ -166,7 +168,7 @@ export function MeetingEditor({
     setCreating(item.key);
     const res = await createSuggestedTask(meeting.id, {
       title: item.title,
-      owner_id: item.owner_id,
+      owner_ids: item.owner_ids,
       due_date: item.due_date,
       priority: item.priority,
     });
@@ -175,9 +177,9 @@ export function MeetingEditor({
       toast.error(res.error);
       return false;
     }
-    setExisting((xs) => [...xs, res.data!]);
+    setExisting((xs) => [...xs, ...res.data!]);
     setSuggestions((xs) => xs && xs.filter((x) => x.key !== item.key));
-    if (!quiet) toast.success("Task created.");
+    if (!quiet) toast.success(res.data!.length > 1 ? `${res.data!.length} tasks created, one for each person.` : "Task created.");
     return true;
   }
 
@@ -220,6 +222,17 @@ export function MeetingEditor({
       ))}
     </select>
   );
+  // Pick one or several: each person gets their own task.
+  const ownersSelect = (value: string[], onChange: (v: string[]) => void) => (
+    <MultiSelect
+      label="Owners"
+      options={owners.map((p) => ({ value: p.id, label: personName(p), search: p.email }))}
+      value={value}
+      onChange={onChange}
+      searchable
+      className="h-10 w-full min-w-0 justify-between rounded-[12px] text-sm"
+    />
+  );
   const prioritySelect = (value: TaskPriority, onChange: (v: TaskPriority) => void) => (
     <select aria-label="Priority" value={value} onChange={(e) => onChange(e.target.value as TaskPriority)} className={fieldClass}>
       {PRIORITIES.map((p) => (
@@ -242,7 +255,7 @@ export function MeetingEditor({
         existingItems: existing.map(({ id, title, owner_id, due_date, priority }) => ({ id, title, owner_id, due_date, priority })),
         newItems: drafts
           .filter((d) => d.title.trim())
-          .map(({ title, owner_id, due_date, priority }) => ({ title, owner_id, due_date, priority })),
+          .map(({ title, owner_ids, due_date, priority }) => ({ title, owner_ids, due_date, priority })),
       });
       if (res.ok) {
         toast.success(drafts.some((d) => d.title.trim()) ? "Saved. Action items added as tasks." : "Saved");
@@ -400,7 +413,7 @@ export function MeetingEditor({
                       value={item.title}
                       onChange={(e) => editSuggestion(item.key, { title: e.target.value })}
                     />
-                    {ownerSelect(item.owner_id, (v) => editSuggestion(item.key, { owner_id: v }))}
+                    {ownersSelect(item.owner_ids, (v) => editSuggestion(item.key, { owner_ids: v }))}
                     <Input
                       type="date"
                       aria-label="Due date"
@@ -478,7 +491,7 @@ export function MeetingEditor({
                 placeholder="What needs to happen?"
                 onChange={(e) => setDrafts((xs) => xs.map((x) => (x.key === item.key ? { ...x, title: e.target.value } : x)))}
               />
-              {ownerSelect(item.owner_id, (v) => setDrafts((xs) => xs.map((x) => (x.key === item.key ? { ...x, owner_id: v } : x))))}
+              {ownersSelect(item.owner_ids, (v) => setDrafts((xs) => xs.map((x) => (x.key === item.key ? { ...x, owner_ids: v } : x))))}
               <Input
                 type="date"
                 value={item.due_date ?? ""}
@@ -504,7 +517,7 @@ export function MeetingEditor({
           variant="outline"
           size="sm"
           onClick={() =>
-            setDrafts((xs) => [...xs, { key: crypto.randomUUID(), title: "", owner_id: null, due_date: null, priority: "medium" }])
+            setDrafts((xs) => [...xs, { key: crypto.randomUUID(), title: "", owner_ids: [], due_date: null, priority: "medium" }])
           }
         >
           <Plus className="h-4 w-4" /> Add action item
