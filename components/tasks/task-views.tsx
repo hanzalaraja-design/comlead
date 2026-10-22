@@ -8,7 +8,7 @@ import { TaskList } from "@/components/tasks/task-list";
 import { STATUS_STYLES } from "@/lib/labels";
 import { filtersToSearch, type TaskFilters } from "@/lib/tasks/filters";
 import { TASK_LIMIT, fetchTasks, type TaskListRow } from "@/lib/tasks/queries";
-import { taskHref, viewHref, type TaskFrom, type TaskScope } from "@/lib/tasks/scope";
+import { taskHref, viewHref, type ScopeRef, type TaskFrom } from "@/lib/tasks/scope";
 import { addDaysISO, formatTime, parseISODate, todayPKT } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ function doneFilters(filters: TaskFilters): TaskFilters {
     : { ...filters, status: ["done"], completed_from: filters.completed_from ?? addDaysISO(todayPKT(), -29), sort: "completed", dir: "desc" };
 }
 
-function CompletedNote({ filters, scope, extra }: { filters: TaskFilters; scope: TaskScope; extra?: Record<string, string> }) {
+function CompletedNote({ filters, scope, extra }: { filters: TaskFilters; scope: ScopeRef; extra?: Record<string, string> }) {
   const params = new URLSearchParams(filtersToSearch({ ...filters, status: ["done"], sort: "completed", dir: "desc", when: ["all"] }).slice(1));
   for (const [k, v] of Object.entries(extra ?? {})) params.set(k, v);
   return (
@@ -42,15 +42,17 @@ export async function ListView({
   extra,
   showOwner = true,
   showDepartment = true,
+  showProject = true,
 }: {
   filters: TaskFilters;
   viewerId: string;
-  scope: TaskScope;
+  scope: ScopeRef;
   from: TaskFrom;
   /** Query params the tab needs kept in links (e.g. which team). */
   extra?: Record<string, string>;
   showOwner?: boolean;
   showDepartment?: boolean;
+  showProject?: boolean;
 }) {
   // The default (open tasks) also lists what was finished, with the same filters.
   const withDone = Array.isArray(filters.status) && filters.status.length === 0 && !filters.overdue;
@@ -63,7 +65,7 @@ export async function ListView({
     <>
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
       {tasks.length ? (
-        <TaskList tasks={tasks} showCompleted={filters.sort === "completed"} showOwner={showOwner} showDepartment={showDepartment} from={from} />
+        <TaskList tasks={tasks} showCompleted={filters.sort === "completed"} showOwner={showOwner} showDepartment={showDepartment} showProject={showProject} from={from} />
       ) : (
         <EmptyState>{withDone ? "Nothing open here." : "No tasks match these filters."}</EmptyState>
       )}
@@ -82,7 +84,7 @@ export async function ListView({
               <CompletedNote filters={filters} scope={scope} extra={extra} />
             </span>
           </h2>
-          <TaskList tasks={completed} showCompleted showOwner={showOwner} showDepartment={showDepartment} from={from} />
+          <TaskList tasks={completed} showCompleted showOwner={showOwner} showDepartment={showDepartment} showProject={showProject} from={from} />
         </section>
       )}
     </>
@@ -100,7 +102,7 @@ export async function BoardView({
 }: {
   filters: TaskFilters;
   viewerId: string;
-  scope: TaskScope;
+  scope: ScopeRef;
   from: TaskFrom;
   extra?: Record<string, string>;
   canEdit?: boolean;
@@ -135,7 +137,7 @@ export async function CalendarView({
 }: {
   filters: TaskFilters;
   viewerId: string;
-  scope: TaskScope;
+  scope: ScopeRef;
   from: TaskFrom;
   /** yyyy-MM, or empty for this month. */
   month?: string;

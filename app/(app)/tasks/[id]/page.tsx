@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
-import { NotebookPen, Pencil } from "lucide-react";
+import { FolderKanban, NotebookPen, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
@@ -78,16 +78,20 @@ export default async function TaskPage({
   const isCollaborator = collaboratorIds.includes(viewer.id);
   const isCreator = task.created_by === viewer.id;
   // People in the meeting an action item came from can edit and reassign it.
-  const isMeetingEditor = task.meeting_id
-    ? ((await supabase.rpc("can_edit_meeting", { p_meeting_id: task.meeting_id })).data as boolean | null) === true
-    : false;
-  const canEdit = isLead || isOwner || isCollaborator || isCreator || isMeetingEditor;
-  const canContribute = isMemberOf(viewer, task.department_id) || isOwner || isCollaborator;
-  const canDelete = isLead || (isCreator && (!task.owner_id || isOwner));
-  const canReassign = isLead || isOwner || !task.owner_id || isMeetingEditor;
+  const rpcTrue = async (fn: string, args: Record<string, string>) => ((await supabase.rpc(fn, args)).data as boolean | null) === true;
+  const [isMeetingEditor, inProject, managesProject] = await Promise.all([
+    task.meeting_id ? rpcTrue("can_edit_meeting", { p_meeting_id: task.meeting_id }) : false,
+    // Everyone in a project shares its tasks.
+    task.project_id ? rpcTrue("is_project_member", { p_project_id: task.project_id }) : false,
+    task.project_id ? rpcTrue("can_manage_project", { p_project_id: task.project_id }) : false,
+  ]);
+  const canEdit = isLead || isOwner || isCollaborator || isCreator || isMeetingEditor || inProject;
+  const canContribute = isMemberOf(viewer, task.department_id) || isOwner || isCollaborator || inProject;
+  const canDelete = isLead || managesProject || (isCreator && (!task.owner_id || isOwner));
+  const canReassign = isLead || isOwner || !task.owner_id || isMeetingEditor || inProject;
 
   if (edit && canEdit) {
-    const formData = await getTaskFormData(viewer, task.department_id ?? undefined);
+    const formData = await getTaskFormData(viewer, task.department_id ?? undefined, task.project_id ?? undefined);
     return (
       <div className="mx-auto max-w-2xl">
         <PageHeader
@@ -101,6 +105,8 @@ export default async function TaskPage({
           departments={isLead ? formData.departments : formData.departments.filter((d) => d.id === task.department_id)}
           people={formData.people}
           membersByDept={formData.membersByDept}
+          projects={formData.projects}
+          membersByProject={formData.membersByProject}
           canReassign={canReassign}
           canMove={isLead}
         />
@@ -239,9 +245,19 @@ export default async function TaskPage({
               </ul>
             </Detail>
           )}
-          <Detail label="Team">
-            {task.department?.name}
-          </Detail>
+          {task.project && (
+            <Detail label="Project">
+              <Link href={`/projects/${task.project.slug}`} className="flex items-center gap-1 text-primary hover:underline">
+                <FolderKanban className="h-3.5 w-3.5" />
+                {task.project.name}
+              </Link>
+            </Detail>
+          )}
+          {(task.department || !task.project) && (
+            <Detail label="Team">
+              {task.department?.name ?? "Private"}
+            </Detail>
+          )}
           {task.meeting && (
             <Detail label="From meeting">
               <Link href={`/meetings/${task.meeting.id}`} className="flex items-center gap-1 text-primary hover:underline">

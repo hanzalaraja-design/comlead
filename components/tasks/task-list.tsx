@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
-import { NotebookPen } from "lucide-react";
+import { FolderKanban, NotebookPen } from "lucide-react";
 import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel, PriorityBadge, StatusBadge, TagList } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
@@ -19,9 +19,12 @@ export function TaskList({
   showDepartment = true,
   showCompleted = false,
   showOwner = true,
+  showProject = true,
   from,
 }: {
   tasks: TaskListRow[];
+  /** Off inside a project, where every task is in it. */
+  showProject?: boolean;
   /** Where the list sits, so the task page's breadcrumb leads back here. */
   from?: TaskFrom;
   showDepartment?: boolean;
@@ -41,7 +44,7 @@ export function TaskList({
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} />
+          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} showProject={showProject} />
         ))}
       </ul>
     </div>
@@ -55,8 +58,10 @@ function TaskListItem({
   showOwner,
   cols,
   from,
+  showProject,
 }: {
   task: TaskListRow;
+  showProject: boolean;
   showDepartment: boolean;
   showCompleted: boolean;
   showOwner: boolean;
@@ -92,7 +97,12 @@ function TaskListItem({
           </Link>
         </div>
         <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
-          {!t.department_id && <span className="font-medium text-brand-primary">Private</span>}
+          {!t.department_id && !t.project_id && <span className="font-medium text-brand-primary">Private</span>}
+          {showProject && t.project && (
+            <span className="inline-flex items-center gap-1 font-medium text-ink">
+              <FolderKanban className="h-3 w-3" /> {t.project.name}
+            </span>
+          )}
           {showDepartment && t.department && (
             <span>
               {t.department.name}

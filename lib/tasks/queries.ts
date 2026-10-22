@@ -8,9 +8,10 @@ import type { TaskFilters } from "./filters";
 export const TASK_SELECT = `
   id, title, description, department_id, owner_id, status, priority,
   due_date, due_time, source, meeting_id, tags, blocked_reason, created_by,
-  created_at, updated_at, completed_at, overdue, set_id,
+  created_at, updated_at, completed_at, overdue, set_id, project_id,
   owner:profiles!tasks_owner_id_fkey(id, email, full_name, avatar_url),
   department:departments(id, name, slug),
+  project:projects(id, name, slug),
   meeting:meetings!tasks_meeting_id_fkey(id, title, meeting_date)
 `;
 
@@ -30,8 +31,11 @@ export async function fetchTasks(
   limit = TASK_LIMIT,
 ): Promise<{ tasks: TaskListRow[]; truncated: boolean; error?: string }> {
   const supabase = await createClient();
-  // Team filter by slug through an inner join, so it doesn't need the team list first.
-  let q = supabase.from("tasks").select(filters.dept.length ? `${TASK_SELECT}, dept_filter:departments!inner(slug)` : TASK_SELECT);
+  // Team and project filters by slug through inner joins, so they don't need the lists first.
+  let select = TASK_SELECT;
+  if (filters.dept.length) select += ", dept_filter:departments!inner(slug)";
+  if (filters.project.length) select += ", project_filter:projects!inner(slug)";
+  let q = supabase.from("tasks").select(select);
 
   // Status: default is open tasks only.
   if (filters.status !== "all") {
@@ -68,6 +72,7 @@ export async function fetchTasks(
   else if (orGroups.length > 1) q = q.or(`and(${orGroups.map((g) => `or(${g})`).join(",")})`);
 
   if (filters.dept.length) q = q.in("dept_filter.slug", filters.dept);
+  if (filters.project.length) q = q.in("project_filter.slug", filters.project);
   if (filters.meeting) q = q.eq("meeting_id", filters.meeting);
   if (filters.tags.length) q = q.overlaps("tags", filters.tags);
   if (filters.overdue) q = q.eq("overdue", true);

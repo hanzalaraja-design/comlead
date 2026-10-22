@@ -55,7 +55,7 @@ const under = (pathname: string, href: string) => pathname === href || pathname.
 function isActive(pathname: string, href: string, phone = false) {
   if (href === "/admin") return pathname === href;
   // Every task page sits under Tasks; on phones My team has its own tab.
-  if (href === "/my") return under(pathname, "/my") || under(pathname, "/overdue") || (under(pathname, "/tasks") && !(phone && under(pathname, "/tasks/team")));
+  if (href === "/my") return under(pathname, "/my") || under(pathname, "/overdue") || under(pathname, "/projects") || (under(pathname, "/tasks") && !(phone && under(pathname, "/tasks/team")));
   return under(pathname, href);
 }
 
