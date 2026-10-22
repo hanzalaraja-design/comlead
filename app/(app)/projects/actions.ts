@@ -8,21 +8,19 @@ import { projectSlug } from "@/lib/projects";
 import { createClient } from "@/lib/supabase/server";
 
 const uuid = z.string().uuid();
+const isoDate = z
+  .string()
+  .optional()
+  .transform((v) => v || null)
+  .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable());
 
 const projectSchema = z.object({
   name: z.string().trim().min(1, "Give the project a name").max(120),
   kind: z.enum(["project", "campaign"]),
-  launch_date: z
-    .string()
-    .optional()
-    .transform((v) => v || null)
-    .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
-  // Empty = across teams, just the people picked.
-  department_id: z
-    .string()
-    .optional()
-    .transform((v) => v || null)
-    .pipe(uuid.nullable()),
+  start_date: isoDate,
+  end_date: isoDate,
+  // None = across teams, just the people picked.
+  teams: z.array(uuid).max(50),
   description: z
     .string()
     .trim()
@@ -36,11 +34,33 @@ function readProjectForm(formData: FormData) {
   return projectSchema.safeParse({
     name: formData.get("name") ?? "",
     kind: formData.get("kind") ?? "project",
-    launch_date: formData.get("launch_date") ?? undefined,
-    department_id: formData.get("department_id") ?? undefined,
+    start_date: formData.get("start_date") ?? undefined,
+    end_date: formData.get("end_date") ?? undefined,
+    teams: formData.getAll("teams").map(String).filter(Boolean),
     description: formData.get("description") ?? undefined,
     members: formData.getAll("members").map(String).filter(Boolean),
   });
+}
+
+function checkDates(v: { start_date: string | null; end_date: string | null }): string | null {
+  return v.start_date && v.end_date && v.end_date < v.start_date ? "The end date is before the start." : null;
+}
+
+/** Make the project's teams exactly these. */
+async function setTeams(supabase: Awaited<ReturnType<typeof createClient>>, projectId: string, want: string[]) {
+  const { data: current } = await supabase.from("project_teams").select("department_id").eq("project_id", projectId);
+  const have = new Set((current ?? []).map((t) => t.department_id as string));
+  const toAdd = [...new Set(want)].filter((t) => !have.has(t));
+  const toRemove = [...have].filter((t) => !want.includes(t));
+  if (toAdd.length) {
+    const { error } = await supabase.from("project_teams").insert(toAdd.map((department_id) => ({ project_id: projectId, department_id })));
+    if (error) return error;
+  }
+  if (toRemove.length) {
+    const { error } = await supabase.from("project_teams").delete().eq("project_id", projectId).in("department_id", toRemove);
+    if (error) return error;
+  }
+  return null;
 }
 
 function revalidateProjects(slug?: string) {
@@ -54,8 +74,10 @@ export async function createProject(formData: FormData): Promise<ActionResult<{ 
   const parsed = readProjectForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the details" };
   const v = parsed.data;
-  if (!v.department_id && v.members.filter((m) => m !== viewer.id).length === 0)
+  if (!v.teams.length && v.members.filter((m) => m !== viewer.id).length === 0)
     return { ok: false, error: "Pick a team or add the people working on it." };
+  const bad = checkDates(v);
+  if (bad) return { ok: false, error: bad };
 
   const supabase = await createClient();
   // Slugs are unique across every project, including ones you can't see: try a few.
@@ -65,7 +87,7 @@ export async function createProject(formData: FormData): Promise<ActionResult<{ 
     const slug = i === 0 ? base : `${base}-${i === 1 ? new Date().getFullYear() : Math.random().toString(36).slice(2, 6)}`;
     const { data, error } = await supabase
       .from("projects")
-      .insert({ name: v.name, slug, kind: v.kind, launch_date: v.launch_date, department_id: v.department_id, description: v.description, created_by: viewer.id })
+      .insert({ name: v.name, slug, kind: v.kind, start_date: v.start_date, end_date: v.end_date, description: v.description, created_by: viewer.id })
       .select("id, slug")
       .single();
     if (data) project = data as { id: string; slug: string };
@@ -80,6 +102,8 @@ export async function createProject(formData: FormData): Promise<ActionResult<{ 
   }));
   const { error: mErr } = await supabase.from("project_members").insert(rows);
   if (mErr) return { ok: false, error: friendlyError(mErr) };
+  const tErr = await setTeams(supabase, project.id, v.teams);
+  if (tErr) return { ok: false, error: friendlyError(tErr) };
 
   revalidateProjects();
   return { ok: true, data: { slug: project.slug } };
@@ -91,15 +115,20 @@ export async function updateProject(projectId: string, formData: FormData): Prom
   const parsed = readProjectForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the details" };
   const v = parsed.data;
+  const bad = checkDates(v);
+  if (bad) return { ok: false, error: bad };
 
   const supabase = await createClient();
   const { data: updated, error } = await supabase
     .from("projects")
-    .update({ name: v.name, kind: v.kind, launch_date: v.launch_date, department_id: v.department_id, description: v.description })
+    .update({ name: v.name, kind: v.kind, start_date: v.start_date, end_date: v.end_date, description: v.description, department_id: null })
     .eq("id", projectId)
     .select("slug, created_by");
   if (error) return { ok: false, error: friendlyError(error) };
   if (!updated?.length) return { ok: false, error: "Only the project's leads and Admins can change it." };
+
+  const tErr = await setTeams(supabase, projectId, v.teams);
+  if (tErr) return { ok: false, error: friendlyError(tErr) };
 
   // People picked by name. Leads stay leads; the creator is never dropped.
   const { data: current } = await supabase.from("project_members").select("user_id, role").eq("project_id", projectId);

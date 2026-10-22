@@ -14,6 +14,7 @@ import { createProject, setProjectArchived, updateProject } from "@/app/(app)/pr
 
 const selectClass = "h-10 w-full field px-3 text-sm";
 
+
 /** Start or change a project: what it is, whose it is, who's on it. */
 export function ProjectForm({
   project,
@@ -21,25 +22,27 @@ export function ProjectForm({
   departments,
   people,
   viewerId,
-  defaultDepartmentId,
+  defaultTeamIds = [],
 }: {
   project?: Project;
   /** People added by name (the home team is in anyway). */
   memberIds?: string[];
-  /** Teams it can belong to: the ones you're in, plus its current one. */
+  /** Every team: any of them can be brought in. */
   departments: { id: string; name: string }[];
   people: PersonRef[];
   viewerId: string;
-  defaultDepartmentId?: string;
+  defaultTeamIds?: string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [kind, setKind] = useState(project?.kind ?? "project");
-  const [departmentId, setDepartmentId] = useState(project ? project.department_id ?? "" : defaultDepartmentId ?? "");
+  const [teams, setTeams] = useState<string[]>(project ? project.team_ids : defaultTeamIds);
+  const [start, setStart] = useState(project?.start_date ?? "");
   const [members, setMembers] = useState<string[]>(memberIds.filter((m) => m !== project?.created_by && m !== viewerId));
 
   function onSubmit(formData: FormData) {
     for (const m of members) formData.append("members", m);
+    for (const t of teams) formData.append("teams", t);
     startTransition(async () => {
       if (project) {
         const res = await updateProject(project.id, formData);
@@ -84,25 +87,30 @@ export function ProjectForm({
             <option value="campaign">Campaign</option>
           </select>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="launch_date">{kind === "campaign" ? "Goes live" : "Launch date"} (optional)</Label>
-          <Input id="launch_date" name="launch_date" type="date" defaultValue={project?.launch_date ?? ""} className="h-10" />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="start_date">{kind === "campaign" ? "Goes live" : "Starts"}</Label>
+            <Input id="start_date" name="start_date" type="date" value={start} onChange={(e) => setStart(e.target.value)} className="h-10" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="end_date">Ends</Label>
+            <Input id="end_date" name="end_date" type="date" min={start || undefined} defaultValue={project?.end_date ?? ""} className="h-10" />
+          </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="department_id">Team</Label>
-          <select id="department_id" name="department_id" className={selectClass} value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-            <option value="">Across teams (just the people below)</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name} (everyone in it)
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <Label>{departmentId ? "Also add" : "People"}</Label>
+          <Label>Teams</Label>
           <MultiSelect
-            label={departmentId ? "People from other teams" : "Add people"}
+            label="Pick teams (everyone in them joins)"
+            options={departments.map((d) => ({ value: d.id, label: d.name }))}
+            value={teams}
+            onChange={setTeams}
+            className="h-10 w-full justify-between rounded-[12px] text-sm"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>{teams.length ? "Also add" : "People"}</Label>
+          <MultiSelect
+            label={teams.length ? "People from other teams" : "Add people"}
             options={people.filter((p) => p.id !== viewerId).map((p) => ({ value: p.id, label: personName(p), search: p.email }))}
             value={members}
             onChange={setMembers}

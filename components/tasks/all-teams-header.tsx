@@ -26,7 +26,7 @@ export function AllTeamsHeader({
   return (
     <>
       <PageHeader
-        breadcrumb={["Tasks", "All teams"]}
+        breadcrumb={["All teams"]}
         title="All teams"
         description={count}
         actions={

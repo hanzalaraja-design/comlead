@@ -8,9 +8,9 @@ export type TaskFrom = "my" | "team" | "all" | "project";
 /** A tab, or the path of one project ("/projects/zong-app"). */
 export type ScopeRef = TaskScope | `/${string}`;
 
-export const SCOPES: { key: TaskScope; label: string; href: string }[] = [
-  { key: "my", label: "My tasks", href: "/my" },
-  { key: "team", label: "My team", href: "/tasks/team" },
+export const SCOPES: { key: TaskScope; label: string; href: string; tab?: boolean }[] = [
+  { key: "my", label: "My tasks", href: "/my", tab: true },
+  { key: "team", label: "My team", href: "/tasks/team", tab: true },
   { key: "all", label: "All teams", href: "/tasks" },
   { key: "projects", label: "Projects", href: "/projects" },
 ];
@@ -30,8 +30,8 @@ type CrumbLink = { label: string; href: string };
 
 /**
  * The trail above a task, from where it was opened:
- * Tasks / My tasks, Tasks / My team / Ayesha, Tasks / All teams / Brand,
- * or Tasks / Projects / My Zong App.
+ * Tasks / My tasks, Tasks / My team / Ayesha, All teams / Brand, or
+ * Projects / My Zong App.
  * Private tasks only live in My tasks.
  */
 export function taskTrail(
@@ -45,7 +45,7 @@ export function taskTrail(
 ): CrumbLink[] {
   const tasks = { label: "Tasks", href: "/my" };
   if (task.project && (from === "project" || !task.department))
-    return [tasks, { label: "Projects", href: "/projects" }, { label: task.project.name, href: `/projects/${task.project.slug}` }];
+    return [{ label: "Projects", href: "/projects" }, { label: task.project.name, href: `/projects/${task.project.slug}` }];
   const where = !task.department ? "my" : from === "project" ? "all" : from ?? "all";
   if (where === "my") return [tasks, { label: "My tasks", href: "/my" }];
   if (where === "team") {
@@ -56,5 +56,5 @@ export function taskTrail(
       ...(task.owner ? [{ label: ownerName, href: `${team}&owner=${task.owner.id}` }] : []),
     ];
   }
-  return [tasks, { label: "All teams", href: "/tasks" }, { label: task.department!.name, href: `/tasks?dept=${task.department!.slug}` }];
+  return [{ label: "All teams", href: "/tasks" }, { label: task.department!.name, href: `/tasks?dept=${task.department!.slug}` }];
 }
