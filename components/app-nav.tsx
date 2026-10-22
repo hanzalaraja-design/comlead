@@ -8,7 +8,6 @@ import {
   Building2,
   CheckSquare,
   LayoutDashboard,
-  List,
   LogOut,
   Menu,
   NotebookPen,
@@ -16,7 +15,6 @@ import {
   Sparkles,
   CalendarSync,
   Images,
-  TriangleAlert,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,17 +23,16 @@ import { HighfyLogo } from "@/components/brand";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
+// Tasks opens on My tasks; My team and All teams are tabs inside it.
 const MAIN: NavItem[] = [
-  { href: "/my", label: "My tasks", icon: CheckSquare },
-  { href: "/tasks", label: "All tasks", icon: List },
-  { href: "/overdue", label: "Overdue", icon: TriangleAlert },
-  { href: "/departments", label: "Teams", icon: Building2 },
+  { href: "/my", label: "Tasks", icon: CheckSquare },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
   { href: "/activity", label: "Activity", icon: Activity },
 ];
 
 const ADMIN: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/departments", label: "Teams", icon: Building2 },
   { href: "/admin/users", label: "People", icon: Users },
   { href: "/admin/assistant", label: "Meeting assistant", icon: Sparkles },
   { href: "/admin/outlook", label: "Outlook", icon: CalendarSync },
@@ -47,16 +44,19 @@ const PLACEMENTS: NavItem = { href: "/placements", label: "Placements", icon: Im
 
 // Bottom bar on phones: the four things people open most.
 const MOBILE: NavItem[] = [
-  { href: "/my", label: "My tasks", icon: CheckSquare },
-  { href: "/tasks", label: "Tasks", icon: List },
+  { href: "/my", label: "Tasks", icon: CheckSquare },
+  { href: "/tasks/team", label: "My team", icon: Users },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
-  { href: "/departments", label: "Teams", icon: Building2 },
+  { href: "/activity", label: "Activity", icon: Activity },
 ];
 
-function isActive(pathname: string, href: string) {
+const under = (pathname: string, href: string) => pathname === href || pathname.startsWith(href + "/");
+
+function isActive(pathname: string, href: string, phone = false) {
   if (href === "/admin") return pathname === href;
-  if (href === "/tasks") return pathname === "/tasks" || /^\/tasks\/(board|calendar)$/.test(pathname);
-  return pathname === href || pathname.startsWith(href + "/");
+  // Every task page sits under Tasks; on phones My team has its own tab.
+  if (href === "/my") return under(pathname, "/my") || under(pathname, "/overdue") || (under(pathname, "/tasks") && !(phone && under(pathname, "/tasks/team")));
+  return under(pathname, href);
 }
 
 type Badges = Record<string, number>;
@@ -89,23 +89,24 @@ function NavLinks({
           >
             <item.icon className="h-4 w-4 shrink-0" />
             <span className="flex-1">{item.label}</span>
+            {item.href === "/my" && !!badges["/overdue"] && (
+              <span
+                className={cn(
+                  "min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5",
+                  isActive(pathname, item.href) ? "bg-white/25 text-white" : "bg-danger-soft text-danger-ink",
+                )}
+                aria-label={`${badges["/overdue"]} overdue`}
+              >
+                {badges["/overdue"]}
+              </span>
+            )}
             {!!badges[item.href] && (
               <span
                 className={cn(
                   "min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5",
-                  isActive(pathname, item.href)
-                    ? "bg-white/25 text-white"
-                    : item.href === "/overdue"
-                      ? "bg-danger-soft text-danger-ink"
-                      : "bg-brand-primary text-white",
+                  isActive(pathname, item.href) ? "bg-white/25 text-white" : "bg-brand-primary text-white",
                 )}
-                aria-label={
-                  item.href === "/overdue"
-                    ? `${badges[item.href]} overdue`
-                    : item.href === "/placements"
-                      ? `${badges[item.href]} to do`
-                      : `${badges[item.href]} new mentions`
-                }
+                aria-label={item.href === "/placements" ? `${badges[item.href]} to do` : `${badges[item.href]} new mentions`}
               >
                 {badges[item.href]}
               </span>
@@ -229,7 +230,7 @@ export function AppNav({
                 prefetch
                 className={cn(
                   "flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
-                  isActive(pathname, item.href) ? "font-semibold text-brand-primary" : "text-ink-muted",
+                  isActive(pathname, item.href, true) ? "font-semibold text-brand-primary" : "text-ink-muted",
                 )}
               >
                 <span className="relative">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import { NotebookPen } from "lucide-react";
 import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel, PriorityBadge, StatusBadge, TagList } from "@/components/tasks/task-badges";
@@ -18,8 +19,11 @@ export function TaskList({
   showDepartment = true,
   showCompleted = false,
   showOwner = true,
+  from,
 }: {
   tasks: TaskListRow[];
+  /** Where the list sits, so the task page's breadcrumb leads back here. */
+  from?: TaskFrom;
   showDepartment?: boolean;
   showCompleted?: boolean;
   /** Off on My tasks, where every task is yours. */
@@ -37,7 +41,7 @@ export function TaskList({
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} />
+          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} />
         ))}
       </ul>
     </div>
@@ -50,12 +54,14 @@ function TaskListItem({
   showCompleted,
   showOwner,
   cols,
+  from,
 }: {
   task: TaskListRow;
   showDepartment: boolean;
   showCompleted: boolean;
   showOwner: boolean;
   cols: string;
+  from?: TaskFrom;
 }) {
   const today = todayPKT();
   return (
@@ -81,7 +87,7 @@ function TaskListItem({
               className="mt-0.5"
             />
           )}
-          <Link href={`/tasks/${t.id}`} className="block min-w-0 font-semibold leading-snug text-ink after:absolute after:inset-0">
+          <Link href={taskHref(t.id, from)} className="block min-w-0 font-semibold leading-snug text-ink after:absolute after:inset-0">
             <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
           </Link>
         </div>

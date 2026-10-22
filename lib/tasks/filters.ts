@@ -1,5 +1,6 @@
 import { PRIORITIES, SOURCES, STATUSES } from "@/lib/labels";
 import { isISODate } from "@/lib/time";
+import { isWhen, type WhenKey } from "@/lib/tasks/when";
 import type { TaskPriority, TaskSource, TaskStatus } from "@/lib/types";
 
 /**
@@ -19,6 +20,8 @@ export type TaskFilters = {
   meeting?: string;
   tags: string[];
   overdue: boolean;
+  /** Ticked "When" ranges: due date for open tasks, completion date for done ones. */
+  when: WhenKey[];
   due_from?: string;
   due_to?: string;
   created_from?: string;
@@ -82,6 +85,7 @@ export function parseFilters(raw: RawParams): TaskFilters {
     meeting: UUID_RE.test(one(raw, "meeting") ?? "") ? one(raw, "meeting") : undefined,
     tags: list(raw, "tags").slice(0, 20),
     overdue: one(raw, "overdue") === "1",
+    when: list(raw, "when").filter(isWhen),
     due_from: date(raw, "due_from"),
     due_to: date(raw, "due_to"),
     created_from: date(raw, "created_from"),
@@ -106,6 +110,7 @@ export function filtersToSearch(f: Partial<TaskFilters>): string {
   if (f.meeting) p.set("meeting", f.meeting);
   if (f.tags?.length) p.set("tags", f.tags.join(","));
   if (f.overdue) p.set("overdue", "1");
+  if (f.when?.length) p.set("when", f.when.join(","));
   for (const k of ["due_from", "due_to", "created_from", "created_to", "completed_from", "completed_to", "q"] as const) {
     if (f[k]) p.set(k, f[k]!);
   }
@@ -125,6 +130,7 @@ export function countActiveFilters(f: TaskFilters): number {
     (f.meeting ? 1 : 0) +
     (f.tags.length ? 1 : 0) +
     (f.overdue ? 1 : 0) +
+    (f.when.length ? 1 : 0) +
     (f.due_from || f.due_to ? 1 : 0) +
     (f.created_from || f.created_to ? 1 : 0) +
     (f.completed_from || f.completed_to ? 1 : 0) +
