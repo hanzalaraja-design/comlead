@@ -10,6 +10,7 @@ import { requireViewer, viewerId } from "@/lib/auth";
 import { filtersToSearch, parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { TASK_LIMIT, fetchTasks } from "@/lib/tasks/queries";
+import { addDaysISO, todayPKT } from "@/lib/time";
 
 export const metadata = { title: "All tasks · Highfy Tasks" };
 
@@ -19,11 +20,20 @@ export default async function TasksPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [id, filters] = await Promise.all([viewerId(), searchParams.then(parseFilters)]);
-  const [, options, { tasks, truncated, error }] = await Promise.all([
+  // The default view (open tasks) also lists what was finished recently, with the same filters.
+  const withDone = Array.isArray(filters.status) && filters.status.length === 0 && !filters.overdue;
+  const [, options, { tasks, truncated, error }, done] = await Promise.all([
     requireViewer(),
     getFilterOptions(),
     fetchTasks(filters, { viewerId: id }),
+    withDone
+      ? fetchTasks(
+          { ...filters, status: ["done"], completed_from: filters.completed_from ?? addDaysISO(todayPKT(), -14), sort: "completed", dir: "desc" },
+          { viewerId: id },
+        )
+      : null,
   ]);
+  const completed = done?.tasks ?? [];
 
   return (
     <>
@@ -52,6 +62,22 @@ export default async function TasksPage({
         <p className="mt-3 text-center text-xs text-muted-foreground">
           Showing the first {TASK_LIMIT}. Narrow the filters to see the rest.
         </p>
+      )}
+      {completed.length > 0 && (
+        <section className="mt-8">
+          <h2 className="kicker mb-2 flex items-center gap-2 text-ink">
+            Completed
+            <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs text-success-ink">{completed.length}</span>
+            <span className="text-xs font-normal normal-case tracking-normal text-ink-muted">last 2 weeks</span>
+            <Link
+              href={`/tasks${filtersToSearch({ ...filters, status: ["done"], sort: "completed", dir: "desc" })}`}
+              className="ml-auto text-sm font-medium normal-case tracking-normal text-brand-primary hover:underline"
+            >
+              See all
+            </Link>
+          </h2>
+          <TaskList tasks={completed} showCompleted />
+        </section>
       )}
     </>
   );
