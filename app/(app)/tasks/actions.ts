@@ -410,3 +410,32 @@ export async function deleteView(id: string): Promise<ActionResult> {
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+const inlineSchema = z.object({
+  taskId: uuid,
+  owner_id: uuid.nullable().optional(),
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  priority: z.enum(["urgent", "high", "medium", "low"]).optional(),
+});
+
+/** One field changed straight from a list: owner, due date or priority. */
+export async function updateTaskInline(
+  taskId: string,
+  patch: { owner_id?: string | null; due_date?: string | null; priority?: string },
+): Promise<ActionResult> {
+  await requireViewer();
+  const parsed = inlineSchema.safeParse({ taskId, ...patch });
+  if (!parsed.success) return { ok: false, error: "That change isn't valid." };
+  const { taskId: id, ...fields } = parsed.data;
+  // Clearing the date clears its time too.
+  const update = fields.due_date === null ? { ...fields, due_time: null } : fields;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("tasks").update(update).eq("id", id).select("id");
+  if (error) return { ok: false, error: friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "You don't have permission to change this task." };
+
+  revalidateTaskViews(id);
+  syncLater(() => syncTask(id));
+  return { ok: true };
+}

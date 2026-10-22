@@ -3,10 +3,11 @@ import { FolderKanban, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { PersonAvatar } from "@/components/person-avatar";
-import { launchText } from "@/components/projects/project-header";
+import { teamsText } from "@/components/projects/project-header";
 import { TaskTabs } from "@/components/tasks/task-tabs";
-import { getDepartments, getPeople, requireViewer } from "@/lib/auth";
-import { KIND_LABELS, getProjects, membersByProject } from "@/lib/projects";
+import { getPeople, requireViewer } from "@/lib/auth";
+import { KIND_LABELS, datesText, getProjects, getTeamNames, membersByProject } from "@/lib/projects";
+import { todayPKT } from "@/lib/time";
 import { createClient } from "@/lib/supabase/server";
 import type { Project } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -17,7 +18,7 @@ type Counts = { open: number; done: number; overdue: number };
 
 export default async function ProjectsPage() {
   const supabase = await createClient();
-  const [, projects, departments, people] = await Promise.all([requireViewer(), getProjects(), getDepartments(), getPeople()]);
+  const [, projects, departments, people] = await Promise.all([requireViewer(), getProjects(), getTeamNames(), getPeople()]);
   const ids = projects.map((p) => p.id);
   const [members, { data: rows }] = await Promise.all([
     membersByProject(projects),
@@ -44,7 +45,7 @@ export default async function ProjectsPage() {
     const total = c.open + c.done;
     const pct = total ? Math.round((c.done / total) * 100) : 0;
     const who = (members[p.id] ?? []).map((id) => personById.get(id)).filter((x) => !!x);
-    const launch = launchText(p.launch_date, p.kind);
+    const launch = datesText(p, todayPKT());
     return (
       <li key={p.id}>
         <Link href={`/projects/${p.slug}`} className="block h-full surface p-4 transition-shadow hover:shadow-md">
@@ -53,7 +54,7 @@ export default async function ProjectsPage() {
             <span className="shrink-0 rounded-full bg-subtle px-2 py-0.5 text-xs font-semibold text-ink">{KIND_LABELS[p.kind]}</span>
           </div>
           <p className="mt-1 text-xs text-ink-muted">
-            {p.department_id ? `${teamName.get(p.department_id) ?? "Team"} team` : "Across teams"}
+            {teamsText(p.team_ids.map((id) => teamName.get(id) ?? "Team"))}
             {launch && <span className="font-semibold text-brand-primary"> · {launch}</span>}
           </p>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-subtle" aria-label={`${pct}% done`}>
@@ -79,7 +80,7 @@ export default async function ProjectsPage() {
   return (
     <>
       <PageHeader
-        breadcrumb={["Tasks", "Projects"]}
+        breadcrumb={["Projects"]}
         title="Projects"
         actions={
           <Button asChild size="sm">

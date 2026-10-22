@@ -77,9 +77,10 @@ export type Project = {
   slug: string;
   description: string | null;
   kind: ProjectKind;
-  launch_date: string | null;
-  /** Home team: everyone in it is in the project. */
-  department_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  /** Teams in the project: everyone in them is in it. */
+  team_ids: string[];
   archived: boolean;
   created_by: string | null;
   created_at: string;

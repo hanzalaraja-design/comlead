@@ -1,5 +1,5 @@
 import { getDepartmentMembers, getDepartments, getPeople, isMemberOf, type Viewer } from "@/lib/auth";
-import { getProjects, membersByProject } from "@/lib/projects";
+import { getProjects, homeTeamFor, membersByProject } from "@/lib/projects";
 
 /** Everything the task form needs, scoped to what the viewer may do. */
 export async function getTaskFormData(viewer: Viewer, includeDepartmentId?: string, includeProjectId?: string) {
@@ -20,7 +20,7 @@ export async function getTaskFormData(viewer: Viewer, includeDepartmentId?: stri
     departments: departments
       .filter((d) => (!d.archived && isMemberOf(viewer, d.id)) || d.id === includeDepartmentId)
       .map((d) => ({ id: d.id, name: d.name, slug: d.slug })),
-    projects: projects.map((p) => ({ id: p.id, name: p.name, slug: p.slug, department_id: p.department_id })),
+    projects: projects.map((p) => ({ id: p.id, name: p.name, slug: p.slug, department_id: homeTeamFor(viewer, p) })),
     people,
     membersByDept,
     membersByProject: await membersByProject(projects),

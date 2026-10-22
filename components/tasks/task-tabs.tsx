@@ -10,8 +10,8 @@ const VIEWS = [
 ] as const;
 
 /**
- * Tasks has four ways in (My tasks, My team, All teams, Projects) and each can
- * be seen as a list, board or calendar. `search` keeps the filters when
+ * My tasks and My team are tabs under Tasks; every task page (those two, All
+ * teams, a project) can be seen as a list, board or calendar. `search` keeps the filters when
  * switching view; `base` points the views at one project.
  */
 export function TaskTabs({
@@ -28,8 +28,9 @@ export function TaskTabs({
 }) {
   return (
     <div className="-mx-4 mb-4 flex flex-col gap-2 border-b border-line px-4 md:mx-0 md:flex-row md:items-end md:justify-between md:px-0">
+      {/* My tasks and My team are tabs of Tasks; All teams and Projects have their own place in the menu. */}
       <nav aria-label="Tasks" className="no-scrollbar flex gap-5 overflow-x-auto">
-        {SCOPES.map((s) => (
+        {SCOPES.filter((s) => s.tab && (scope === "my" || scope === "team")).map((s) => (
           <Link
             key={s.key}
             href={s.href}

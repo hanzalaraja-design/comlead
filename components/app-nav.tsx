@@ -7,6 +7,8 @@ import {
   Activity,
   Building2,
   CheckSquare,
+  FolderKanban,
+  LayoutList,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -23,9 +25,11 @@ import { HighfyLogo } from "@/components/brand";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
-// Tasks opens on My tasks; My team and All teams are tabs inside it.
+// Tasks opens on My tasks, with My team as a tab inside it.
 const MAIN: NavItem[] = [
   { href: "/my", label: "Tasks", icon: CheckSquare },
+  { href: "/tasks", label: "All teams", icon: LayoutList },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
   { href: "/activity", label: "Activity", icon: Activity },
 ];
@@ -45,17 +49,18 @@ const PLACEMENTS: NavItem = { href: "/placements", label: "Placements", icon: Im
 // Bottom bar on phones: the four things people open most.
 const MOBILE: NavItem[] = [
   { href: "/my", label: "Tasks", icon: CheckSquare },
-  { href: "/tasks/team", label: "My team", icon: Users },
+  { href: "/tasks", label: "All teams", icon: LayoutList },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
-  { href: "/activity", label: "Activity", icon: Activity },
 ];
 
 const under = (pathname: string, href: string) => pathname === href || pathname.startsWith(href + "/");
 
-function isActive(pathname: string, href: string, phone = false) {
+function isActive(pathname: string, href: string): boolean {
   if (href === "/admin") return pathname === href;
-  // Every task page sits under Tasks; on phones My team has its own tab.
-  if (href === "/my") return under(pathname, "/my") || under(pathname, "/overdue") || under(pathname, "/projects") || (under(pathname, "/tasks") && !(phone && under(pathname, "/tasks/team")));
+  // All teams is the list itself; task pages and My team sit under Tasks.
+  if (href === "/tasks") return pathname === "/tasks" || /^\/tasks\/(board|calendar)$/.test(pathname);
+  if (href === "/my") return under(pathname, "/my") || under(pathname, "/overdue") || (under(pathname, "/tasks") && !isActive(pathname, "/tasks"));
   return under(pathname, href);
 }
 
@@ -230,7 +235,7 @@ export function AppNav({
                 prefetch
                 className={cn(
                   "flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
-                  isActive(pathname, item.href, true) ? "font-semibold text-brand-primary" : "text-ink-muted",
+                  isActive(pathname, item.href) ? "font-semibold text-brand-primary" : "text-ink-muted",
                 )}
               >
                 <span className="relative">

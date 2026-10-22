@@ -2,19 +2,21 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import { FolderKanban, NotebookPen } from "lucide-react";
-import { PersonAvatar } from "@/components/person-avatar";
-import { DueLabel, PriorityBadge, StatusBadge, TagList } from "@/components/tasks/task-badges";
+import { StatusBadge, TagList } from "@/components/tasks/task-badges";
+import { InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
+import { getPeople } from "@/lib/auth";
 import { StatusSelect } from "@/components/tasks/status-select";
-import { OPEN_STATUSES, personName } from "@/lib/labels";
+import { OPEN_STATUSES } from "@/lib/labels";
 import { CompleteButton } from "@/components/tasks/complete-button";
 import { formatPKT, todayPKT } from "@/lib/time";
 import type { TaskListRow } from "@/lib/tasks/queries";
 
 /**
  * One list that works on phones and desktop: on phones each task is a card;
- * from md up it lines up as table columns.
+ * from md up it lines up as table columns. Owner, due date, priority and
+ * status change right in the row.
  */
-export function TaskList({
+export async function TaskList({
   tasks,
   showDepartment = true,
   showCompleted = false,
@@ -32,8 +34,10 @@ export function TaskList({
   /** Off on My tasks, where every task is yours. */
   showOwner?: boolean;
 }) {
+  const people = await getPeople();
   const cols = showOwner ? "md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem]" : "md:grid-cols-[7.5rem_minmax(0,1fr)_8rem_9rem]";
   return (
+    <PeopleProvider people={people}>
     <div className="overflow-hidden surface">
       <div className={cn("hidden gap-3 bg-subtle px-4 py-2.5 text-[13px] font-bold text-ink md:grid", cols)}>
         <span>Status</span>
@@ -48,6 +52,7 @@ export function TaskList({
         ))}
       </ul>
     </div>
+    </PeopleProvider>
   );
 }
 
@@ -123,29 +128,28 @@ function TaskListItem({
       {/* Phone: one compact row. Tick to finish; status shows only when it's not To do. */}
       <div className={cn("mt-2 flex flex-wrap items-center gap-2 md:hidden", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
         {t.status !== "todo" && <StatusBadge status={t.status} />}
-        <PriorityBadge priority={t.priority} />
-        <DueLabel date={t.due_date} time={t.due_time} overdue={t.overdue} />
+        <InlinePriority taskId={t.id} priority={t.priority} />
+        <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
         {showOwner && (
-          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-            <PersonAvatar person={t.owner} className="h-5 w-5" />
+          <span className="ml-auto">
+            <InlineOwner taskId={t.id} owner={t.owner} compact />
           </span>
         )}
       </div>
 
       {showOwner && (
-        <div className="hidden items-center gap-2 text-sm md:flex">
-          <PersonAvatar person={t.owner} />
-          <span className="truncate">{personName(t.owner)}</span>
+        <div className="hidden min-w-0 md:flex">
+          <InlineOwner taskId={t.id} owner={t.owner} />
         </div>
       )}
       <div className="hidden md:block">
-        <PriorityBadge priority={t.priority} />
+        <InlinePriority taskId={t.id} priority={t.priority} />
       </div>
       <div className="hidden md:block">
         {showCompleted ? (
           <span className="text-xs text-muted-foreground">{formatPKT(t.completed_at, "d MMM, h:mm a")}</span>
         ) : (
-          <DueLabel date={t.due_date} time={t.due_time} overdue={t.overdue} />
+          <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
         )}
       </div>
     </li>

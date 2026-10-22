@@ -21,7 +21,7 @@ export default async function NewTaskPage({
       <PageHeader
         breadcrumb={
           defaultProject
-            ? [{ label: "Tasks", href: "/my" }, { label: "Projects", href: "/projects" }, { label: defaultProject.name, href: `/projects/${defaultProject.slug}` }, "New task"]
+            ? [{ label: "Projects", href: "/projects" }, { label: defaultProject.name, href: `/projects/${defaultProject.slug}` }, "New task"]
             : [{ label: "Tasks", href: "/my" }, "New task"]
         }
         title="New task"

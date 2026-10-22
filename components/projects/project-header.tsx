@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { differenceInCalendarDays } from "date-fns";
 import { Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
@@ -8,14 +7,13 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { QuickAdd } from "@/components/tasks/quick-add";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskTabs } from "@/components/tasks/task-tabs";
-import { getDepartments, getPeople, requireViewer } from "@/lib/auth";
-import { KIND_LABELS, PROJECT_COLUMNS, canManageProject, getProjectMembers, membersByProject } from "@/lib/projects";
+import { getPeople, requireViewer } from "@/lib/auth";
+import { KIND_LABELS, PROJECT_COLUMNS, canManageProject, datesText, getProjectMembers, getTeamNames, homeTeamFor, membersByProject, toProject } from "@/lib/projects";
 import { createClient } from "@/lib/supabase/server";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { filtersToSearch, parseFilters, type TaskFilters } from "@/lib/tasks/filters";
 import type { TaskView } from "@/lib/tasks/scope";
-import { formatDate, parseISODate, todayPKT } from "@/lib/time";
-import type { Project } from "@/lib/types";
+import { todayPKT } from "@/lib/time";
 
 type Raw = Record<string, string | string[] | undefined>;
 
@@ -26,11 +24,11 @@ export async function loadProject(slug: string, raw: Raw) {
     requireViewer(),
     supabase.from("projects").select(PROJECT_COLUMNS).eq("slug", slug).maybeSingle(),
     getProjectMembers(),
-    getDepartments(),
+    getTeamNames(),
     getPeople(),
   ]);
   if (!data) notFound();
-  const project = data as Project;
+  const project = toProject(data as unknown as Parameters<typeof toProject>[0]);
   const memberIds = (await membersByProject([project]))[project.id] ?? [];
   const filters: TaskFilters = { ...parseFilters(raw), project: [project.slug] };
   return {
@@ -38,7 +36,7 @@ export async function loadProject(slug: string, raw: Raw) {
     project,
     filters,
     base: `/projects/${project.slug}` as const,
-    team: departments.find((d) => d.id === project.department_id) ?? null,
+    teams: departments.filter((d) => project.team_ids.includes(d.id)),
     members: people.filter((p) => memberIds.includes(p.id)),
     canManage: canManageProject(viewer, project, named),
   };
@@ -46,35 +44,30 @@ export async function loadProject(slug: string, raw: Raw) {
 
 type Loaded = Awaited<ReturnType<typeof loadProject>>;
 
-export function launchText(date: string | null, kind: Project["kind"]): string | null {
-  if (!date) return null;
-  const days = differenceInCalendarDays(parseISODate(date), parseISODate(todayPKT()));
-  const verb = kind === "campaign" ? "Goes live" : "Launches";
-  const when = formatDate(date, "d MMM");
-  if (days === 0) return `${verb} today`;
-  if (days === 1) return `${verb} tomorrow · ${when}`;
-  if (days > 1) return `${verb} ${when} · in ${days} days`;
-  return `${kind === "campaign" ? "Went live" : "Launched"} ${when}`;
+/** "Brand + Design", or "Across teams" when it's just people picked by name. */
+export function teamsText(names: string[]): string {
+  if (!names.length) return "Across teams";
+  return names.length <= 3 ? names.join(" + ") : `${names.slice(0, 2).join(" + ")} + ${names.length - 2} more`;
 }
 
 export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; view: TaskView; month?: string }) {
-  const { project, filters, base, team, members, canManage, viewer } = loaded;
+  const { project, filters, base, teams, members, canManage, viewer } = loaded;
   const options = await getFilterOptions();
   const search = filtersToSearch({ ...filters, project: [], ...(view === "board" ? { status: [] } : {}) });
-  const launch = launchText(project.launch_date, project.kind);
+  const dates = datesText(project, todayPKT());
   // Add tasks into the project's team when you're in it.
-  const quickDept = project.department_id && (viewer.isAdmin || viewer.memberDeptIds.includes(project.department_id)) ? project.department_id : null;
+  const quickDept = homeTeamFor(viewer, project);
   return (
     <>
       <PageHeader
-        breadcrumb={[{ label: "Tasks", href: "/my" }, { label: "Projects", href: "/projects" }, project.name]}
+        breadcrumb={[{ label: "Projects", href: "/projects" }, project.name]}
         title={project.name}
         description={
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="rounded-full bg-subtle px-2 py-0.5 text-xs font-semibold text-ink">{KIND_LABELS[project.kind]}</span>
             {project.archived && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-ink">Archived</span>}
-            {launch && <span className="font-semibold text-brand-primary">{launch}</span>}
-            <span>{team ? `${team.name} team` : "Across teams"}</span>
+            {dates && <span className="font-semibold text-brand-primary">{dates}</span>}
+            <span>{teamsText(teams.map((t) => t.name))}</span>
             <span className="flex items-center -space-x-1.5" title={members.map((m) => m.full_name || m.email).join(", ")}>
               {members.slice(0, 6).map((m) => (
                 <PersonAvatar key={m.id} person={m} className="h-6 w-6 ring-2 ring-white" />
