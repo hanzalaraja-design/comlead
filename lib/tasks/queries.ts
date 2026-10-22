@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
+import { whenRanges } from "@/lib/tasks/when";
 import { addDaysISO, startOfDayPKT } from "@/lib/time";
 import type { TaskRow } from "@/lib/types";
 import type { TaskFilters } from "./filters";
@@ -39,13 +40,32 @@ export async function fetchTasks(
   if (filters.priority.length) q = q.in("priority", filters.priority);
   if (filters.source.length) q = q.in("source", filters.source);
 
+  // OR-groups are collected and applied once at the end (PostgREST takes a single "or").
+  const orGroups: string[] = [];
   if (filters.owner.length) {
     const ids = filters.owner.map((o) => (o === "me" ? ctx.viewerId : o)).filter((o) => o !== "none");
     const wantsNone = filters.owner.includes("none");
-    if (wantsNone && ids.length) q = q.or(`owner_id.is.null,owner_id.in.(${ids.join(",")})`);
+    if (wantsNone && ids.length) orGroups.push(`owner_id.is.null,owner_id.in.(${ids.join(",")})`);
     else if (wantsNone) q = q.is("owner_id", null);
     else q = q.in("owner_id", ids);
   }
+
+  // When: open tasks by due date, finished ones by the day they were completed.
+  const ranges = whenRanges(filters.when);
+  if (ranges) {
+    const due = ranges.map((r) => `and(due_date.gte.${r.from},due_date.lte.${r.to})`).join(",");
+    const done = ranges
+      .map((r) => `and(completed_at.gte."${startOfDayPKT(r.from)}",completed_at.lt."${startOfDayPKT(addDaysISO(r.to, 1))}")`)
+      .join(",");
+    const statuses = filters.status === "all" ? null : filters.status.length ? filters.status : OPEN_STATUSES;
+    const onlyDone = statuses?.every((s) => s === "done");
+    const onlyOpen = statuses?.every((s) => s !== "done");
+    if (onlyDone) orGroups.push(done);
+    else if (onlyOpen) orGroups.push(due);
+    else orGroups.push(`and(status.neq.done,or(${due})),and(status.eq.done,or(${done}))`);
+  }
+  if (orGroups.length === 1) q = q.or(orGroups[0]);
+  else if (orGroups.length > 1) q = q.or(`and(${orGroups.map((g) => `or(${g})`).join(",")})`);
 
   if (filters.dept.length) q = q.in("dept_filter.slug", filters.dept);
   if (filters.meeting) q = q.eq("meeting_id", filters.meeting);

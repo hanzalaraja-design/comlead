@@ -10,7 +10,10 @@ import { MarkMentionsRead } from "@/components/my/mention-buttons";
 import { getDepartments, getPeople, isMemberOf, requireViewer, viewerId } from "@/lib/auth";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
-import { parseFilters } from "@/lib/tasks/filters";
+import { countActiveFilters, filtersToSearch, parseFilters, type TaskFilters } from "@/lib/tasks/filters";
+import { getFilterOptions } from "@/lib/tasks/filter-options";
+import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
+import { TaskTabs } from "@/components/tasks/task-tabs";
 import { TASK_SELECT, comparePriority, fetchTasks, type TaskListRow } from "@/lib/tasks/queries";
 import { addDaysISO, formatDate, formatPKT, todayPKT, weekEndPKT } from "@/lib/time";
 import { clearedLine, emptyLine, todayLine } from "@/lib/voice";
@@ -44,16 +47,19 @@ type Mention = {
   comment: { body: string } | null;
 };
 
-export default async function MyTasksPage() {
-  const [id, supabase] = await Promise.all([viewerId(), createClient()]);
+export default async function MyTasksPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [id, supabase, raw] = await Promise.all([viewerId(), createClient(), searchParams]);
+  // Yours, always; the filter bar narrows it further.
+  const filters: TaskFilters = { ...parseFilters(raw), owner: ["me"] };
+  const filtered = countActiveFilters({ ...filters, owner: [] }) > 0;
   const today = todayPKT();
   const weekEnd = weekEndPKT();
 
   // Everything at once: no query here waits for another.
-  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, people, done] = await Promise.all([
+  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, people, done, options] = await Promise.all([
     requireViewer(),
     getDepartments(),
-    fetchTasks(parseFilters({ owner: "me", sort: "due" }), { viewerId: id }),
+    fetchTasks({ ...filters, sort: "due", dir: "asc" }, { viewerId: id }),
     // Open tasks I'm a collaborator on but don't own.
     supabase
       .from("tasks")
@@ -70,11 +76,15 @@ export default async function MyTasksPage() {
       .order("created_at", { ascending: false })
       .limit(15),
     getPeople(),
-    // Done in the last two weeks, newest first.
+    // Done: the dates picked in When, or the last 30 days. Newest first.
     fetchTasks(
-      { ...parseFilters({ owner: "me" }), status: ["done"], completed_from: addDaysISO(today, -14), sort: "completed", dir: "desc" },
+      filters.when.length
+        ? { ...filters, status: ["done"], sort: "completed", dir: "desc" }
+        : { ...filters, status: ["done"], completed_from: addDaysISO(today, -29), sort: "completed", dir: "desc" },
       { viewerId: id },
+      200,
     ),
+    getFilterOptions(),
   ]);
 
   const collaborating = (collabRes.data ?? []) as unknown as TaskListRow[];
@@ -100,10 +110,11 @@ export default async function MyTasksPage() {
         title="My tasks"
         description={formatDate(today, "EEEE d MMMM")}
       />
-      <CelebrateWhenCleared remaining={overdue + dueToday} line={clearedLine(today + viewer.id)} />
+      <TaskTabs scope="my" view="list" search={filtersToSearch({ ...filters, owner: [] })} />
+      {!filtered && <CelebrateWhenCleared remaining={overdue + dueToday} line={clearedLine(today + viewer.id)} />}
 
-      {/* Today at a glance */}
-      <div
+      {/* Today at a glance (only when nothing is filtered, so the counts are the whole picture) */}
+      {!filtered && <div
         className={cn(
           "mb-4 flex items-center gap-3 rounded-[20px] px-4 py-3 text-[15px] font-medium",
           state.tone === "bad" ? "bg-danger-soft text-danger-ink" : "bg-success-soft text-success-ink",
@@ -111,15 +122,16 @@ export default async function MyTasksPage() {
       >
         {state.tone === "bad" ? <TriangleAlert className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
         <span className="flex-1">{state.text}</span>
-        <Link href="/tasks?owner=me&status=done&sort=completed&dir=desc" className="shrink-0 text-sm font-medium underline-offset-2 hover:underline">
+        <Link href="/my?status=done&sort=completed&dir=desc&when=all" className="shrink-0 text-sm font-medium underline-offset-2 hover:underline">
           Completed
         </Link>
-      </div>
+      </div>}
 
       <div className="mb-6">
         <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} allowPrivate />
       </div>
 
+      <TaskFilterBar filters={filters} options={options} hide={["owner", "sort"]} />
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       <div className="space-y-8">
@@ -182,7 +194,7 @@ export default async function MyTasksPage() {
                         {items.length}
                       </span>
                     </h3>
-                    <TaskList tasks={items} showOwner={false} />
+                    <TaskList tasks={items} showOwner={false} from="my" />
                   </div>
                 );
               })}
@@ -195,11 +207,11 @@ export default async function MyTasksPage() {
             <summary className="kicker mb-2 flex cursor-pointer list-none items-center gap-2 text-ink [&::-webkit-details-marker]:hidden">
               <CheckCircle2 className="h-4 w-4 text-success" /> Completed
               <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs text-success-ink">{done.tasks.length}</span>
-              <span className="text-xs font-normal normal-case tracking-normal text-ink-muted">last 2 weeks</span>
+              <span className="text-xs font-normal normal-case tracking-normal text-ink-muted">{filters.when.length ? "in the dates you picked" : "last 30 days"}</span>
               <ChevronDown className="ml-auto h-4 w-4 transition-transform group-open:rotate-180" />
             </summary>
-            <TaskList tasks={done.tasks} showOwner={false} showCompleted />
-            <Link href="/tasks?owner=me&status=done&sort=completed&dir=desc" className="mt-2 inline-block text-sm font-medium text-brand-primary hover:underline">
+            <TaskList tasks={done.tasks} showOwner={false} showCompleted from="my" />
+            <Link href="/my?status=done&sort=completed&dir=desc&when=all" className="mt-2 inline-block text-sm font-medium text-brand-primary hover:underline">
               See everything you&apos;ve completed
             </Link>
           </details>
@@ -211,7 +223,7 @@ export default async function MyTasksPage() {
               <Users className="h-4 w-4" /> I&apos;m collaborating on
               <span className="rounded-full bg-subtle px-2 py-0.5 text-xs text-ink">{collaborating.length}</span>
             </h2>
-            <TaskList tasks={collaborating} />
+            <TaskList tasks={collaborating} from="my" />
           </section>
         )}
       </div>

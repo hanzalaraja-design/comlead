@@ -18,6 +18,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTaskFormData } from "@/lib/tasks/form-data";
 import { TASK_SELECT, type TaskListRow } from "@/lib/tasks/queries";
 import { formatDate, formatPKT } from "@/lib/time";
+import { isTaskFrom, taskHref, taskTrail } from "@/lib/tasks/scope";
 import type { ActivityEntry, PersonRef, TaskStatus } from "@/lib/types";
 
 export default async function TaskPage({
@@ -25,9 +26,10 @@ export default async function TaskPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{ edit?: string; from?: string }>;
 }) {
-  const [{ id }, { edit }] = await Promise.all([params, searchParams]);
+  const [{ id }, { edit, from: fromParam }] = await Promise.all([params, searchParams]);
+  const from = isTaskFrom(fromParam) ? fromParam : undefined;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
   const viewer = await requireViewer();
@@ -89,7 +91,7 @@ export default async function TaskPage({
     return (
       <div className="mx-auto max-w-2xl">
         <PageHeader
-          breadcrumb={[{ label: "Tasks", href: "/tasks" }, { label: task.title, href: `/tasks/${id}` }, "Edit"]}
+          breadcrumb={[{ label: "Tasks", href: "/my" }, { label: task.title, href: taskHref(id, from) }, "Edit"]}
           title="Edit task"
         />
         <div className="card-outlined p-4 md:p-6">
@@ -112,17 +114,13 @@ export default async function TaskPage({
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader
-        breadcrumb={[
-          { label: "Tasks", href: "/tasks" },
-          ...(task.department ? [{ label: task.department.name, href: `/departments/${task.department.slug}` }] : []),
-          "Task",
-        ]}
+        breadcrumb={[...taskTrail(from, task, personName(task.owner)), shortTitle(task.title)]}
         title={task.title}
         actions={
           <>
             {canEdit && (
               <Button asChild variant="outline" size="sm">
-                <Link href={`/tasks/${id}?edit=1`}>
+                <Link href={`/tasks/${id}?edit=1${from ? `&from=${from}` : ""}`}>
                   <Pencil className="h-4 w-4" /> Edit
                 </Link>
               </Button>
@@ -276,3 +274,5 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
     </div>
   );
 }
+
+const shortTitle = (t: string) => (t.length > 40 ? `${t.slice(0, 38).trimEnd()}…` : t);

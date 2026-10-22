@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { statusLabel } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import type { TaskStatus } from "@/lib/types";
 import type { TaskListRow } from "@/lib/tasks/queries";
 import { setTaskStatus } from "@/app/(app)/tasks/actions";
@@ -22,10 +23,12 @@ export function KanbanBoard({
   tasks: initial,
   canEdit,
   showDepartment = false,
+  from,
 }: {
   tasks: TaskListRow[];
   canEdit: boolean;
   showDepartment?: boolean;
+  from?: TaskFrom;
 }) {
   const [tasks, setTasks] = useState(initial);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -155,7 +158,7 @@ export function KanbanBoard({
                       dragId === t.id && "opacity-50",
                     )}
                   >
-                    <Link href={`/tasks/${t.id}`} className="block text-sm font-medium leading-snug after:absolute after:inset-0">
+                    <Link href={taskHref(t.id, from)} className="block text-sm font-medium leading-snug after:absolute after:inset-0">
                       {t.title}
                     </Link>
                     {showDepartment && t.department && (

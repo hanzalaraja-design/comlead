@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { PRIORITIES, SOURCES, STATUSES } from "@/lib/labels";
 import { SORTS, countActiveFilters, filtersToSearch, type SortKey, type TaskFilters } from "@/lib/tasks/filters";
 import { cn } from "@/lib/utils";
+import { WHEN, type WhenKey } from "@/lib/tasks/when";
 import type { TaskPriority, TaskSource, TaskStatus } from "@/lib/types";
 
 export type FilterOptions = {
@@ -30,7 +31,7 @@ export function TaskFilterBar({
   filters: TaskFilters;
   options: FilterOptions;
   /** Filters fixed by the page (e.g. the department board hides "dept"). */
-  hide?: ("dept" | "owner" | "status" | "sort" | "overdue")[];
+  hide?: ("dept" | "owner" | "status" | "sort" | "overdue" | "when")[];
   /** Extra query params the page needs kept (e.g. the calendar month). */
   preserve?: Record<string, string>;
 }) {
@@ -112,6 +113,14 @@ export function TaskFilterBar({
           >
             Completed
           </button>
+        )}
+        {!hide.includes("when") && (
+          <MultiSelect
+            label="When"
+            options={WHEN.map((w) => ({ value: w.value, label: w.label }))}
+            value={filters.when}
+            onChange={(v) => apply({ when: v.includes("all") && !filters.when.includes("all") ? ["all"] : (v.filter((x) => x !== "all" || v.length === 1) as WhenKey[]) })}
+          />
         )}
         {!hide.includes("overdue") && (
           <button
