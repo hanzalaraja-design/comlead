@@ -11,7 +11,7 @@ import { canLead, getDepartmentMembers, getDepartments, getPeople, requireViewer
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { isAiConfigured } from "@/lib/ai/claude";
-import { TASK_SELECT, type TaskListRow } from "@/lib/tasks/queries";
+import { withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
 import { formatDate, formatPKT, formatTime } from "@/lib/time";
 import type { Meeting } from "@/lib/types";
 
@@ -36,7 +36,7 @@ export default async function MeetingPage({
     getPeople(),
     getDepartmentMembers(),
     supabase.from("meeting_attendees").select("user_id").eq("meeting_id", id),
-    supabase.from("tasks").select(TASK_SELECT).eq("meeting_id", id).order("created_at"),
+    withTaskSelect((select) => supabase.from("tasks").select(select).eq("meeting_id", id).order("created_at")),
     // Carry forward: the department's previous meeting.
     supabase
       .from("meetings")
@@ -57,7 +57,7 @@ export default async function MeetingPage({
 
   let prevItems: TaskListRow[] = [];
   if (prev) {
-    const { data } = await supabase.from("tasks").select(TASK_SELECT).eq("meeting_id", prev.id).order("created_at");
+    const { data } = await withTaskSelect((select) => supabase.from("tasks").select(select).eq("meeting_id", prev.id).order("created_at"));
     prevItems = (data ?? []) as unknown as TaskListRow[];
   }
 

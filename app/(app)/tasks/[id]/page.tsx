@@ -6,7 +6,7 @@ import { SubtaskSection } from "@/components/tasks/subtasks";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
-import { DueLabel, PriorityBadge, StatusBadge, TagList } from "@/components/tasks/task-badges";
+import { DueLabel, MeetingTag, PriorityBadge, ProjectTag, StatusBadge, TagList } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
@@ -17,7 +17,7 @@ import { describeActivity } from "@/lib/activity";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { getTaskFormData } from "@/lib/tasks/form-data";
-import { TASK_SELECT, type TaskListRow } from "@/lib/tasks/queries";
+import { TASK_SELECT, withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
 import { formatDate, formatPKT } from "@/lib/time";
 import { isTaskFrom, taskHref, taskTrail } from "@/lib/tasks/scope";
 import type { ActivityEntry, PersonRef, TaskStatus } from "@/lib/types";
@@ -36,7 +36,7 @@ export default async function TaskPage({
   const viewer = await requireViewer();
   const supabase = await createClient();
 
-  const { data: taskData } = await supabase.from("tasks").select(TASK_SELECT).eq("id", id).maybeSingle();
+  const { data: taskData } = await withTaskSelect((select) => supabase.from("tasks").select(select).eq("id", id).maybeSingle());
   if (!taskData) notFound();
   const task = taskData as unknown as TaskListRow;
 
@@ -63,7 +63,7 @@ export default async function TaskPage({
     // "Needed from others": soonest first, finished last.
     task.parent_task_id
       ? Promise.resolve({ data: [] })
-      : supabase.from("tasks").select(TASK_SELECT).eq("parent_task_id", id).order("due_date", { ascending: true, nullsFirst: false }).order("created_at"),
+      : supabase.from("tasks").select(TASK_SELECT).eq("parent_task_id", id).order("due_date", { ascending: true, nullsFirst: false }).order("created_at").then((r) => (r.error ? { data: [] } : r)),
   ]);
   const subtasks = ((subtasksRes.data ?? []) as unknown as TaskListRow[]).sort((a, b) => Number(a.status === "done") - Number(b.status === "done"));
   // Everyone who got this same task, when it was given to several people at once.
@@ -96,7 +96,8 @@ export default async function TaskPage({
   const canEdit = isLead || isOwner || isCollaborator || isCreator || isMeetingEditor || inProject || editsParent;
   const canContribute = isMemberOf(viewer, task.department_id) || isOwner || isCollaborator || inProject;
   const canDelete = isLead || managesProject || editsParent || (isCreator && (!task.owner_id || isOwner));
-  const canReassign = isLead || isOwner || !task.owner_id || isMeetingEditor || inProject || editsParent;
+  // Anyone who can edit a task can hand it to anyone.
+  const canReassign = canEdit;
 
   if (edit && canEdit) {
     const formData = await getTaskFormData(viewer, task.department_id ?? undefined, task.project_id ?? undefined);
@@ -136,6 +137,22 @@ export default async function TaskPage({
           shortTitle(task.title),
         ]}
         title={task.title}
+        description={
+          (task.project || task.meeting) && (
+            <span className="mt-1 flex flex-wrap gap-2">
+              {task.project && (
+                <Link href={`/projects/${task.project.slug}`} className="max-w-full hover:opacity-80">
+                  <ProjectTag name={task.project.name} prefix="Project" size="md" />
+                </Link>
+              )}
+              {task.meeting && (
+                <Link href={`/meetings/${task.meeting.id}`} className="max-w-full hover:opacity-80">
+                  <MeetingTag title={task.meeting.title} date={task.meeting.meeting_date} prefix="From meeting" size="md" />
+                </Link>
+              )}
+            </span>
+          )
+        }
         actions={
           <>
             {canEdit && (
@@ -275,6 +292,15 @@ export default async function TaskPage({
               <PersonAvatar person={task.owner} /> {personName(task.owner)}
             </span>
           </Detail>
+          {task.owner_id && task.assigned_by && (
+            <Detail label="Assigned by">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <PersonAvatar person={person(task.assigned_by)} />
+                {task.assigned_by === task.owner_id ? "Themselves" : personName(person(task.assigned_by))}
+                {task.assigned_at && <span className="text-ink-muted">· {formatPKT(task.assigned_at, "d MMM")}</span>}
+              </span>
+            </Detail>
+          )}
           {collaboratorIds.length > 0 && (
             <Detail label="Collaborators">
               <ul className="space-y-1">
@@ -296,7 +322,8 @@ export default async function TaskPage({
           )}
           {!task.parent && (task.department || !task.project) && (
             <Detail label="Team">
-              {task.department?.name ?? "Private"}
+              {task.department?.name ??
+                (task.owner_id && task.owner_id !== task.created_by ? "None, a direct task" : "Private")}
             </Detail>
           )}
           {task.meeting && (

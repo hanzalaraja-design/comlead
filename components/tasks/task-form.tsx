@@ -63,23 +63,23 @@ export function TaskForm(props: TaskFormProps) {
       ? task.department_id ?? PRIVATE
       : props.defaultDepartmentId ?? (props.defaultProjectId ? projectTeam(props.defaultProjectId) : PRIVATE),
   );
-  const isPrivate = departmentId === PRIVATE && !projectId;
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo");
   const [dueDate, setDueDate] = useState(task?.due_date ?? "");
   const [collaborators, setCollaborators] = useState<string[]>(props.collaboratorIds ?? []);
   // New team tasks can go to several people at once: one task each.
   const [owners, setOwners] = useState<string[]>(props.defaultOwnerId ? [props.defaultOwnerId] : []);
-  const pickOwners = !task && !isPrivate;
+  // Anyone can give a new task to anyone, several at once: one task each.
+  const pickOwners = !task;
   const [drafts, setDrafts] = useState<SubtaskDraft[]>([]);
+  const forOthers = pickOwners ? owners.some((o) => o !== props.defaultOwnerId) : !!task?.owner_id && task.owner_id !== task.created_by;
   // The extras stay folded away unless the task already uses them.
   const [more, setMore] = useState(
     !!task && !!(task.description || task.tags.length || task.due_time || (props.collaboratorIds ?? []).length),
   );
 
-  const ownerIds = new Set([...(props.membersByDept[departmentId] ?? []), ...(props.membersByProject?.[projectId] ?? [])]);
-  if (task?.owner_id) ownerIds.add(task.owner_id);
-  if (props.defaultOwnerId) ownerIds.add(props.defaultOwnerId);
-  const ownerOptions = props.people.filter((p) => ownerIds.has(p.id));
+  // Everyone can be given a task; people in the team or project come first.
+  const near = new Set([...(props.membersByDept[departmentId] ?? []), ...(props.membersByProject?.[projectId] ?? [])]);
+  const ownerOptions = [...props.people].sort((a, b) => Number(near.has(b.id)) - Number(near.has(a.id)));
   const pickDepartment = !props.isSubtask && (props.departments.length > 1 || offerNoTeam) && (!task || props.canMove || offerNoTeam);
 
   function onSubmit(formData: FormData) {
@@ -151,10 +151,9 @@ export function TaskForm(props: TaskFormProps) {
             name="owner_id"
             className={selectClass}
             defaultValue={task ? task.owner_id ?? "" : props.defaultOwnerId ?? ""}
-            disabled={(!!task && !props.canReassign) || isPrivate}
-            key={isPrivate ? "private" : "team"}
+            disabled={!!task && !props.canReassign}
           >
-            {isPrivate ? <option value="">You</option> : <option value="">Unassigned</option>}
+            <option value="">Unassigned</option>
             {ownerOptions.map((p) => (
               <option key={p.id} value={p.id}>
                 {personName(p)}
@@ -186,7 +185,11 @@ export function TaskForm(props: TaskFormProps) {
           <div className="space-y-1.5">
             <Label htmlFor="department_id">Team</Label>
             <select id="department_id" name="department_id" className={selectClass} value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-              {offerNoTeam && <option value={PRIVATE}>{projectId ? "No team (just the project)" : "Private (only you)"}</option>}
+              {offerNoTeam && (
+                <option value={PRIVATE}>
+                  {projectId ? "No team (just the project)" : forOthers ? "No team (just you and them)" : "Private (only you)"}
+                </option>
+              )}
               {props.departments.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}

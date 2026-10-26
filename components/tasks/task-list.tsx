@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
-import { CornerDownRight, FolderKanban, ListChecks, NotebookPen } from "lucide-react";
-import { StatusBadge, TagList } from "@/components/tasks/task-badges";
+import { CornerDownRight, ListChecks } from "lucide-react";
+import { MeetingTag, ProjectTag, StatusBadge, TagList } from "@/components/tasks/task-badges";
 import { InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
 import { getPeople } from "@/lib/auth";
 import { StatusSelect } from "@/components/tasks/status-select";
-import { OPEN_STATUSES } from "@/lib/labels";
+import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { CompleteButton } from "@/components/tasks/complete-button";
 import { formatPKT, todayPKT } from "@/lib/time";
 import type { TaskListRow } from "@/lib/tasks/queries";
@@ -35,6 +35,9 @@ export async function TaskList({
   showOwner?: boolean;
 }) {
   const people = await getPeople();
+  const names = new Map(people.map((p) => [p.id, personName(p)]));
+  // Who handed it over, when that wasn't the owner themselves.
+  const byName = (t: TaskListRow) => (t.assigned_by && t.assigned_by !== t.owner_id ? names.get(t.assigned_by) : undefined);
   const cols = showOwner ? "md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem]" : "md:grid-cols-[7.5rem_minmax(0,1fr)_8rem_9rem]";
   return (
     <PeopleProvider people={people}>
@@ -48,7 +51,7 @@ export async function TaskList({
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} showProject={showProject} />
+          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} showProject={showProject} assignedBy={byName(t)} />
         ))}
       </ul>
     </div>
@@ -64,9 +67,11 @@ function TaskListItem({
   cols,
   from,
   showProject,
+  assignedBy,
 }: {
   task: TaskListRow;
   showProject: boolean;
+  assignedBy?: string;
   showDepartment: boolean;
   showCompleted: boolean;
   showOwner: boolean;
@@ -102,7 +107,12 @@ function TaskListItem({
           </Link>
         </div>
         <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
-          {!t.department_id && !t.project_id && !t.parent_task_id && <span className="font-medium text-brand-primary">Private</span>}
+          {showProject && t.project && <ProjectTag name={t.project.name} />}
+          {t.meeting && <MeetingTag title={t.meeting.title} date={t.meeting.meeting_date} />}
+          {showDepartment && t.department && <span>{t.department.name}</span>}
+          {!t.department_id && !t.project_id && !t.parent_task_id && (!t.owner_id || t.owner_id === t.created_by) && (
+            <span className="font-medium text-brand-primary">Private</span>
+          )}
           {t.parent && (
             <span className="inline-flex min-w-0 items-center gap-1 font-medium text-ink">
               <CornerDownRight className="h-3 w-3 shrink-0" /> <span className="truncate">For: {t.parent.title}</span>
@@ -114,21 +124,6 @@ function TaskListItem({
               title={`${t.subtasks.filter((s) => s.status === "done").length} of ${t.subtasks.length} subtasks done`}
             >
               <ListChecks className="h-3 w-3" /> {t.subtasks.filter((s) => s.status === "done").length}/{t.subtasks.length}
-            </span>
-          )}
-          {showProject && t.project && (
-            <span className="inline-flex items-center gap-1 font-medium text-ink">
-              <FolderKanban className="h-3 w-3" /> {t.project.name}
-            </span>
-          )}
-          {showDepartment && t.department && (
-            <span>
-              {t.department.name}
-            </span>
-          )}
-          {t.meeting && (
-            <span className="inline-flex items-center gap-1">
-              <NotebookPen className="h-3 w-3" /> From meeting
             </span>
           )}
           {t.status === "blocked" && t.blocked_reason && (
@@ -143,6 +138,7 @@ function TaskListItem({
         {t.status !== "todo" && <StatusBadge status={t.status} />}
         <InlinePriority taskId={t.id} priority={t.priority} />
         <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
+        {assignedBy && <span className="text-xs text-muted-foreground">from {assignedBy}</span>}
         {showOwner && (
           <span className="ml-auto">
             <InlineOwner taskId={t.id} owner={t.owner} compact />

@@ -78,18 +78,12 @@ function readTaskForm(formData: FormData) {
   });
 }
 
-/**
- * Private tasks (no team, no project) always belong to whoever saves them.
- * Only team tasks sit in a meeting.
- */
-function shape<T extends { department_id: string | null; project_id: string | null; owner_id: string | null; meeting_id: string | null }>(
-  v: T,
-  viewerId: string,
-  isSubtask = false,
-): T {
+/** Only team tasks sit in a meeting; a subtask stays with its main task, outside any team or project. */
+function shape<T extends { department_id: string | null; project_id: string | null; meeting_id: string | null }>(v: T, isSubtask = false): T {
   if (v.department_id) return v;
   if (isSubtask) return { ...v, department_id: null, project_id: null, meeting_id: null };
-  return v.project_id ? { ...v, meeting_id: null } : { ...v, owner_id: viewerId, meeting_id: null };
+  // No team: yours (private) or someone else's (a direct task from you).
+  return { ...v, meeting_id: null };
 }
 
 function revalidateTaskViews(taskId?: string) {
@@ -101,9 +95,9 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
   const viewer = await requireViewer();
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
-  const v = shape(parsed.data, viewer.id);
+  const v = shape(parsed.data);
   // Several owners: everyone gets their own task, so each can tick it off.
-  const owners = (v.department_id || v.project_id) && v.owner_ids.length ? [...new Set(v.owner_ids)] : [v.owner_id];
+  const owners = v.owner_ids.length ? [...new Set(v.owner_ids)] : [v.owner_id];
   const setId = owners.length > 1 ? crypto.randomUUID() : null;
 
   const supabase = await createClient();
@@ -162,7 +156,7 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
   if (!uuid.safeParse(taskId).success) return { ok: false, error: "Invalid task" };
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
-  const v = shape(parsed.data, viewer.id, formData.get("subtask") === "1");
+  const v = shape(parsed.data, formData.get("subtask") === "1");
 
   const supabase = await createClient();
   const before = await closingWithOpenSubtasks(supabase, taskId, v.status, formData.get("subtasks"));

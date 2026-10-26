@@ -14,7 +14,7 @@ import { countActiveFilters, filtersToSearch, parseFilters, type TaskFilters } f
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskTabs } from "@/components/tasks/task-tabs";
-import { TASK_SELECT, comparePriority, fetchTasks, type TaskListRow } from "@/lib/tasks/queries";
+import { comparePriority, fetchTasks, withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
 import { addDaysISO, formatDate, formatPKT, todayPKT, weekEndPKT } from "@/lib/time";
 import { clearedLine, emptyLine, todayLine } from "@/lib/voice";
 
@@ -61,14 +61,16 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     getDepartments(),
     fetchTasks({ ...filters, sort: "due", dir: "asc" }, { viewerId: id }),
     // Open tasks I'm a collaborator on but don't own.
-    supabase
-      .from("tasks")
-      .select(`${TASK_SELECT}, me:task_collaborators!inner(user_id)`)
-      .eq("me.user_id", id)
-      .in("status", OPEN_STATUSES)
-      .or(`owner_id.is.null,owner_id.neq.${id}`)
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .limit(100),
+    withTaskSelect((select) =>
+      supabase
+        .from("tasks")
+        .select(`${select}, me:task_collaborators!inner(user_id)`)
+        .eq("me.user_id", id)
+        .in("status", OPEN_STATUSES)
+        .or(`owner_id.is.null,owner_id.neq.${id}`)
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(100),
+    ),
     supabase
       .from("task_mentions")
       .select("id, created_at, seen_at, mentioned_by, task:tasks(id, title), comment:task_comments(body)")

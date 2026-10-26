@@ -60,6 +60,9 @@ export type Task = {
   project_id?: string | null;
   /** Set on a subtask: the task it's part of. */
   parent_task_id?: string | null;
+  /** Who gave it to its owner, and when. Set automatically. */
+  assigned_by?: string | null;
+  assigned_at?: string | null;
 };
 
 /** Task row with the joins used by list views. */

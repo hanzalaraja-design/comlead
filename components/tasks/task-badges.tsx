@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { PRIORITY_STYLES, STATUS_STYLES, priorityLabel, statusLabel } from "@/lib/labels";
-import { addDaysISO, formatDue, todayPKT } from "@/lib/time";
+import { addDaysISO, formatDate, formatDue, todayPKT } from "@/lib/time";
 import type { TaskPriority, TaskStatus } from "@/lib/types";
 
 export function StatusBadge({ status, className }: { status: TaskStatus; className?: string }) {
@@ -60,6 +60,66 @@ export function TagList({ tags }: { tags: string[] }) {
           #{t}
         </span>
       ))}
+    </span>
+  );
+}
+
+/*
+ * Where a task comes from, as small tinted tags: purple for a project,
+ * blue for a meeting. The team stays plain grey text beside them.
+ */
+const TAG = "inline-flex max-w-full items-center gap-1.5 rounded-md font-semibold";
+const TAG_SIZE = { sm: "h-[22px] px-2 text-xs", md: "h-7 px-2.5 text-[13px]" } as const;
+
+function FolderIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={cn("shrink-0", className)}>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  );
+}
+
+function CalendarIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={cn("shrink-0", className)}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M16 3v4M8 3v4M3 11h18" />
+    </svg>
+  );
+}
+
+export function ProjectTag({ name, prefix, size = "sm", className }: { name: string; prefix?: string; size?: "sm" | "md"; className?: string }) {
+  return (
+    <span className={cn(TAG, TAG_SIZE[size], "bg-[#F3E6F6] text-[#6A1578]", className)}>
+      <FolderIcon className={size === "md" ? "h-3.5 w-3.5" : "h-3 w-3"} />
+      <span className="truncate">
+        {prefix && `${prefix} · `}
+        {name}
+      </span>
+    </span>
+  );
+}
+
+export function MeetingTag({
+  title,
+  date,
+  prefix,
+  size = "sm",
+  className,
+}: {
+  title: string | null;
+  date: string;
+  prefix?: string;
+  size?: "sm" | "md";
+  className?: string;
+}) {
+  return (
+    <span className={cn(TAG, TAG_SIZE[size], "bg-[#E5EEF9] text-[#1D4F8C]", className)}>
+      <CalendarIcon className={size === "md" ? "h-3.5 w-3.5" : "h-3 w-3"} />
+      <span className="truncate">
+        {prefix && `${prefix} · `}
+        {title || "Meeting"} · {formatDate(date, "d MMM")}
+      </span>
     </span>
   );
 }
