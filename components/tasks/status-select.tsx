@@ -6,7 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { STATUSES, STATUS_STYLES } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { TaskStatus } from "@/lib/types";
-import { setTaskStatus } from "@/app/(app)/tasks/actions";
+import { saveStatus } from "@/components/tasks/subtask-prompt";
 import {
   Dialog,
   DialogContent,
@@ -38,10 +38,10 @@ export function StatusSelect({
     const previous = value;
     setValue(next);
     startTransition(async () => {
-      const res = await setTaskStatus(taskId, next, blockedReason);
+      const res = await saveStatus(taskId, next, blockedReason);
       if (!res.ok) {
         setValue(previous);
-        toast.error(res.error);
+        if (res.error) toast.error(res.error);
       }
     });
   }

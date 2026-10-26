@@ -58,6 +58,8 @@ export type Task = {
   /** Same task given to several people: their copies share this. */
   set_id?: string | null;
   project_id?: string | null;
+  /** Set on a subtask: the task it's part of. */
+  parent_task_id?: string | null;
 };
 
 /** Task row with the joins used by list views. */
@@ -66,6 +68,10 @@ export type TaskRow = Task & {
   department: Pick<Department, "id" | "name" | "slug"> | null;
   meeting: { id: string; title: string | null; meeting_date: string } | null;
   project?: Pick<Project, "id" | "name" | "slug"> | null;
+  /** The main task, when this is a subtask. */
+  parent?: { id: string; title: string } | null;
+  /** Its subtasks, for the "1/3" count. */
+  subtasks?: { status: TaskStatus }[];
 };
 
 export type ProjectKind = "project" | "campaign";

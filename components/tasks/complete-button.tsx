@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { setTaskStatus } from "@/app/(app)/tasks/actions";
+import { saveStatus } from "@/components/tasks/subtask-prompt";
 import { TASK_DONE_EVENT, type TaskDoneDetail } from "@/components/progress/celebrate";
 
 /** One click to finish a task: the circle fills green, then the row moves on. */
@@ -24,10 +24,10 @@ export function CompleteButton({ taskId, title, dueByToday, className }: { taskI
         setDone(true);
         window.dispatchEvent(new CustomEvent<TaskDoneDetail>(TASK_DONE_EVENT, { detail: { dueByToday } }));
         startTransition(async () => {
-          const res = await setTaskStatus(taskId, "done");
+          const res = await saveStatus(taskId, "done");
           if (!res.ok) {
             setDone(false);
-            toast.error(res.error);
+            if (res.error) toast.error(res.error);
           }
         });
       }}

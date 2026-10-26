@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
-import { FolderKanban, NotebookPen } from "lucide-react";
+import { CornerDownRight, FolderKanban, ListChecks, NotebookPen } from "lucide-react";
 import { StatusBadge, TagList } from "@/components/tasks/task-badges";
 import { InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
 import { getPeople } from "@/lib/auth";
@@ -102,7 +102,20 @@ function TaskListItem({
           </Link>
         </div>
         <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
-          {!t.department_id && !t.project_id && <span className="font-medium text-brand-primary">Private</span>}
+          {!t.department_id && !t.project_id && !t.parent_task_id && <span className="font-medium text-brand-primary">Private</span>}
+          {t.parent && (
+            <span className="inline-flex min-w-0 items-center gap-1 font-medium text-ink">
+              <CornerDownRight className="h-3 w-3 shrink-0" /> <span className="truncate">For: {t.parent.title}</span>
+            </span>
+          )}
+          {!!t.subtasks?.length && (
+            <span
+              className="inline-flex items-center gap-1 font-medium text-ink"
+              title={`${t.subtasks.filter((s) => s.status === "done").length} of ${t.subtasks.length} subtasks done`}
+            >
+              <ListChecks className="h-3 w-3" /> {t.subtasks.filter((s) => s.status === "done").length}/{t.subtasks.length}
+            </span>
+          )}
           {showProject && t.project && (
             <span className="inline-flex items-center gap-1 font-medium text-ink">
               <FolderKanban className="h-3 w-3" /> {t.project.name}

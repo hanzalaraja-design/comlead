@@ -8,10 +8,12 @@ import type { TaskFilters } from "./filters";
 export const TASK_SELECT = `
   id, title, description, department_id, owner_id, status, priority,
   due_date, due_time, source, meeting_id, tags, blocked_reason, created_by,
-  created_at, updated_at, completed_at, overdue, set_id, project_id,
+  created_at, updated_at, completed_at, overdue, set_id, project_id, parent_task_id,
   owner:profiles!tasks_owner_id_fkey(id, email, full_name, avatar_url),
   department:departments(id, name, slug),
   project:projects(id, name, slug),
+  parent:parent_task_id(id, title),
+  subtasks:tasks!parent_task_id(status),
   meeting:meetings!tasks_meeting_id_fkey(id, title, meeting_date)
 `;
 
@@ -41,6 +43,8 @@ export async function fetchTasks(
   if (filters.status !== "all") {
     q = q.in("status", filters.status.length ? filters.status : OPEN_STATUSES);
   }
+  // Subtasks show under their main task; they're listed on their own only when looking at someone's tasks.
+  if (!filters.owner.length) q = q.is("parent_task_id", null);
   if (filters.priority.length) q = q.in("priority", filters.priority);
   if (filters.source.length) q = q.in("source", filters.source);
 

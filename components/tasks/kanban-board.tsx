@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import type { TaskStatus } from "@/lib/types";
 import type { TaskListRow } from "@/lib/tasks/queries";
-import { setTaskStatus } from "@/app/(app)/tasks/actions";
+import { saveStatus } from "@/components/tasks/subtask-prompt";
 
 const COLUMNS: TaskStatus[] = ["todo", "in_progress", "blocked", "done"];
 
@@ -89,10 +89,10 @@ export function KanbanBoard({
     const before = tasks;
     setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, status, blocked_reason: blockedReason ?? t.blocked_reason } : t)));
     startTransition(async () => {
-      const res = await setTaskStatus(id, status, blockedReason);
+      const res = await saveStatus(id, status, blockedReason);
       if (!res.ok) {
         setTasks(before);
-        toast.error(res.error);
+        if (res.error) toast.error(res.error);
       }
     });
   }
