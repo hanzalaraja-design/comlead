@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
-import { DueLabel, PriorityBadge, TagList } from "@/components/tasks/task-badges";
+import { DueLabel, MeetingTag, PriorityBadge, ProjectTag, TagList } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -161,10 +161,12 @@ export function KanbanBoard({
                     <Link href={taskHref(t.id, from)} className="block text-sm font-medium leading-snug after:absolute after:inset-0">
                       {t.title}
                     </Link>
-                    {showDepartment && t.department && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {t.department.name}
-                      </p>
+                    {(t.project || t.meeting || (showDepartment && t.department)) && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                        {t.project && <ProjectTag name={t.project.name} />}
+                        {t.meeting && <MeetingTag title={t.meeting.title} date={t.meeting.meeting_date} />}
+                        {showDepartment && t.department && <span>{t.department.name}</span>}
+                      </div>
                     )}
                     {t.status === "blocked" && t.blocked_reason && (
                       <p className="mt-1 text-xs font-medium text-ink">Blocked: {t.blocked_reason}</p>
