@@ -1,4 +1,5 @@
 import { AppNav } from "@/components/app-nav";
+import { SubtaskPrompt } from "@/components/tasks/subtask-prompt";
 import { requireViewer, viewerId } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
@@ -23,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         badges={{ "/my": mentions ?? 0, "/overdue": overdue ?? 0, "/placements": (placementTodo as number | null) ?? 0 }}
       />
       <main className="min-w-0 flex-1 px-4 pb-24 pt-5 md:px-12 md:pb-12 md:pt-10">{children}</main>
+      <SubtaskPrompt />
     </div>
   );
 }

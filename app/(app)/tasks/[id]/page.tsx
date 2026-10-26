@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
-import { FolderKanban, NotebookPen, Pencil } from "lucide-react";
+import { CornerDownRight, FolderKanban, NotebookPen, Pencil } from "lucide-react";
+import { SubtaskSection } from "@/components/tasks/subtasks";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
@@ -39,7 +40,7 @@ export default async function TaskPage({
   if (!taskData) notFound();
   const task = taskData as unknown as TaskListRow;
 
-  const [collabRes, commentsRes, filesRes, historyRes, people] = await Promise.all([
+  const [collabRes, commentsRes, filesRes, historyRes, people, subtasksRes] = await Promise.all([
     supabase.from("task_collaborators").select("user_id").eq("task_id", id),
     supabase
       .from("task_comments")
@@ -59,7 +60,12 @@ export default async function TaskPage({
       .order("created_at", { ascending: false })
       .limit(50),
     getPeople(),
+    // "Needed from others": soonest first, finished last.
+    task.parent_task_id
+      ? Promise.resolve({ data: [] })
+      : supabase.from("tasks").select(TASK_SELECT).eq("parent_task_id", id).order("due_date", { ascending: true, nullsFirst: false }).order("created_at"),
   ]);
+  const subtasks = ((subtasksRes.data ?? []) as unknown as TaskListRow[]).sort((a, b) => Number(a.status === "done") - Number(b.status === "done"));
   // Everyone who got this same task, when it was given to several people at once.
   const { data: setData } = task.set_id
     ? await supabase.from("tasks").select("id, status, owner_id, due_date").eq("set_id", task.set_id).is("deleted_at", null)
@@ -79,16 +85,18 @@ export default async function TaskPage({
   const isCreator = task.created_by === viewer.id;
   // People in the meeting an action item came from can edit and reassign it.
   const rpcTrue = async (fn: string, args: Record<string, string>) => ((await supabase.rpc(fn, args)).data as boolean | null) === true;
-  const [isMeetingEditor, inProject, managesProject] = await Promise.all([
+  const [isMeetingEditor, inProject, managesProject, editsParent] = await Promise.all([
     task.meeting_id ? rpcTrue("can_edit_meeting", { p_meeting_id: task.meeting_id }) : false,
     // Everyone in a project shares its tasks.
     task.project_id ? rpcTrue("is_project_member", { p_project_id: task.project_id }) : false,
     task.project_id ? rpcTrue("can_manage_project", { p_project_id: task.project_id }) : false,
+    // Whoever runs the main task runs its subtasks too.
+    task.parent_task_id ? rpcTrue("can_edit_task", { p_task_id: task.parent_task_id }) : false,
   ]);
-  const canEdit = isLead || isOwner || isCollaborator || isCreator || isMeetingEditor || inProject;
+  const canEdit = isLead || isOwner || isCollaborator || isCreator || isMeetingEditor || inProject || editsParent;
   const canContribute = isMemberOf(viewer, task.department_id) || isOwner || isCollaborator || inProject;
-  const canDelete = isLead || managesProject || (isCreator && (!task.owner_id || isOwner));
-  const canReassign = isLead || isOwner || !task.owner_id || isMeetingEditor || inProject;
+  const canDelete = isLead || managesProject || editsParent || (isCreator && (!task.owner_id || isOwner));
+  const canReassign = isLead || isOwner || !task.owner_id || isMeetingEditor || inProject || editsParent;
 
   if (edit && canEdit) {
     const formData = await getTaskFormData(viewer, task.department_id ?? undefined, task.project_id ?? undefined);
@@ -109,6 +117,7 @@ export default async function TaskPage({
           membersByProject={formData.membersByProject}
           canReassign={canReassign}
           canMove={isLead}
+          isSubtask={!!task.parent_task_id}
         />
         </div>
       </div>
@@ -120,7 +129,12 @@ export default async function TaskPage({
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader
-        breadcrumb={[...taskTrail(from, task, personName(task.owner)), shortTitle(task.title)]}
+        breadcrumb={[
+          ...(task.parent
+            ? [{ label: "Tasks", href: "/my" }, { label: shortTitle(task.parent.title), href: `/tasks/${task.parent.id}` }]
+            : taskTrail(from, task, personName(task.owner))),
+          shortTitle(task.title),
+        ]}
         title={task.title}
         actions={
           <>
@@ -149,8 +163,35 @@ export default async function TaskPage({
                 <span className="font-medium">Blocked:</span> {task.blocked_reason || "No reason given"}
               </p>
             )}
+            {task.parent && (
+              <p className="flex items-center gap-1.5 rounded-[12px] bg-subtle px-3 py-2 text-sm text-ink">
+                <CornerDownRight className="h-4 w-4 shrink-0 text-ink-muted" />
+                <span>
+                  Part of <Link href={`/tasks/${task.parent.id}`} className="font-semibold text-brand-primary hover:underline">{task.parent.title}</Link>
+                  {task.created_by && task.created_by !== task.owner_id && <> · asked by {personName(createdBy)}</>}
+                </span>
+              </p>
+            )}
             {task.description && <RichTextView html={task.description} />}
           </div>
+
+          {!task.parent_task_id && (
+            <SubtaskSection
+              parentId={id}
+              parentDue={task.due_date}
+              people={people}
+              canAdd={canEdit && !["done", "cancelled"].includes(task.status)}
+              subtasks={subtasks.map((s) => ({
+                id: s.id,
+                title: s.title,
+                status: s.status,
+                due_date: s.due_date,
+                due_time: s.due_time,
+                overdue: s.overdue,
+                owner: s.owner,
+              }))}
+            />
+          )}
 
           {set.length > 1 && (
             <section className="surface p-4 md:p-6">
@@ -253,7 +294,7 @@ export default async function TaskPage({
               </Link>
             </Detail>
           )}
-          {(task.department || !task.project) && (
+          {!task.parent && (task.department || !task.project) && (
             <Detail label="Team">
               {task.department?.name ?? "Private"}
             </Detail>

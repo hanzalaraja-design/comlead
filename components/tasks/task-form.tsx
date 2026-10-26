@@ -14,6 +14,9 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { PRIORITIES, STATUSES, personName } from "@/lib/labels";
 import type { Department, PersonRef, Task, TaskStatus } from "@/lib/types";
 import { createTask, updateTask } from "@/app/(app)/tasks/actions";
+import { askAboutOpenSubtasks } from "@/components/tasks/subtask-prompt";
+import { NeededFromOthers, type SubtaskDraft } from "@/components/tasks/subtasks";
+import { openSubtaskCount } from "@/lib/tasks/open-subtasks";
 
 export type TaskFormProps = {
   task?: Task;
@@ -33,6 +36,8 @@ export type TaskFormProps = {
   /** Members can't reassign someone else's task or move it between departments. */
   canReassign: boolean;
   canMove: boolean;
+  /** Editing a subtask: it stays with its main task, so no team or project. */
+  isSubtask?: boolean;
 };
 
 const selectClass = "h-10 w-full field px-3 text-sm disabled:opacity-60";
@@ -65,6 +70,7 @@ export function TaskForm(props: TaskFormProps) {
   // New team tasks can go to several people at once: one task each.
   const [owners, setOwners] = useState<string[]>(props.defaultOwnerId ? [props.defaultOwnerId] : []);
   const pickOwners = !task && !isPrivate;
+  const [drafts, setDrafts] = useState<SubtaskDraft[]>([]);
   // The extras stay folded away unless the task already uses them.
   const [more, setMore] = useState(
     !!task && !!(task.description || task.tags.length || task.due_time || (props.collaboratorIds ?? []).length),
@@ -74,7 +80,7 @@ export function TaskForm(props: TaskFormProps) {
   if (task?.owner_id) ownerIds.add(task.owner_id);
   if (props.defaultOwnerId) ownerIds.add(props.defaultOwnerId);
   const ownerOptions = props.people.filter((p) => ownerIds.has(p.id));
-  const pickDepartment = (props.departments.length > 1 || offerNoTeam) && (!task || props.canMove || offerNoTeam);
+  const pickDepartment = !props.isSubtask && (props.departments.length > 1 || offerNoTeam) && (!task || props.canMove || offerNoTeam);
 
   function onSubmit(formData: FormData) {
     for (const c of collaborators) formData.append("collaborators", c);
@@ -83,9 +89,24 @@ export function TaskForm(props: TaskFormProps) {
       formData.set("owner_id", owners[0] ?? "");
       for (const o of owners) formData.append("owner_ids", o);
     }
+    if (!task && owners.length <= 1)
+      for (const d of drafts) {
+        if (!d.title.trim() || !d.owner_id) continue;
+        formData.append("subtask_title", d.title);
+        formData.append("subtask_owner", d.owner_id);
+        formData.append("subtask_due", d.due_date);
+      }
     startTransition(async () => {
       if (task) {
-        const res = await updateTask(task.id, formData);
+        let res = await updateTask(task.id, formData);
+        // Done with subtasks still open: ask, then save with the answer.
+        const open = !res.ok ? openSubtaskCount(res.error) : null;
+        if (open !== null) {
+          const choice = await askAboutOpenSubtasks(open);
+          if (!choice) return;
+          formData.set("subtasks", choice);
+          res = await updateTask(task.id, formData);
+        }
         if (res.ok) {
           toast.success("Saved.");
           router.refresh();
@@ -104,6 +125,7 @@ export function TaskForm(props: TaskFormProps) {
     <form action={onSubmit} className="space-y-4">
       {props.meetingId && <input type="hidden" name="meeting_id" value={props.meetingId} />}
       {!pickDepartment && <input type="hidden" name="department_id" value={departmentId} />}
+      {props.isSubtask && <input type="hidden" name="subtask" value="1" />}
       {!task && <input type="hidden" name="status" value="todo" />}
 
       <div className="space-y-1.5">
@@ -173,7 +195,7 @@ export function TaskForm(props: TaskFormProps) {
             </select>
           </div>
         )}
-        {(projects.length > 0 || !!task?.project_id) && (
+        {!props.isSubtask && (projects.length > 0 || !!task?.project_id) && (
           <div className="space-y-1.5">
             <Label htmlFor="project_id">Project</Label>
             <select
@@ -218,6 +240,14 @@ export function TaskForm(props: TaskFormProps) {
         )}
       </div>
 
+      {!task && (
+        <NeededFromOthers
+          people={props.people}
+          drafts={drafts}
+          onChange={setDrafts}
+          disabledReason={owners.length > 1 ? "With several owners, add these on each task once it's created." : undefined}
+        />
+      )}
       <button
         type="button"
         onClick={() => setMore((m) => !m)}

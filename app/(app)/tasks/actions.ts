@@ -10,6 +10,8 @@ import { syncLater } from "@/lib/calendar/schedule";
 import { syncTask } from "@/lib/calendar/sync";
 import { addDaysISO, parseISODate, todayPKT } from "@/lib/time";
 import { personName } from "@/lib/labels";
+import { emailSubtaskDone, emailSubtaskGiven } from "@/lib/tasks/subtasks";
+import { OPEN_SUBTASKS } from "@/lib/tasks/open-subtasks";
 
 const uuid = z.string().uuid();
 const optionalUuid = z
@@ -83,8 +85,10 @@ function readTaskForm(formData: FormData) {
 function shape<T extends { department_id: string | null; project_id: string | null; owner_id: string | null; meeting_id: string | null }>(
   v: T,
   viewerId: string,
+  isSubtask = false,
 ): T {
   if (v.department_id) return v;
+  if (isSubtask) return { ...v, department_id: null, project_id: null, meeting_id: null };
   return v.project_id ? { ...v, meeting_id: null } : { ...v, owner_id: viewerId, meeting_id: null };
 }
 
@@ -132,6 +136,22 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
     if (cErr) return { ok: false, error: friendlyError(cErr) };
   }
 
+  // "Needed from others", added while creating: only for a single task.
+  if (data.length === 1) {
+    const subs = readSubtaskRows(formData);
+    if (subs.length) {
+      const { data: made, error: sErr } = await supabase
+        .from("tasks")
+        .insert(subs.map((s) => ({ ...s, parent_task_id: data[0].id, created_by: viewer.id })))
+        .select("id, title, due_date, owner_id");
+      if (sErr) return { ok: false, error: `The task was created, but its subtasks weren't: ${friendlyError(sErr)}` };
+      for (const s of made ?? []) {
+        emailSubtaskGiven(s as { id: string; title: string; due_date: string | null; owner_id: string }, v.title, viewer.id);
+        syncLater(() => syncTask(s.id as string));
+      }
+    }
+  }
+
   revalidateTaskViews(data[0].id as string);
   for (const t of data) syncLater(() => syncTask(t.id as string));
   return { ok: true, data: { id: data[0].id as string, count: data.length } };
@@ -142,9 +162,11 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
   if (!uuid.safeParse(taskId).success) return { ok: false, error: "Invalid task" };
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
-  const v = shape(parsed.data, viewer.id);
+  const v = shape(parsed.data, viewer.id, formData.get("subtask") === "1");
 
   const supabase = await createClient();
+  const before = await closingWithOpenSubtasks(supabase, taskId, v.status, formData.get("subtasks"));
+  if (before) return before;
   const { data: updated, error } = await supabase
     .from("tasks")
     .update({
@@ -186,9 +208,92 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
     if (e) return { ok: false, error: friendlyError(e) };
   }
 
+  if (v.status === "done") await afterDone(supabase, taskId, formData.get("subtasks"), viewer.id);
   revalidateTaskViews(taskId);
   syncLater(() => syncTask(taskId));
   return { ok: true };
+}
+
+/**
+ * Marking a main task done while its subtasks are open: ask first. The client
+ * asks and calls again with "close" (close them too) or "keep".
+ */
+async function closingWithOpenSubtasks(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  taskId: string,
+  status: string,
+  choice: unknown,
+): Promise<{ ok: false; error: string } | null> {
+  if (status !== "done" || choice === "close" || choice === "keep") return null;
+  const { data: current } = await supabase.from("tasks").select("status").eq("id", taskId).maybeSingle();
+  if (current?.status === "done") return null;
+  const { count } = await supabase
+    .from("tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("parent_task_id", taskId)
+    .in("status", ["todo", "in_progress", "blocked"]);
+  return count ? { ok: false, error: `${OPEN_SUBTASKS}${count}` } : null;
+}
+
+/** After a task is done: close its subtasks if asked; tell the main task's owner if it was a subtask. */
+async function afterDone(supabase: Awaited<ReturnType<typeof createClient>>, taskId: string, choice: unknown, viewerId: string) {
+  if (choice === "close") {
+    const { data: closed } = await supabase
+      .from("tasks")
+      .update({ status: "done" })
+      .eq("parent_task_id", taskId)
+      .in("status", ["todo", "in_progress", "blocked"])
+      .select("id");
+    for (const s of closed ?? []) syncLater(() => syncTask(s.id as string));
+  }
+  const { data: t } = await supabase.from("tasks").select("title, parent_task_id").eq("id", taskId).maybeSingle();
+  if (t?.parent_task_id) emailSubtaskDone(t as { title: string; parent_task_id: string }, viewerId);
+}
+
+/** "Needed from others" rows from the new task form. */
+function readSubtaskRows(formData: FormData) {
+  const titles = formData.getAll("subtask_title").map(String);
+  const owners = formData.getAll("subtask_owner").map(String);
+  const dues = formData.getAll("subtask_due").map(String);
+  return titles
+    .map((title, i) => ({ title: title.trim().slice(0, 300), owner_id: owners[i] || null, due_date: dues[i] || null }))
+    .filter((s) => s.title && s.owner_id && uuid.safeParse(s.owner_id).success && (!s.due_date || /^\d{4}-\d{2}-\d{2}$/.test(s.due_date)))
+    .slice(0, 20);
+}
+
+const subtaskSchema = z.object({
+  parentId: uuid,
+  title: z.string().trim().min(1, "Say what's needed").max(300),
+  owner_id: uuid,
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+});
+
+/** Give part of a task to someone, from any team, with their own deadline. */
+export async function addSubtask(
+  parentId: string,
+  input: { title: string; owner_id: string; due_date: string | null },
+): Promise<ActionResult<{ id: string }>> {
+  const viewer = await requireViewer();
+  const parsed = subtaskSchema.safeParse({ parentId, ...input });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the details" };
+  const v = parsed.data;
+
+  const supabase = await createClient();
+  const { data: parent } = await supabase.from("tasks").select("title, parent_task_id").eq("id", v.parentId).maybeSingle();
+  if (!parent) return { ok: false, error: "That task wasn't found." };
+  if (parent.parent_task_id) return { ok: false, error: "A subtask can't have subtasks of its own." };
+
+  const { data, error } = await supabase
+    .from("tasks")
+    .insert({ title: v.title, owner_id: v.owner_id, due_date: v.due_date, parent_task_id: v.parentId, created_by: viewer.id })
+    .select("id")
+    .single();
+  if (error || !data) return { ok: false, error: friendlyError(error) };
+
+  emailSubtaskGiven({ id: data.id as string, title: v.title, due_date: v.due_date, owner_id: v.owner_id }, parent.title as string, viewer.id);
+  revalidateTaskViews(v.parentId);
+  syncLater(() => syncTask(data.id as string));
+  return { ok: true, data: { id: data.id as string } };
 }
 
 const statusSchema = z.object({
@@ -271,12 +376,16 @@ export async function setTaskStatus(
   taskId: string,
   status: string,
   blockedReason?: string,
+  /** When it has open subtasks: close them too, or keep them open. */
+  subtasks?: "close" | "keep",
 ): Promise<ActionResult> {
-  await requireViewer();
+  const viewer = await requireViewer();
   const parsed = statusSchema.safeParse({ taskId, status, blockedReason });
   if (!parsed.success) return { ok: false, error: "Invalid status" };
 
   const supabase = await createClient();
+  const ask = await closingWithOpenSubtasks(supabase, parsed.data.taskId, parsed.data.status, subtasks);
+  if (ask) return ask;
   const { data, error } = await supabase
     .from("tasks")
     .update({
@@ -288,6 +397,7 @@ export async function setTaskStatus(
   if (error) return { ok: false, error: friendlyError(error) };
   if (!data?.length) return { ok: false, error: "You can only update tasks you own, collaborate on or created." };
 
+  if (parsed.data.status === "done") await afterDone(supabase, parsed.data.taskId, subtasks, viewer.id);
   revalidateTaskViews(taskId);
   syncLater(() => syncTask(taskId));
   return { ok: true };
