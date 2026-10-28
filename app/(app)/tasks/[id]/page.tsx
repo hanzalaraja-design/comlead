@@ -317,7 +317,6 @@ export default async function TaskPage({
           )}
           {(canEdit || collaboratorIds.length > 0) && (
             <Detail label="Collaborators">
-              <p className="-mt-0.5 mb-1.5 text-xs text-ink-muted">Others working on it with the owner</p>
               <CollaboratorsField taskId={id} value={collaboratorIds} people={people} ownerId={task.owner_id} editable={canEdit} />
             </Detail>
           )}
@@ -343,7 +342,6 @@ export default async function TaskPage({
                   editable={canEdit}
                 />
               )}
-              {(task.department || task.project) && <p className="mt-1 text-xs text-ink-muted">It shows in each of these teams’ lists</p>}
             </Detail>
           )}
           {task.meeting && (
