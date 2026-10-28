@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PersonAvatar } from "@/components/person-avatar";
-import { DueLabel, MeetingTag, PriorityBadge, ProjectTag, TagList } from "@/components/tasks/task-badges";
+import { DueLabel, MeetingTag, PriorityBadge, ProjectTag } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -171,9 +171,6 @@ export function KanbanBoard({
                     {t.status === "blocked" && t.blocked_reason && (
                       <p className="mt-1 text-xs font-medium text-ink">Blocked: {t.blocked_reason}</p>
                     )}
-                    <div className="mt-2">
-                      <TagList tags={t.tags} />
-                    </div>
                     <div className="mt-2 flex items-center gap-2">
                       <PriorityBadge priority={t.priority} />
                       <DueLabel date={t.due_date} time={t.due_time} overdue={t.overdue} />

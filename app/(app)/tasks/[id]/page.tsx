@@ -8,7 +8,7 @@ import { getProjects, getTeamNames } from "@/lib/projects";
 import { SubtaskSection } from "@/components/tasks/subtasks";
 import { DOMAINS, domainHref } from "@/lib/domains";
 import { PersonAvatar } from "@/components/person-avatar";
-import { DueLabel, PriorityBadge, StatusBadge, TagList } from "@/components/tasks/task-badges";
+import { DueLabel, PriorityBadge, StatusBadge } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
@@ -352,11 +352,6 @@ export default async function TaskPage({
                 <NotebookPen className="h-3.5 w-3.5" />
                 {task.meeting.title || "Meeting"} · {formatDate(task.meeting.meeting_date, "d MMM")}
               </Link>
-            </Detail>
-          )}
-          {task.tags.length > 0 && (
-            <Detail label="Tags">
-              <TagList tags={task.tags} />
             </Detail>
           )}
           {(isOwner || viewer.isAdmin || locked) && (

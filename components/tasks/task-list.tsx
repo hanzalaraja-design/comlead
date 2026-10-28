@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import { CornerDownRight, ListChecks } from "lucide-react";
-import { MeetingTag, ProjectTag, StatusBadge, TagList } from "@/components/tasks/task-badges";
+import { MeetingTag, ProjectTag, StatusBadge } from "@/components/tasks/task-badges";
 import { CollaboratorsChip, InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
 import { getPeople } from "@/lib/auth";
 import { StatusSelect } from "@/components/tasks/status-select";
@@ -132,7 +132,6 @@ function TaskListItem({
           {t.status === "blocked" && t.blocked_reason && (
             <span className="font-medium text-ink">Blocked: {t.blocked_reason}</span>
           )}
-          <TagList tags={t.tags} />
         </div>
       </div>
 

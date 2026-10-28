@@ -43,16 +43,6 @@ const taskSchema = z.object({
     .optional()
     .transform((v) => v || null)
     .pipe(z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).nullable()),
-  tags: z
-    .string()
-    .optional()
-    .transform((v) =>
-      (v ?? "")
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean)
-        .slice(0, 20),
-    ),
   blocked_reason: z.string().trim().max(1000).optional(),
   meeting_id: optionalUuid,
   project_id: optionalUuid,
@@ -70,7 +60,6 @@ function readTaskForm(formData: FormData) {
     priority: formData.get("priority") ?? "medium",
     due_date: formData.get("due_date") ?? undefined,
     due_time: formData.get("due_time") ?? undefined,
-    tags: formData.get("tags") ?? undefined,
     blocked_reason: formData.get("blocked_reason") ?? undefined,
     meeting_id: formData.get("meeting_id") ?? undefined,
     project_id: formData.get("project_id") ?? undefined,
@@ -109,7 +98,6 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
     priority: v.priority,
     due_date: v.due_date,
     due_time: v.due_date ? v.due_time : null,
-    tags: v.tags,
     blocked_reason: v.status === "blocked" ? v.blocked_reason || null : null,
     meeting_id: v.meeting_id,
     project_id: v.project_id,
@@ -173,8 +161,7 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
       priority: v.priority,
       due_date: v.due_date,
       due_time: v.due_date ? v.due_time : null,
-      tags: v.tags,
-      blocked_reason: v.status === "blocked" ? v.blocked_reason || null : null,
+        blocked_reason: v.status === "blocked" ? v.blocked_reason || null : null,
     })
     .eq("id", taskId)
     .select("id");
