@@ -362,7 +362,6 @@ export function TaskLockSwitch({ taskId, locked, canToggle }: { taskId: string; 
           {on ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
           {on ? "Locked" : "Lock this task"}
         </span>
-        <span className="text-xs text-ink-muted">{on ? "Only the owner can change it" : "Then only the owner can change it"}</span>
       </span>
       <button
         type="button"
