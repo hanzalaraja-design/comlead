@@ -124,8 +124,11 @@ function ChipField({
   editable,
   addLabel,
   onSave,
+  fixed = [],
 }: {
   value: string[];
+  /** Shown first, but not removed here (a task's main team). */
+  fixed?: string[];
   choices: Choice[];
   editable: boolean;
   addLabel: string;
@@ -138,8 +141,8 @@ function ChipField({
   const byId = new Map(choices.map((c) => [c.id, c]));
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return choices.filter((c) => !ids.includes(c.id) && (!q || c.label.toLowerCase().includes(q)));
-  }, [choices, ids, query]);
+    return choices.filter((c) => !ids.includes(c.id) && !fixed.includes(c.id) && (!q || c.label.toLowerCase().includes(q)));
+  }, [choices, ids, fixed, query]);
   function save(next: string[]) {
     const before = ids;
     setIds(next);
@@ -147,13 +150,13 @@ function ChipField({
   }
   return (
     <div className="flex flex-wrap gap-1.5">
-      {ids.map((id) => {
+      {[...fixed, ...ids].map((id) => {
         const c = byId.get(id);
         return (
           <span key={id} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-subtle pl-1 pr-2 text-[13px] font-medium text-ink">
             {c?.person !== undefined ? <PersonAvatar person={c.person} className="h-5 w-5" /> : <span className="w-1" />}
             {c?.label ?? "…"}
-            {editable && (
+            {editable && !fixed.includes(id) && (
               <button type="button" aria-label={`Remove ${c?.label ?? ""}`} disabled={pending} onClick={() => save(ids.filter((x) => x !== id))} className="text-ink-muted hover:text-ink">
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -161,7 +164,7 @@ function ChipField({
           </span>
         );
       })}
-      {!ids.length && !editable && <span className="text-ink-muted">None</span>}
+      {!ids.length && !fixed.length && !editable && <span className="text-ink-muted">None</span>}
       {editable && (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -199,9 +202,23 @@ function ChipField({
   );
 }
 
-export function TeamsField({ taskId, value, teams, editable }: { taskId: string; value: string[]; teams: { id: string; name: string }[]; editable: boolean }) {
+export function TeamsField({
+  taskId,
+  mainId,
+  value,
+  teams,
+  editable,
+}: {
+  taskId: string;
+  /** The task's own team, shown as the first chip. */
+  mainId: string | null;
+  value: string[];
+  teams: { id: string; name: string }[];
+  editable: boolean;
+}) {
   return (
     <ChipField
+      fixed={mainId ? [mainId] : []}
       value={value}
       choices={teams.map((t) => ({ id: t.id, label: t.name }))}
       editable={editable}
