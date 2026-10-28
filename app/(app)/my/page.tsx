@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AtSign, CheckCircle2, ChevronDown, TriangleAlert, Users } from "lucide-react";
+import { AtSign, CheckCircle2, ChevronDown, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { TaskList } from "@/components/tasks/task-list";
@@ -15,7 +15,8 @@ import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskTabs } from "@/components/tasks/task-tabs";
 import { comparePriority, fetchTasks, withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
-import { addDaysISO, formatDate, formatPKT, todayPKT, weekEndPKT } from "@/lib/time";
+import { addDaysISO, formatDate, formatPKT, startOfDayPKT, todayPKT, weekEndPKT } from "@/lib/time";
+import { onTimeStatus } from "@/lib/tasks/ontime";
 import { clearedLine, emptyLine, todayLine } from "@/lib/voice";
 
 export const metadata = { title: "My tasks · Highfy Tasks" };
@@ -52,11 +53,14 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   // Yours, always; the filter bar narrows it further.
   const filters: TaskFilters = { ...parseFilters(raw), owner: ["me"] };
   const filtered = countActiveFilters({ ...filters, owner: [] }) > 0;
+  // Owner, collaborator or both: which of your tasks to show.
+  const role = raw.role === "own" || raw.role === "collab" ? raw.role : "both";
   const today = todayPKT();
   const weekEnd = weekEndPKT();
 
   // Everything at once: no query here waits for another.
-  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, people, done, options] = await Promise.all([
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, people, done, options, monthDone] = await Promise.all([
     requireViewer(),
     getDepartments(),
     fetchTasks({ ...filters, sort: "due", dir: "asc" }, { viewerId: id }),
@@ -87,7 +91,18 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       200,
     ),
     getFilterOptions(),
+    // On time this month: your finished tasks that had a due date.
+    supabase
+      .from("tasks")
+      .select("due_date, completed_at")
+      .eq("owner_id", id)
+      .eq("status", "done")
+      .not("due_date", "is", null)
+      .gte("completed_at", startOfDayPKT(monthStart))
+      .limit(1000),
   ]);
+  const scored = ((monthDone.data ?? []) as { due_date: string; completed_at: string }[]).map((t) => onTimeStatus(t.due_date, t.completed_at)).filter((x) => !!x);
+  const onTimeCount = scored.filter((x) => x!.onTime).length;
 
   const collaborating = (collabRes.data ?? []) as unknown as TaskListRow[];
   // Only mentions you haven't read; opening the task or ticking one clears it.
@@ -105,6 +120,21 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   // Teams you can add tasks to: your own, or every team for Admin.
   const myDepartments = departments.filter((d) => !d.archived && isMemberOf(viewer, d.id));
 
+  const collabSection = (
+    <section>
+      <h2 className="kicker mb-2 flex items-center gap-2 text-ink">
+        <span className="rounded-md border border-ink px-2 py-0.5 text-[11px] font-bold normal-case tracking-normal text-ink">Collaborating</span>
+        Tasks I help on
+        <span className="rounded-full bg-subtle px-2 py-0.5 text-xs text-ink">{collaborating.length}</span>
+      </h2>
+      {collaborating.length ? (
+        <TaskList tasks={collaborating} from="my" />
+      ) : (
+        <p className="surface px-4 py-6 text-center text-sm text-ink-muted">You’re not collaborating on anything open right now.</p>
+      )}
+    </section>
+  );
+
   return (
     <>
       <PageHeader
@@ -113,6 +143,43 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         description={formatDate(today, "EEEE d MMMM")}
       />
       <TaskTabs scope="my" view="list" search={filtersToSearch({ ...filters, owner: [] })} />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {(
+          [
+            ["own", "I own", tasks.length],
+            ["collab", "I’m collaborating", collaborating.length],
+            ["both", "Both", null],
+          ] as const
+        ).map(([key, label, n]) => {
+          const params = new URLSearchParams(filtersToSearch({ ...filters, owner: [] }).slice(1));
+          if (key !== "both") params.set("role", key);
+          const qs = params.toString();
+          return (
+            <Link
+              key={key}
+              href={`/my${qs ? `?${qs}` : ""}`}
+              aria-current={role === key ? "page" : undefined}
+              className={cn(
+                "inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-semibold",
+                role === key ? "bg-ink text-white" : "border border-line bg-white text-ink hover:bg-subtle",
+              )}
+            >
+              {label}
+              {n !== null && <span className={cn("rounded-full px-2 text-xs", role === key ? "bg-white/20" : "bg-subtle")}>{n}</span>}
+            </Link>
+          );
+        })}
+        {scored.length > 0 && (
+          <span className="ml-auto inline-flex items-center gap-2 rounded-[12px] bg-white px-3 py-2 text-[13px] text-ink shadow-sm">
+            <span className={cn("font-bold", onTimeCount / scored.length >= 0.8 ? "text-success-ink" : "text-warning-ink")}>
+              {Math.round((onTimeCount / scored.length) * 100)}% on time
+            </span>
+            <span className="text-ink-muted">
+              {onTimeCount} of {scored.length} finished by their due date this month
+            </span>
+          </span>
+        )}
+      </div>
       {!filtered && <CelebrateWhenCleared remaining={overdue + dueToday} line={clearedLine(today + viewer.id)} />}
 
       {/* Today at a glance (only when nothing is filtered, so the counts are the whole picture) */}
@@ -133,7 +200,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} allowPrivate />
       </div>
 
-      <TaskFilterBar filters={filters} options={options} hide={["owner", "sort"]} />
+      <TaskFilterBar filters={filters} options={options} hide={["owner", "sort"]} preserve={role === "both" ? undefined : { role }} />
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       <div className="space-y-8">
@@ -170,8 +237,12 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           </section>
         )}
 
-        <section>
-          <h2 className="kicker mb-2 text-ink">Assigned to me</h2>
+        {role === "collab" && collabSection}
+
+        {role !== "collab" && <section>
+          <h2 className="kicker mb-2 flex items-center gap-2 text-ink">
+            <span className="rounded-md bg-ink px-2 py-0.5 text-[11px] font-bold normal-case tracking-normal text-white">Owner</span> Tasks I own
+          </h2>
           {tasks.length === 0 ? (
             <p className="surface px-4 py-6 text-center text-sm text-ink-muted">{emptyLine(today + viewer.id)}</p>
           ) : (
@@ -202,9 +273,9 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
               })}
             </div>
           )}
-        </section>
+        </section>}
 
-        {done.tasks.length > 0 && (
+        {role !== "collab" && done.tasks.length > 0 && (
           <details className="group">
             <summary className="kicker mb-2 flex cursor-pointer list-none items-center gap-2 text-ink [&::-webkit-details-marker]:hidden">
               <CheckCircle2 className="h-4 w-4 text-success" /> Completed
@@ -219,15 +290,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
           </details>
         )}
 
-        {collaborating.length > 0 && (
-          <section>
-            <h2 className="kicker mb-2 flex items-center gap-2 text-ink">
-              <Users className="h-4 w-4" /> I&apos;m collaborating on
-              <span className="rounded-full bg-subtle px-2 py-0.5 text-xs text-ink">{collaborating.length}</span>
-            </h2>
-            <TaskList tasks={collaborating} from="my" />
-          </section>
-        )}
+        {role === "both" && collabSection}
       </div>
     </>
   );

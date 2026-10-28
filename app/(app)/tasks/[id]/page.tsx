@@ -216,6 +216,7 @@ export default async function TaskPage({
                 due_time: s.due_time,
                 overdue: s.overdue,
                 owner: s.owner,
+                completed_at: s.completed_at,
               }))}
             />
           )}

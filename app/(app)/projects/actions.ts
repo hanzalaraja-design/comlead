@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireViewer } from "@/lib/auth";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
+import { isBlankHtml, sanitizeRichText } from "@/lib/sanitize";
 import { domainHref, projectSlug } from "@/lib/projects";
 import type { ProjectKind } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
@@ -30,10 +31,9 @@ const projectSchema = z.object({
   teams: z.array(uuid).max(50),
   description: z
     .string()
-    .trim()
-    .max(2000)
+    .max(100_000)
     .optional()
-    .transform((v) => v || null),
+    .transform((v) => (isBlankHtml(v) ? null : sanitizeRichText(v))),
   members: z.array(uuid).max(200),
 });
 

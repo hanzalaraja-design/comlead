@@ -12,6 +12,7 @@ import { personName } from "@/lib/labels";
 import { DOMAINS, CATEGORY_LABELS, PROJECT_COLUMNS, canManageProject, datesText, domainHref, getProjectMembers, getTeamNames, homeTeamFor, isProjectOwner, membersByProject, ownersOf, toProject } from "@/lib/projects";
 import { LockButton } from "@/components/projects/lock-button";
 import { MeetingTag } from "@/components/tasks/task-badges";
+import { RichTextView } from "@/components/rich-text-view";
 import type { ProjectKind } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
@@ -141,7 +142,15 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
           <span className="text-xs text-ink-muted">Their action items land here. Link more from a meeting’s page.</span>
         </div>
       )}
-      {project.description && <p className="-mt-2 mb-4 max-w-3xl whitespace-pre-line text-sm text-ink-muted">{project.description}</p>}
+      {project.description && (
+        <section className="-mt-2 mb-4 surface p-4">
+          {project.description.trimStart().startsWith("<") ? (
+            <RichTextView html={project.description} />
+          ) : (
+            <p className="whitespace-pre-line text-sm text-ink">{project.description}</p>
+          )}
+        </section>
+      )}
       <TaskTabs scope="projects" view={view} search={search} base={base} />
       {view === "list" && !project.archived && (
         <div className="mb-4">

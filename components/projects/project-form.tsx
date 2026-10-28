@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import { MultiSelect } from "@/components/multi-select";
 import { personName } from "@/lib/labels";
 import { DOMAINS } from "@/lib/domains";
@@ -173,8 +173,8 @@ export function ProjectForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="description">What it&apos;s for (optional)</Label>
-        <Textarea id="description" name="description" rows={3} maxLength={2000} defaultValue={project?.description ?? ""} />
+        <Label>Description (optional)</Label>
+        <RichTextEditor name="description" defaultValue={project?.description} placeholder="The brief: goals, deals, links. Paste a table straight from Excel." />
       </div>
 
       <p className="text-xs text-ink-muted">

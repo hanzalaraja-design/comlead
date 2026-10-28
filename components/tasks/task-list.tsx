@@ -8,6 +8,7 @@ import { getPeople } from "@/lib/auth";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { CompleteButton } from "@/components/tasks/complete-button";
+import { ON_TIME_STYLES, onTimeStatus } from "@/lib/tasks/ontime";
 import { formatPKT, todayPKT } from "@/lib/time";
 import type { TaskListRow } from "@/lib/tasks/queries";
 
@@ -79,6 +80,7 @@ function TaskListItem({
   from?: TaskFrom;
 }) {
   const today = todayPKT();
+  const onTime = t.status === "done" ? onTimeStatus(t.due_date, t.completed_at) : null;
   return (
     <li
       className={cn(
@@ -99,7 +101,8 @@ function TaskListItem({
               taskId={t.id}
               title={t.title}
               dueByToday={t.overdue || (!!t.due_date && t.due_date <= today)}
-              className="mt-0.5"
+              // Subtasks get a square box.
+              className={cn("mt-0.5", t.parent_task_id && "rounded-md")}
             />
           )}
           <Link href={taskHref(t.id, from)} className="block min-w-0 font-semibold leading-snug text-ink after:absolute after:inset-0">
@@ -115,7 +118,7 @@ function TaskListItem({
           )}
           {t.parent && (
             <span className="inline-flex min-w-0 items-center gap-1 font-medium text-ink">
-              <CornerDownRight className="h-3 w-3 shrink-0" /> <span className="truncate">For: {t.parent.title}</span>
+              <CornerDownRight className="h-3 w-3 shrink-0" /> <span className="truncate">Subtask of {t.parent.title}</span>
             </span>
           )}
           {!!t.subtasks?.length && (
@@ -137,7 +140,11 @@ function TaskListItem({
       <div className={cn("mt-2 flex flex-wrap items-center gap-2 md:hidden", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
         {t.status !== "todo" && <StatusBadge status={t.status} />}
         <InlinePriority taskId={t.id} priority={t.priority} />
-        <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
+        {onTime ? (
+          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>
+        ) : (
+          <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
+        )}
         {assignedBy && <span className="text-xs text-muted-foreground">from {assignedBy}</span>}
         {showOwner && (
           <span className="ml-auto">
@@ -156,7 +163,10 @@ function TaskListItem({
       </div>
       <div className="hidden md:block">
         {showCompleted ? (
-          <span className="text-xs text-muted-foreground">{formatPKT(t.completed_at, "d MMM, h:mm a")}</span>
+          <span className="flex flex-col items-start gap-1">
+            <span className="text-xs text-muted-foreground">{formatPKT(t.completed_at, "d MMM, h:mm a")}</span>
+            {onTime && <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>}
+          </span>
         ) : (
           <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
         )}
