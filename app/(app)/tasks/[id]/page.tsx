@@ -332,17 +332,10 @@ export default async function TaskPage({
           )}
           {!task.parent && (
             <Detail label="Teams">
-              <p className="mb-1.5 text-sm text-ink">
-                {task.department?.name ??
-                  (task.project ? "No main team" : task.owner_id && task.owner_id !== task.created_by ? "None, a direct task" : "Private")}
-              </p>
-              {(task.department || task.project) && (canEdit || extraTeamIds.length > 0) && (
-                <TeamsField
-                  taskId={id}
-                  value={extraTeamIds}
-                  teams={teamNames.filter((t) => t.id !== task.department_id)}
-                  editable={canEdit}
-                />
+              {task.department || task.project ? (
+                <TeamsField taskId={id} mainId={task.department_id} value={extraTeamIds} teams={teamNames} editable={canEdit} />
+              ) : (
+                <p className="text-sm text-ink">{task.owner_id && task.owner_id !== task.created_by ? "None, a direct task" : "Private"}</p>
               )}
             </Detail>
           )}

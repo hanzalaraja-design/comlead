@@ -44,13 +44,19 @@ export const PRIORITY_STYLES: Record<TaskPriority, string> = {
 
 export const OPEN_STATUSES: TaskStatus[] = ["todo", "in_progress", "blocked"];
 
+/** First name only, which is how the team refers to each other. */
 export function personName(p: { full_name: string | null; email: string } | null | undefined): string {
   if (!p) return "Unassigned";
-  return p.full_name || p.email.split("@")[0];
+  return fullName(p).split(/\s+/)[0];
+}
+
+/** Their whole name, for Admin and wherever two people might share a first name. */
+export function fullName(p: { full_name: string | null; email: string }): string {
+  return p.full_name?.trim() || p.email.split("@")[0];
 }
 
 export function initials(p: { full_name: string | null; email: string } | null | undefined): string {
-  const name = personName(p);
+  const name = p ? fullName(p) : "Unassigned";
   const parts = name.split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }

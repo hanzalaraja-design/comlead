@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
-import { personName } from "@/lib/labels";
+import { fullName } from "@/lib/labels";
 import type { DeptRole, Profile } from "@/lib/types";
 import { setUserAdmin, setUserStatus } from "@/app/(app)/admin/actions";
 import { addMember, removeMember, setMemberRole } from "@/app/(app)/departments/actions";
@@ -43,7 +43,7 @@ export function UserRow({
         <PersonAvatar person={user} className="h-9 w-9" />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">
-            {personName(user)}
+            {fullName(user)}
             {user.is_admin && <span className="ml-2 rounded bg-primary px-1.5 py-0.5 text-[10px] text-primary-foreground">ADMIN</span>}
           </p>
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
@@ -66,7 +66,7 @@ export function UserRow({
               className="text-muted-foreground"
               disabled={pending}
               onClick={() => {
-                if (confirm(`Turn off access for ${personName(user)}?`)) run(() => setUserStatus(user.id, "disabled"), "Access turned off");
+                if (confirm(`Turn off access for ${fullName(user)}?`)) run(() => setUserStatus(user.id, "disabled"), "Access turned off");
               }}
             >
               Disable
