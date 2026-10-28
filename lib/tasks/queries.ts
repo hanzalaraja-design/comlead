@@ -12,7 +12,7 @@ export const TASK_SELECT = `
   assigned_by, assigned_at,
   owner:profiles!tasks_owner_id_fkey(id, email, full_name, avatar_url),
   department:departments(id, name, slug),
-  project:projects(id, name, slug),
+  project:projects(id, name, slug, kind),
   parent:parent_task_id(id, title),
   subtasks:tasks!parent_task_id(status),
   meeting:meetings!tasks_meeting_id_fkey(id, title, meeting_date)

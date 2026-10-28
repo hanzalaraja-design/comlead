@@ -88,9 +88,28 @@ function CalendarIcon({ className }: { className?: string }) {
   );
 }
 
-export function ProjectTag({ name, prefix, size = "sm", className }: { name: string; prefix?: string; size?: "sm" | "md"; className?: string }) {
+/** Purple for projects, orange for campaigns, green for partnerships. */
+const KIND_TAG = {
+  project: "bg-[#F3E6F6] text-[#6A1578]",
+  campaign: "bg-[#FDEBDC] text-[#8A3B0A]",
+  partnership: "bg-[#DDF2E9] text-[#0F5A41]",
+} as const;
+
+export function ProjectTag({
+  name,
+  kind = "project",
+  prefix,
+  size = "sm",
+  className,
+}: {
+  name: string;
+  kind?: keyof typeof KIND_TAG;
+  prefix?: string;
+  size?: "sm" | "md";
+  className?: string;
+}) {
   return (
-    <span className={cn(TAG, TAG_SIZE[size], "bg-[#F3E6F6] text-[#6A1578]", className)}>
+    <span className={cn(TAG, TAG_SIZE[size], KIND_TAG[kind], className)}>
       <FolderIcon className={size === "md" ? "h-3.5 w-3.5" : "h-3 w-3"} />
       <span className="truncate">
         {prefix && `${prefix} · `}

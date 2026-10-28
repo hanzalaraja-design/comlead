@@ -6,13 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import type { DeptRole, Project } from "@/lib/types";
 
 export const PROJECT_COLUMNS =
-  "id, name, slug, description, kind, start_date, end_date, archived, created_by, created_at, teams:project_teams(department_id)";
+  "id, name, slug, description, kind, category, locked, start_date, end_date, archived, created_by, created_at, teams:project_teams(department_id)";
 
 type ProjectRow = Omit<Project, "team_ids"> & { teams: { department_id: string }[] | null };
 
 export const toProject = ({ teams, ...p }: ProjectRow): Project => ({ ...p, team_ids: (teams ?? []).map((t) => t.department_id) });
 
-export const KIND_LABELS = { project: "Project", campaign: "Campaign" } as const;
+export { CATEGORY_LABELS, DOMAINS, KIND_LABELS, domainHref, isProjectKind } from "@/lib/domains";
 
 /** Projects the viewer is in (RLS decides; Admins see all). Cached per request. */
 export const getProjects = cache(async (): Promise<Project[]> => {
@@ -54,25 +54,28 @@ export async function membersByProject(projects: Project[]): Promise<Record<stri
   return out;
 }
 
-/** Same rule as can_manage_project() in the database. */
-export function canManageProject(
-  viewer: Viewer,
-  project: Pick<Project, "id" | "created_by" | "team_ids">,
-  named: { project_id: string; user_id: string; role: DeptRole }[],
-): boolean {
-  return (
-    viewer.isAdmin ||
-    project.created_by === viewer.id ||
-    project.team_ids.some((id) => viewer.leadDeptIds.includes(id)) ||
-    named.some((m) => m.project_id === project.id && m.user_id === viewer.id && m.role === "lead")
-  );
+type Named = { project_id: string; user_id: string; role: DeptRole }[];
+
+/** Same rule as is_project_owner() in the database. */
+export function isProjectOwner(viewer: Viewer, project: Pick<Project, "id">, named: Named): boolean {
+  return viewer.isAdmin || named.some((m) => m.project_id === project.id && m.user_id === viewer.id && m.role === "lead");
 }
+
+/** Same rule as can_manage_project(): owners always, everyone in it while unlocked. */
+export function canManageProject(viewer: Viewer, project: Pick<Project, "id" | "locked">, named: Named, isMember: boolean): boolean {
+  return isProjectOwner(viewer, project, named) || (isMember && !project.locked);
+}
+
+/** Owner ids per project. */
+export const ownersOf = (named: Named, projectId: string) => named.filter((m) => m.project_id === projectId && m.role === "lead").map((m) => m.user_id);
 
 export function projectSlug(name: string): string {
   return (
     name
       .toLowerCase()
       .normalize("NFKD")
+      // "L'Oréal" → "loreal": drop accents and apostrophes before joining words.
+      .replace(/[\u0300-\u036f'’]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 60) || "project"

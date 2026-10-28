@@ -1,3 +1,4 @@
+import { DOMAINS, domainHref } from "@/lib/domains";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { TaskForm } from "@/components/tasks/task-form";
 import { requireViewer } from "@/lib/auth";
@@ -21,7 +22,11 @@ export default async function NewTaskPage({
       <PageHeader
         breadcrumb={
           defaultProject
-            ? [{ label: "Projects", href: "/projects" }, { label: defaultProject.name, href: `/projects/${defaultProject.slug}` }, "New task"]
+            ? [
+                { label: DOMAINS[defaultProject.kind].plural, href: DOMAINS[defaultProject.kind].path },
+                { label: defaultProject.name, href: domainHref(defaultProject) },
+                "New task",
+              ]
             : [{ label: "Tasks", href: "/my" }, "New task"]
         }
         title="New task"

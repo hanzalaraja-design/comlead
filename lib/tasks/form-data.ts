@@ -20,7 +20,7 @@ export async function getTaskFormData(viewer: Viewer, includeDepartmentId?: stri
     departments: departments
       .filter((d) => (!d.archived && isMemberOf(viewer, d.id)) || d.id === includeDepartmentId)
       .map((d) => ({ id: d.id, name: d.name, slug: d.slug })),
-    projects: projects.map((p) => ({ id: p.id, name: p.name, slug: p.slug, department_id: homeTeamFor(viewer, p) })),
+    projects: projects.map((p) => ({ id: p.id, name: p.name, slug: p.slug, kind: p.kind, department_id: homeTeamFor(viewer, p) })),
     people,
     membersByDept,
     membersByProject: await membersByProject(projects),
