@@ -23,16 +23,23 @@ import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { HighfyLogo } from "@/components/brand";
 
-type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; dot?: string };
 
 // Tasks opens on My tasks, with My team as a tab inside it.
 const MAIN: NavItem[] = [
   { href: "/my", label: "Tasks", icon: CheckSquare },
   { href: "/tasks", label: "All teams", icon: LayoutList },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
-  { href: "/activity", label: "Activity", icon: Activity },
 ];
+
+// Domains: each with its tag colour.
+const DOMAIN_ITEMS: NavItem[] = [
+  { href: "/projects", label: "Projects", icon: FolderKanban, dot: "#9B3DB0" },
+  { href: "/campaigns", label: "Campaigns", icon: FolderKanban, dot: "#F2A15F" },
+  { href: "/partnerships", label: "Partnerships", icon: FolderKanban, dot: "#2E9C74" },
+];
+
+const FOOT: NavItem[] = [{ href: "/activity", label: "Activity", icon: Activity }];
 
 const ADMIN: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -44,13 +51,13 @@ const ADMIN: NavItem[] = [
 ];
 
 // Only for the teams that book, design and put up homepage banners.
-const PLACEMENTS: NavItem = { href: "/placements", label: "Placements", icon: Images };
+const PLACEMENTS: NavItem = { href: "/placements", label: "Placements", icon: Images, dot: "#C2417A" };
 
 // Bottom bar on phones: the four things people open most.
 const MOBILE: NavItem[] = [
   { href: "/my", label: "Tasks", icon: CheckSquare },
   { href: "/tasks", label: "All teams", icon: LayoutList },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
+  { href: "/campaigns", label: "Campaigns", icon: FolderKanban },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
 ];
 
@@ -92,7 +99,13 @@ function NavLinks({
                 : "text-ink-muted hover:bg-subtle hover:text-ink",
             )}
           >
-            <item.icon className="h-4 w-4 shrink-0" />
+            {item.dot ? (
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: item.dot }} />
+              </span>
+            ) : (
+              <item.icon className="h-4 w-4 shrink-0" />
+            )}
             <span className="flex-1">{item.label}</span>
             {item.href === "/my" && !!badges["/overdue"] && (
               <span
@@ -142,7 +155,16 @@ function NavBody({
 }) {
   return (
     <div className="flex h-full flex-col gap-6">
-      <NavLinks items={placements ? [...MAIN, PLACEMENTS] : MAIN} pathname={pathname} onNavigate={onNavigate} badges={badges} />
+      <div className="space-y-4">
+        <NavLinks items={MAIN} pathname={pathname} onNavigate={onNavigate} badges={badges} />
+        <div>
+          <p className="mb-1 px-3 text-xs font-medium text-ink-muted">Domains</p>
+          <NavLinks items={placements ? [...DOMAIN_ITEMS, PLACEMENTS] : DOMAIN_ITEMS} pathname={pathname} onNavigate={onNavigate} badges={badges} />
+        </div>
+        <div className="border-t border-line pt-4">
+          <NavLinks items={FOOT} pathname={pathname} onNavigate={onNavigate} badges={badges} />
+        </div>
+      </div>
       {isAdmin && (
         <div>
           <p className="mb-1 px-3 text-xs font-medium text-ink-muted">Admin</p>

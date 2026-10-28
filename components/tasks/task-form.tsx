@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/multi-select";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { PRIORITIES, STATUSES, personName } from "@/lib/labels";
-import type { Department, PersonRef, Task, TaskStatus } from "@/lib/types";
+import type { Department, PersonRef, ProjectKind, Task, TaskStatus } from "@/lib/types";
+import { DOMAINS } from "@/lib/domains";
 import { createTask, updateTask } from "@/app/(app)/tasks/actions";
 import { askAboutOpenSubtasks } from "@/components/tasks/subtask-prompt";
 import { NeededFromOthers, type SubtaskDraft } from "@/components/tasks/subtasks";
@@ -27,7 +28,7 @@ export type TaskFormProps = {
   /** department_id → member user ids, to suggest owners. */
   membersByDept: Record<string, string[]>;
   /** Projects the task may go in, and who's in each. */
-  projects?: { id: string; name: string; department_id: string | null }[];
+  projects?: { id: string; name: string; kind?: ProjectKind; department_id: string | null }[];
   membersByProject?: Record<string, string[]>;
   defaultDepartmentId?: string;
   defaultProjectId?: string;
@@ -200,7 +201,7 @@ export function TaskForm(props: TaskFormProps) {
         )}
         {!props.isSubtask && (projects.length > 0 || !!task?.project_id) && (
           <div className="space-y-1.5">
-            <Label htmlFor="project_id">Project</Label>
+            <Label htmlFor="project_id">Project, campaign or partnership</Label>
             <select
               id="project_id"
               name="project_id"
@@ -214,12 +215,19 @@ export function TaskForm(props: TaskFormProps) {
                 else if (!next && departmentId === PRIVATE && !offerPrivate) setDepartmentId(task?.department_id ?? PRIVATE);
               }}
             >
-              <option value="">No project</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+              <option value="">None</option>
+              {(["campaign", "partnership", "project"] as const).map((k) => {
+                const list = projects.filter((p) => (p.kind ?? "project") === k);
+                return list.length ? (
+                  <optgroup key={k} label={DOMAINS[k].plural}>
+                    {list.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null;
+              })}
             </select>
           </div>
         )}

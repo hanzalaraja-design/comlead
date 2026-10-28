@@ -107,7 +107,7 @@ function TaskListItem({
           </Link>
         </div>
         <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
-          {showProject && t.project && <ProjectTag name={t.project.name} />}
+          {showProject && t.project && <ProjectTag name={t.project.name} kind={t.project.kind} />}
           {t.meeting && <MeetingTag title={t.meeting.title} date={t.meeting.meeting_date} />}
           {showDepartment && t.department && <span>{t.department.name}</span>}
           {!t.department_id && !t.project_id && !t.parent_task_id && (!t.owner_id || t.owner_id === t.created_by) && (

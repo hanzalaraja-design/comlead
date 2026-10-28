@@ -163,7 +163,7 @@ export function KanbanBoard({
                     </Link>
                     {(t.project || t.meeting || (showDepartment && t.department)) && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                        {t.project && <ProjectTag name={t.project.name} />}
+                        {t.project && <ProjectTag name={t.project.name} kind={t.project.kind} />}
                         {t.meeting && <MeetingTag title={t.meeting.title} date={t.meeting.meeting_date} />}
                         {showDepartment && t.department && <span>{t.department.name}</span>}
                       </div>

@@ -70,14 +70,15 @@ export type TaskRow = Task & {
   owner: PersonRef | null;
   department: Pick<Department, "id" | "name" | "slug"> | null;
   meeting: { id: string; title: string | null; meeting_date: string } | null;
-  project?: Pick<Project, "id" | "name" | "slug"> | null;
+  project?: Pick<Project, "id" | "name" | "slug" | "kind"> | null;
   /** The main task, when this is a subtask. */
   parent?: { id: string; title: string } | null;
   /** Its subtasks, for the "1/3" count. */
   subtasks?: { status: TaskStatus }[];
 };
 
-export type ProjectKind = "project" | "campaign";
+export type ProjectKind = "project" | "campaign" | "partnership";
+export type PartnerCategory = "beauty" | "non_beauty";
 
 /** A folder of tasks people from any team share. */
 export type Project = {
@@ -86,6 +87,10 @@ export type Project = {
   slug: string;
   description: string | null;
   kind: ProjectKind;
+  /** Partnerships only: beauty or non-beauty brand. */
+  category: PartnerCategory | null;
+  /** Locked: only its owners can change it. */
+  locked: boolean;
   start_date: string | null;
   end_date: string | null;
   /** Teams in the project: everyone in them is in it. */

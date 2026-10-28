@@ -1,3 +1,6 @@
+import { DOMAINS, domainHref } from "@/lib/domains";
+import type { ProjectKind } from "@/lib/types";
+
 /**
  * The ways into tasks (My tasks, My team, All teams, Projects), and the link
  * back from a task to wherever it was opened.
@@ -38,14 +41,17 @@ export function taskTrail(
   from: TaskFrom | undefined,
   task: {
     department: { name: string; slug: string } | null;
-    project?: { name: string; slug: string } | null;
+    project?: { name: string; slug: string; kind: ProjectKind } | null;
     owner: { id: string } | null;
   },
   ownerName: string,
 ): CrumbLink[] {
   const tasks = { label: "Tasks", href: "/my" };
   if (task.project && (from === "project" || !task.department))
-    return [{ label: "Projects", href: "/projects" }, { label: task.project.name, href: `/projects/${task.project.slug}` }];
+    return [
+      { label: DOMAINS[task.project.kind].plural, href: DOMAINS[task.project.kind].path },
+      { label: task.project.name, href: domainHref(task.project) },
+    ];
   const where = !task.department ? "my" : from === "project" ? "all" : from ?? "all";
   if (where === "my") return [tasks, { label: "My tasks", href: "/my" }];
   if (where === "team") {

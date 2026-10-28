@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
 import { CornerDownRight, FolderKanban, NotebookPen, Pencil } from "lucide-react";
 import { SubtaskSection } from "@/components/tasks/subtasks";
+import { DOMAINS, domainHref } from "@/lib/domains";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
@@ -141,8 +142,8 @@ export default async function TaskPage({
           (task.project || task.meeting) && (
             <span className="mt-1 flex flex-wrap gap-2">
               {task.project && (
-                <Link href={`/projects/${task.project.slug}`} className="max-w-full hover:opacity-80">
-                  <ProjectTag name={task.project.name} prefix="Project" size="md" />
+                <Link href={domainHref(task.project)} className="max-w-full hover:opacity-80">
+                  <ProjectTag name={task.project.name} kind={task.project.kind} prefix={DOMAINS[task.project.kind].label} size="md" />
                 </Link>
               )}
               {task.meeting && (
@@ -313,8 +314,8 @@ export default async function TaskPage({
             </Detail>
           )}
           {task.project && (
-            <Detail label="Project">
-              <Link href={`/projects/${task.project.slug}`} className="flex items-center gap-1 text-primary hover:underline">
+            <Detail label={DOMAINS[task.project.kind].label}>
+              <Link href={domainHref(task.project)} className="flex items-center gap-1 text-primary hover:underline">
                 <FolderKanban className="h-3.5 w-3.5" />
                 {task.project.name}
               </Link>
