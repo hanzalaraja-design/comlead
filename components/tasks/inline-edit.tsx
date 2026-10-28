@@ -6,7 +6,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel } from "@/components/tasks/task-badges";
-import { PRIORITIES, PRIORITY_STYLES, personName } from "@/lib/labels";
+import { PRIORITIES, PRIORITY_STYLES, fullName, personName } from "@/lib/labels";
 import { addDaysISO, todayPKT } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import type { PersonRef, TaskPriority } from "@/lib/types";
@@ -50,7 +50,7 @@ export function InlineOwner({ taskId, owner, compact = false }: { taskId: string
   const [query, setQuery] = useState("");
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? people.filter((p) => personName(p).toLowerCase().includes(q) || p.email.toLowerCase().includes(q)) : people;
+    return q ? people.filter((p) => fullName(p).toLowerCase().includes(q) || p.email.toLowerCase().includes(q)) : people;
   }, [people, query]);
 
   return (

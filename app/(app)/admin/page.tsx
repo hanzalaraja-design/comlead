@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireAdmin } from "@/lib/auth";
-import { personName } from "@/lib/labels";
+import { fullName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { filtersToSearch } from "@/lib/tasks/filters";
 import { formatDate, formatTime, todayPKT, weekEndPKT, weekStartPKT } from "@/lib/time";
@@ -195,7 +195,7 @@ export default async function DashboardPage() {
                   <tr key={p.user_id}>
                     <td className="px-3 py-2">
                       <Link href={`/activity?person=${p.user_id}`} className="hover:underline">
-                        {personName(p)}
+                        {fullName(p)}
                       </Link>
                     </td>
                     <NumCell value={p.overdue_count} href={`/tasks${filtersToSearch({ owner: [p.user_id], overdue: true })}`} tone="red" />

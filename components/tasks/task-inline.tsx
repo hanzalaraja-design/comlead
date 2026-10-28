@@ -12,7 +12,7 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { RichTextView } from "@/components/rich-text-view";
 import { MeetingTag, ProjectTag } from "@/components/tasks/task-badges";
 import { DOMAINS, domainHref } from "@/lib/domains";
-import { personName } from "@/lib/labels";
+import { fullName, personName } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { PersonRef, ProjectKind } from "@/lib/types";
 import { setTaskCollaborators, setTaskTeams, updateTaskInline } from "@/app/(app)/tasks/actions";
@@ -141,7 +141,7 @@ function ChipField({
   const byId = new Map(choices.map((c) => [c.id, c]));
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return choices.filter((c) => !ids.includes(c.id) && !fixed.includes(c.id) && (!q || c.label.toLowerCase().includes(q)));
+    return choices.filter((c) => !ids.includes(c.id) && !fixed.includes(c.id) && (!q || (c.person ? fullName(c.person) : c.label).toLowerCase().includes(q)));
   }, [choices, ids, fixed, query]);
   function save(next: string[]) {
     const before = ids;
