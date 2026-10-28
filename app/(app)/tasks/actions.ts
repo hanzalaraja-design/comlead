@@ -130,7 +130,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
     if (cErr) return { ok: false, error: friendlyError(cErr) };
   }
 
-  // "Needed from others", added while creating: only for a single task.
+  // Subtasks added while creating: only for a single task.
   if (data.length === 1) {
     const subs = readSubtaskRows(formData);
     if (subs.length) {
@@ -140,7 +140,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
         .select("id, title, due_date, owner_id");
       if (sErr) return { ok: false, error: `The task was created, but its subtasks weren't: ${friendlyError(sErr)}` };
       for (const s of made ?? []) {
-        emailSubtaskGiven(s as { id: string; title: string; due_date: string | null; owner_id: string }, v.title, viewer.id);
+        if (s.owner_id) emailSubtaskGiven(s as { id: string; title: string; due_date: string | null; owner_id: string }, v.title, viewer.id);
         syncLater(() => syncTask(s.id as string));
       }
     }
@@ -244,28 +244,28 @@ async function afterDone(supabase: Awaited<ReturnType<typeof createClient>>, tas
   if (t?.parent_task_id) emailSubtaskDone(t as { title: string; parent_task_id: string }, viewerId);
 }
 
-/** "Needed from others" rows from the new task form. */
+/** Subtask rows from the new task form (person and date optional). */
 function readSubtaskRows(formData: FormData) {
   const titles = formData.getAll("subtask_title").map(String);
   const owners = formData.getAll("subtask_owner").map(String);
   const dues = formData.getAll("subtask_due").map(String);
   return titles
     .map((title, i) => ({ title: title.trim().slice(0, 300), owner_id: owners[i] || null, due_date: dues[i] || null }))
-    .filter((s) => s.title && s.owner_id && uuid.safeParse(s.owner_id).success && (!s.due_date || /^\d{4}-\d{2}-\d{2}$/.test(s.due_date)))
+    .filter((s) => s.title && (!s.owner_id || uuid.safeParse(s.owner_id).success) && (!s.due_date || /^\d{4}-\d{2}-\d{2}$/.test(s.due_date)))
     .slice(0, 20);
 }
 
 const subtaskSchema = z.object({
   parentId: uuid,
-  title: z.string().trim().min(1, "Say what's needed").max(300),
-  owner_id: uuid,
+  title: z.string().trim().min(1, "Name the subtask").max(300),
+  owner_id: uuid.nullable(),
   due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
 });
 
-/** Give part of a task to someone, from any team, with their own deadline. */
+/** A smaller step of a task; give it to anyone, with their own deadline, or keep it as a checklist item. */
 export async function addSubtask(
   parentId: string,
-  input: { title: string; owner_id: string; due_date: string | null },
+  input: { title: string; owner_id: string | null; due_date: string | null },
 ): Promise<ActionResult<{ id: string }>> {
   const viewer = await requireViewer();
   const parsed = subtaskSchema.safeParse({ parentId, ...input });
@@ -284,7 +284,7 @@ export async function addSubtask(
     .single();
   if (error || !data) return { ok: false, error: friendlyError(error) };
 
-  emailSubtaskGiven({ id: data.id as string, title: v.title, due_date: v.due_date, owner_id: v.owner_id }, parent.title as string, viewer.id);
+  if (v.owner_id) emailSubtaskGiven({ id: data.id as string, title: v.title, due_date: v.due_date, owner_id: v.owner_id }, parent.title as string, viewer.id);
   revalidateTaskViews(v.parentId);
   syncLater(() => syncTask(data.id as string));
   return { ok: true, data: { id: data.id as string } };

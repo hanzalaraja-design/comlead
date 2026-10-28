@@ -149,6 +149,24 @@
   .prose-content pre {
     @apply overflow-x-auto rounded bg-muted p-2 text-xs;
   }
+  /* Tables (pasted from Excel or made with the Table button): scroll sideways on phones. */
+  .prose-content table {
+    @apply block max-w-full overflow-x-auto border-collapse text-[13px];
+  }
+  .prose-content th,
+  .prose-content td {
+    @apply min-w-[6rem] border border-line px-2.5 py-1.5 text-left align-top;
+  }
+  .prose-content th {
+    @apply bg-subtle font-semibold;
+  }
+  .prose-content td > p,
+  .prose-content th > p {
+    @apply m-0;
+  }
+  .prose-content .selectedCell {
+    @apply bg-brand-primary/10;
+  }
   .prose-content p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     @apply pointer-events-none float-left h-0 text-muted-foreground;

@@ -12,13 +12,14 @@ import { CompleteButton } from "@/components/tasks/complete-button";
 import { InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
 import { StatusBadge } from "@/components/tasks/task-badges";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
+import { ON_TIME_STYLES, onTimeStatus } from "@/lib/tasks/ontime";
 import { formatDate, todayPKT } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import type { PersonRef, TaskStatus } from "@/lib/types";
 import { addSubtask } from "@/app/(app)/tasks/actions";
 
 /**
- * "Needed from others": pieces of a task given to people from any team, each
+ * Subtasks: smaller steps of a task. Each can go to anyone, from any team, with
  * with their own deadline. Each one is a task of its own for that person.
  */
 
@@ -27,7 +28,7 @@ export function PersonPicker({
   people,
   value,
   onChange,
-  placeholder = "Who?",
+  placeholder = "Who? (optional)",
   className,
 }: {
   people: PersonRef[];
@@ -108,10 +109,10 @@ function DraftRow({
   return (
     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_9.5rem_auto]">
       <input
-        aria-label="What's needed"
+        aria-label="Subtask"
         value={draft.title}
         onChange={(e) => onChange({ ...draft, title: e.target.value })}
-        placeholder="What's needed, e.g. Final banner sizes"
+        placeholder="Add a subtask, e.g. Final banner sizes"
         maxLength={300}
         autoFocus={autoFocus}
         className="h-10 min-w-0 field px-3 text-sm"
@@ -151,7 +152,7 @@ export function NeededFromOthers({
     <div className="space-y-2">
       {drafts.length > 0 && (
         <p className="text-sm font-medium text-ink">
-          Needed from others <span className="font-normal text-ink-muted">· each person gets it as a task with their own deadline</span>
+          Subtasks
         </p>
       )}
       {!disabledReason &&
@@ -173,7 +174,7 @@ export function NeededFromOthers({
           onClick={() => onChange([...drafts, blank()])}
           className="inline-flex items-center gap-1 text-sm font-medium text-brand-primary hover:underline"
         >
-          <Plus className="h-4 w-4" /> {drafts.length ? "Someone else" : "Need something from someone?"}
+          <Plus className="h-4 w-4" /> {drafts.length ? "Another subtask" : "Add subtasks"}
         </button>
       )}
     </div>
@@ -188,6 +189,7 @@ export type SubtaskRow = {
   due_time: string | null;
   overdue: boolean;
   owner: PersonRef | null;
+  completed_at?: string | null;
 };
 
 /** On the task page: who the task is waiting on, and adding more. */
@@ -211,16 +213,18 @@ export function SubtaskSection({
   const open = subtasks.filter((s) => OPEN_STATUSES.includes(s.status));
   const done = subtasks.filter((s) => s.status === "done").length;
   const next = [...open].sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"))[0];
+  // Done subtasks that had a due date: were they in on time?
+  const finished = subtasks.map((s) => onTimeStatus(s.due_date, s.completed_at)).filter((x) => !!x);
+  const onTimeCount = finished.filter((x) => x!.onTime).length;
 
   function save() {
     if (!draft) return;
-    if (!draft.title.trim()) return toast.error("Say what's needed.");
-    if (!draft.owner_id) return toast.error("Pick who it's needed from.");
+    if (!draft.title.trim()) return toast.error("Name the subtask.");
     startTransition(async () => {
-      const res = await addSubtask(parentId, { title: draft.title, owner_id: draft.owner_id, due_date: draft.due_date || null });
+      const res = await addSubtask(parentId, { title: draft.title, owner_id: draft.owner_id || null, due_date: draft.due_date || null });
       if (res.ok) {
         const who = people.find((p) => p.id === draft.owner_id);
-        toast.success(`Sent to ${personName(who ?? null)}.`);
+        toast.success(who ? `Added for ${personName(who)}. It's in their My tasks.` : "Subtask added.");
         setDraft(null);
         router.refresh();
       } else toast.error(res.error);
@@ -231,10 +235,12 @@ export function SubtaskSection({
   return (
     <section className="surface p-4">
       <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="text-[15px] font-semibold text-ink">Needed from others</h2>
+        <h2 className="text-[15px] font-semibold text-ink">Subtasks</h2>
         {subtasks.length > 0 && (
           <span className="text-sm text-ink-muted">
             {done} of {subtasks.length} done
+            {finished.length > 0 &&
+              ` · ${[onTimeCount && `${onTimeCount} on time`, finished.length - onTimeCount && `${finished.length - onTimeCount} late`].filter(Boolean).join(", ")}`}
             {next?.owner && (
               <>
                 {" · "}waiting on <span className="font-medium text-ink">{personName(next.owner)}</span>
@@ -267,7 +273,13 @@ export function SubtaskSection({
                   </Link>
                   {s.status !== "todo" && s.status !== "done" && <StatusBadge status={s.status} />}
                   <InlineOwner taskId={s.id} owner={s.owner} />
-                  <InlineDue taskId={s.id} date={s.due_date} time={s.due_time} overdue={s.overdue} />
+                  {s.status === "done" && onTimeStatus(s.due_date, s.completed_at) ? (
+                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-bold", ON_TIME_STYLES[onTimeStatus(s.due_date, s.completed_at)!.tone])}>
+                      {onTimeStatus(s.due_date, s.completed_at)!.label}
+                    </span>
+                  ) : (
+                    <InlineDue taskId={s.id} date={s.due_date} time={s.due_time} overdue={s.overdue} />
+                  )}
                   {late && (
                     <span className="inline-flex basis-full items-center gap-1 pl-8 text-xs font-medium text-warning-ink">
                       <TriangleAlert className="h-3.5 w-3.5" /> Due after the main task ({formatDate(parentDue!, "d MMM")})
@@ -286,7 +298,7 @@ export function SubtaskSection({
             <DraftRow draft={draft} people={people} onChange={setDraft} autoFocus />
             <div className="flex gap-2">
               <Button size="sm" disabled={pending} onClick={save}>
-                {pending ? "Sending…" : "Send"}
+                {pending ? "Adding…" : "Add"}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
                 Cancel
@@ -299,7 +311,7 @@ export function SubtaskSection({
             onClick={() => setDraft(blank())}
             className={cn("inline-flex items-center gap-1 text-sm font-medium text-brand-primary hover:underline", subtasks.length > 0 && "mt-2")}
           >
-            <Plus className="h-4 w-4" /> {subtasks.length ? "Need something else" : "Need something from someone? Add it here"}
+            <Plus className="h-4 w-4" /> Add a subtask
           </button>
         ))}
     </section>

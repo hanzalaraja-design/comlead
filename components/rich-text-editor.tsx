@@ -3,7 +3,8 @@
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Bold, Heading2, Italic, Link2, List, ListOrdered, Quote, Strikethrough } from "lucide-react";
+import { TableKit } from "@tiptap/extension-table";
+import { Bold, Columns3, Heading2, Italic, Link2, List, ListOrdered, Quote, Rows3, Strikethrough, Table2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -33,12 +34,29 @@ export function RichTextEditor({
         link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
       }),
       Placeholder.configure({ placeholder: placeholder ?? "Write something…" }),
+      TableKit.configure({ table: { resizable: false } }),
     ],
     content: defaultValue ?? "",
     editorProps: {
       attributes: {
         class: "prose-content max-w-none px-3 py-2 outline-none",
         style: `min-height:${minHeight}`,
+      },
+      // Cells copied from Excel or Sheets as plain tab-separated text become a table.
+      handlePaste: (view, event) => {
+        const data = event.clipboardData;
+        if (!data || data.getData("text/html").includes("<table")) return false;
+        const text = data.getData("text/plain").replace(/\r/g, "").replace(/\n+$/, "");
+        const rows = text.split("\n");
+        if (rows.length < 2 || !rows.every((r) => r.includes("\t"))) return false;
+        const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const [head, ...body] = rows.map((r) => r.split("\t"));
+        const html =
+          `<table><tbody><tr>${head.map((c) => `<th><p>${esc(c)}</p></th>`).join("")}</tr>` +
+          body.map((r) => `<tr>${head.map((_, i) => `<td><p>${esc(r[i] ?? "")}</p></td>`).join("")}</tr>`).join("") +
+          `</tbody></table>`;
+        // A fresh paste event (no clipboard data), so this handler steps aside the second time.
+        return view.pasteHTML(html);
       },
     },
     onUpdate: ({ editor }) => {
@@ -99,6 +117,32 @@ function Toolbar({ editor }: { editor: Editor | null }) {
       >
         <Link2 className="h-4 w-4" />
       </button>
+      <span className="mx-1 w-px self-stretch bg-line" />
+      <button
+        type="button"
+        aria-label="Insert a table"
+        title="Insert a table (or paste cells from Excel)"
+        className={btn(editor.isActive("table"))}
+        onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+      >
+        <Table2 className="h-4 w-4" />
+      </button>
+      {editor.isActive("table") && (
+        <>
+          <button type="button" aria-label="Add a row" title="Add a row" className={btn(false)} onClick={() => editor.chain().focus().addRowAfter().run()}>
+            <Rows3 className="h-4 w-4" />
+          </button>
+          <button type="button" aria-label="Add a column" title="Add a column" className={btn(false)} onClick={() => editor.chain().focus().addColumnAfter().run()}>
+            <Columns3 className="h-4 w-4" />
+          </button>
+          <button type="button" aria-label="Delete the row" title="Delete this row" className={btn(false)} onClick={() => editor.chain().focus().deleteRow().run()}>
+            <Rows3 className="h-4 w-4 text-danger" />
+          </button>
+          <button type="button" aria-label="Delete the table" title="Delete the table" className={btn(false)} onClick={() => editor.chain().focus().deleteTable().run()}>
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </>
+      )}
     </div>
   );
 }
