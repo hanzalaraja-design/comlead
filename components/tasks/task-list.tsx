@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import { CornerDownRight, ListChecks } from "lucide-react";
 import { MeetingTag, ProjectTag, StatusBadge, TagList } from "@/components/tasks/task-badges";
-import { InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
+import { CollaboratorsChip, InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
 import { getPeople } from "@/lib/auth";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
@@ -39,7 +39,7 @@ export async function TaskList({
   const names = new Map(people.map((p) => [p.id, personName(p)]));
   // Who handed it over, when that wasn't the owner themselves.
   const byName = (t: TaskListRow) => (t.assigned_by && t.assigned_by !== t.owner_id ? names.get(t.assigned_by) : undefined);
-  const cols = showOwner ? "md:grid-cols-[7.5rem_minmax(0,1fr)_9rem_8rem_9rem]" : "md:grid-cols-[7.5rem_minmax(0,1fr)_8rem_9rem]";
+  const cols = showOwner ? "md:grid-cols-[7.5rem_minmax(0,1fr)_11rem_8rem_9rem]" : "md:grid-cols-[7.5rem_minmax(0,1fr)_8rem_9rem]";
   return (
     <PeopleProvider people={people}>
     <div className="overflow-hidden surface">
@@ -147,15 +147,17 @@ function TaskListItem({
         )}
         {assignedBy && <span className="text-xs text-muted-foreground">from {assignedBy}</span>}
         {showOwner && (
-          <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-1.5">
             <InlineOwner taskId={t.id} owner={t.owner} compact />
+            <CollaboratorsChip ids={(t.collaborators ?? []).map((c) => c.user_id)} />
           </span>
         )}
       </div>
 
       {showOwner && (
-        <div className="hidden min-w-0 md:flex">
+        <div className="hidden min-w-0 items-center gap-1.5 md:flex">
           <InlineOwner taskId={t.id} owner={t.owner} />
+          <CollaboratorsChip ids={(t.collaborators ?? []).map((c) => c.user_id)} />
         </div>
       )}
       <div className="hidden md:block">

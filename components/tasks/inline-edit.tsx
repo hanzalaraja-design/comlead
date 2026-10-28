@@ -180,3 +180,41 @@ export function InlinePriority({ taskId, priority }: { taskId: string; priority:
     </span>
   );
 }
+
+/** The people helping on a task: a small chip of faces beside the owner; tap for names. */
+export function CollaboratorsChip({ ids }: { ids: string[] }) {
+  const people = useContext(PeopleContext);
+  const shown = ids.map((id) => people.find((p) => p.id === id)).filter((p): p is PersonRef => !!p);
+  if (!shown.length) return null;
+  const names = shown.map((p) => personName(p)).join(", ");
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title={`Collaborators: ${names}`}
+          aria-label={`${shown.length} collaborator${shown.length === 1 ? "" : "s"}: ${names}`}
+          className={cn(ABOVE, "inline-flex shrink-0 items-center gap-0.5 rounded-full border border-line bg-white py-px pl-0.5 pr-1.5 text-[11px] font-bold text-ink-muted hover:bg-subtle")}
+        >
+          <span className="flex">
+            {shown.slice(0, 2).map((p, i) => (
+              <PersonAvatar key={p.id} person={p} className={cn("h-[18px] w-[18px] text-[8px] ring-[1.5px] ring-white", i > 0 && "-ml-1.5")} />
+            ))}
+          </span>
+          +{shown.length}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-52 p-2" onClick={(e) => e.stopPropagation()}>
+        <p className="kicker px-1 pb-1">Collaborators</p>
+        <ul>
+          {shown.map((p) => (
+            <li key={p.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-sm">
+              <PersonAvatar person={p} className="h-5 w-5" />
+              <span className="truncate">{personName(p)}</span>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}

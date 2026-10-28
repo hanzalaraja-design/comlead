@@ -267,7 +267,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
                         {items.length}
                       </span>
                     </h3>
-                    <TaskList tasks={items} showOwner={false} from="my" />
+                    <TaskList tasks={items} from="my" />
                   </div>
                 );
               })}
@@ -283,7 +283,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
               <span className="text-xs font-normal normal-case tracking-normal text-ink-muted">{filters.when.length ? "in the dates you picked" : "last 30 days"}</span>
               <ChevronDown className="ml-auto h-4 w-4 transition-transform group-open:rotate-180" />
             </summary>
-            <TaskList tasks={done.tasks} showOwner={false} showCompleted from="my" />
+            <TaskList tasks={done.tasks} showCompleted from="my" />
             <Link href="/my?status=done&sort=completed&dir=desc&when=all" className="mt-2 inline-block text-sm font-medium text-brand-primary hover:underline">
               See everything you&apos;ve completed
             </Link>

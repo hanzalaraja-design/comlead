@@ -77,6 +77,8 @@ export type TaskRow = Task & {
   parent?: { id: string; title: string } | null;
   /** Its subtasks, for the "1/3" count. */
   subtasks?: { status: TaskStatus }[];
+  /** Who's helping, besides the owner. */
+  collaborators?: { user_id: string }[];
 };
 
 export type ProjectKind = "project" | "campaign" | "partnership";
