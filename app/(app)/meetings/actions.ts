@@ -149,3 +149,27 @@ export async function deleteMeeting(meetingId: string): Promise<ActionResult> {
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+/** Link a meeting to projects, campaigns and partnerships (exactly these). */
+export async function setMeetingProjects(meetingId: string, projectIds: string[]): Promise<ActionResult> {
+  await requireViewer();
+  const ids = z.array(z.string().uuid()).max(20).safeParse(projectIds);
+  if (!z.string().uuid().safeParse(meetingId).success || !ids.success) return { ok: false, error: "That change isn't valid." };
+  const supabase = await createClient();
+  const { data: current, error: readErr } = await supabase.from("meeting_projects").select("project_id").eq("meeting_id", meetingId);
+  if (readErr) return { ok: false, error: friendlyError(readErr) };
+  const have = new Set((current ?? []).map((r) => r.project_id as string));
+  const want = new Set(ids.data);
+  const add = [...want].filter((p) => !have.has(p));
+  const remove = [...have].filter((p) => !want.has(p));
+  if (add.length) {
+    const { error } = await supabase.from("meeting_projects").insert(add.map((project_id) => ({ meeting_id: meetingId, project_id })));
+    if (error) return { ok: false, error: friendlyError(error) };
+  }
+  if (remove.length) {
+    const { error } = await supabase.from("meeting_projects").delete().eq("meeting_id", meetingId).in("project_id", remove);
+    if (error) return { ok: false, error: friendlyError(error) };
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

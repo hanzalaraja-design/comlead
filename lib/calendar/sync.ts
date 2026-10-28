@@ -245,7 +245,7 @@ export function syncTask(taskId: string) {
     const { data: task } = await db
       .from("tasks")
       .select(
-        "id, title, status, priority, due_date, due_time, deleted_at, department:departments(name), owner:profiles!tasks_owner_id_fkey(email, status, outlook_tasks_enabled)",
+        "id, title, status, priority, due_date, due_time, deleted_at, department:departments!tasks_department_id_fkey(name), owner:profiles!tasks_owner_id_fkey(email, status, outlook_tasks_enabled)",
       )
       .eq("id", taskId)
       .maybeSingle();
