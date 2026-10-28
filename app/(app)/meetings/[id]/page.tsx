@@ -145,7 +145,7 @@ export default async function MeetingPage({
           }))}
           people={people}
           memberIds={members.filter((m) => m.department_id === meeting.department_id).map((m) => m.user_id)}
-          canDelete={isLead}
+          canDelete={isLead || meeting.created_by === viewer.id}
           aiEnabled={isAiConfigured()}
         />
         </div>

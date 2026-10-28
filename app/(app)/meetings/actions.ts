@@ -145,7 +145,7 @@ export async function deleteMeeting(meetingId: string): Promise<ActionResult> {
   const supabase = await createClient();
   const { data, error } = await supabase.from("meetings").delete().eq("id", meetingId).select("id");
   if (error) return { ok: false, error: friendlyError(error) };
-  if (!data?.length) return { ok: false, error: "Only a department admin can delete meetings." };
+  if (!data?.length) return { ok: false, error: "Only whoever set up this meeting, or the team admin, can delete it." };
   revalidatePath("/", "layout");
   return { ok: true };
 }
