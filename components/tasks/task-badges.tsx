@@ -51,19 +51,6 @@ export function DueLabel({
   );
 }
 
-export function TagList({ tags }: { tags: string[] }) {
-  if (!tags.length) return null;
-  return (
-    <span className="flex flex-wrap gap-1">
-      {tags.map((t) => (
-        <span key={t} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-          #{t}
-        </span>
-      ))}
-    </span>
-  );
-}
-
 /*
  * Where a task comes from, as small tinted tags: purple for a project,
  * blue for a meeting. The team stays plain grey text beside them.

@@ -8,11 +8,12 @@ import { getProjects, getTeamNames } from "@/lib/projects";
 import { SubtaskSection } from "@/components/tasks/subtasks";
 import { DOMAINS, domainHref } from "@/lib/domains";
 import { PersonAvatar } from "@/components/person-avatar";
-import { DueLabel, PriorityBadge, StatusBadge, TagList } from "@/components/tasks/task-badges";
+import { DueLabel, PriorityBadge, StatusBadge } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
-import { DeleteTaskButton } from "@/components/tasks/task-actions-menu";
+import { TaskMenu } from "@/components/tasks/task-actions-menu";
+import { BackLink } from "@/components/return-to";
 import { TaskForm } from "@/components/tasks/task-form";
 import { canLead, getPeople, isMemberOf, requireViewer } from "@/lib/auth";
 import { describeActivity } from "@/lib/activity";
@@ -140,17 +141,17 @@ export default async function TaskPage({
   }
 
   const createdBy = person(task.created_by);
+  const trail = task.parent
+    ? [{ label: "Tasks", href: "/my" }, { label: shortTitle(task.parent.title), href: `/tasks/${task.parent.id}` }]
+    : taskTrail(from, task, personName(task.owner));
+  const home = trail[trail.length - 1];
 
   return (
     <PeopleProvider people={people}>
     <div className="mx-auto max-w-5xl">
+      <BackLink taskId={id} fallback={home} />
       <PageHeader
-        breadcrumb={[
-          ...(task.parent
-            ? [{ label: "Tasks", href: "/my" }, { label: shortTitle(task.parent.title), href: `/tasks/${task.parent.id}` }]
-            : taskTrail(from, task, personName(task.owner))),
-          shortTitle(task.title),
-        ]}
+        breadcrumb={[...trail, shortTitle(task.title)]}
         title={<InlineTitle taskId={id} title={task.title} editable={canEdit} />}
         description={
           (canEdit || task.project || task.meeting) && (
@@ -164,7 +165,7 @@ export default async function TaskPage({
             />
           )
         }
-        actions={canDelete ? <DeleteTaskButton taskId={id} title={task.title} /> : undefined}
+        actions={<TaskMenu taskId={id} title={task.title} subtasks={subtasks.length} canDelete={canDelete} fallback={home.href} />}
       />
       {locked && (
         <p className="-mt-2 mb-4 rounded-[12px] bg-warning-soft px-3 py-2 text-sm text-warning-ink">
@@ -351,11 +352,6 @@ export default async function TaskPage({
                 <NotebookPen className="h-3.5 w-3.5" />
                 {task.meeting.title || "Meeting"} · {formatDate(task.meeting.meeting_date, "d MMM")}
               </Link>
-            </Detail>
-          )}
-          {task.tags.length > 0 && (
-            <Detail label="Tags">
-              <TagList tags={task.tags} />
             </Detail>
           )}
           {(isOwner || viewer.isAdmin || locked) && (

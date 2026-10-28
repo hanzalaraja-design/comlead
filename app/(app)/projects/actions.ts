@@ -209,3 +209,14 @@ export async function setProjectLocked(projectId: string, locked: boolean): Prom
   revalidateProjects();
   return { ok: true };
 }
+
+/** Owners only. Its tasks and meetings stay; they just stop being linked to it. */
+export async function deleteProject(projectId: string): Promise<ActionResult> {
+  await requireViewer();
+  if (!uuid.safeParse(projectId).success) return { ok: false, error: "Invalid project" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_project", { p_project_id: projectId });
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

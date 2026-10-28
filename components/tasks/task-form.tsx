@@ -75,7 +75,7 @@ export function TaskForm(props: TaskFormProps) {
   const forOthers = pickOwners ? owners.some((o) => o !== props.defaultOwnerId) : !!task?.owner_id && task.owner_id !== task.created_by;
   // The extras stay folded away unless the task already uses them.
   const [more, setMore] = useState(
-    !!task && !!(task.description || task.tags.length || task.due_time || (props.collaboratorIds ?? []).length),
+    !!task && !!(task.description || task.due_time || (props.collaboratorIds ?? []).length),
   );
 
   // Everyone can be given a task; people in the team or project come first.
@@ -286,10 +286,6 @@ export function TaskForm(props: TaskFormProps) {
           <div className="space-y-1.5">
             <Label htmlFor="due_time">Due time</Label>
             <TimeSelect id="due_time" name="due_time" defaultValue={task?.due_time ?? ""} disabled={!dueDate} emptyLabel="No time" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="tags">Tags</Label>
-            <Input id="tags" name="tags" defaultValue={task?.tags.join(", ")} placeholder="Q4, Birthday Bash" className="h-10" />
           </div>
         </div>
         <div className="space-y-1.5">

@@ -15,6 +15,7 @@ export const TASK_SELECT = `
   project:projects(id, name, slug, kind),
   parent:parent_task_id(id, title),
   subtasks:tasks!parent_task_id(status),
+  collaborators:task_collaborators(user_id),
   meeting:meetings!tasks_meeting_id_fkey(id, title, meeting_date)
 `;
 

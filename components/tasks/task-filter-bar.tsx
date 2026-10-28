@@ -192,14 +192,6 @@ export function TaskFilterBar({
 
       {more && (
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
-        {options.tags.length > 0 && (
-          <MultiSelect
-            label="Tags"
-            options={options.tags.map((t) => ({ value: t, label: `#${t}` }))}
-            value={filters.tags}
-            onChange={(v) => apply({ tags: v })}
-          />
-        )}
         <MultiSelect
           label="Source"
           options={SOURCES.map((s) => ({ value: s.value, label: s.label }))}

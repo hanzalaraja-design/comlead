@@ -11,6 +11,7 @@ import { getPeople, requireViewer } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { DOMAINS, CATEGORY_LABELS, PROJECT_COLUMNS, canManageProject, datesText, domainHref, getProjectMembers, getTeamNames, homeTeamFor, isProjectOwner, membersByProject, ownersOf, toProject } from "@/lib/projects";
 import { LockButton } from "@/components/projects/lock-button";
+import { ProjectMenu } from "@/components/projects/project-menu";
 import { MeetingTag } from "@/components/tasks/task-badges";
 import { RichTextView } from "@/components/rich-text-view";
 import type { ProjectKind } from "@/lib/types";
@@ -69,7 +70,7 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
   const { project, filters, base, teams, members, owners, isOwner, canManage, viewer } = loaded;
   const d = DOMAINS[project.kind];
   const supabase = await createClient();
-  const [options, meetingsRes] = await Promise.all([
+  const [options, meetingsRes, { count: taskCount }] = await Promise.all([
     getFilterOptions(),
     // Meetings about it (empty if the database hasn't got links yet).
     supabase
@@ -77,6 +78,10 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
       .select("meeting:meetings(id, title, meeting_date)")
       .eq("project_id", project.id)
       .then((r) => (r.error ? { data: [] } : r)),
+    // For the delete dialog: what stays behind.
+    isOwner
+      ? supabase.from("tasks").select("id", { count: "exact", head: true }).eq("project_id", project.id)
+      : Promise.resolve({ count: 0 }),
   ]);
   const meetings = ((meetingsRes.data ?? []) as unknown as { meeting: { id: string; title: string | null; meeting_date: string } | null }[])
     .map((r) => r.meeting)
@@ -123,6 +128,15 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
                 <Plus className="h-4 w-4" /> New task
               </Link>
             </Button>
+            <ProjectMenu
+              projectId={project.id}
+              name={project.name}
+              kindLabel={d.label.toLowerCase()}
+              listHref={d.path}
+              tasks={taskCount ?? 0}
+              meetings={meetings.length}
+              canDelete={isOwner}
+            />
           </>
         }
       />

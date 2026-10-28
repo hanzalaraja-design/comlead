@@ -3,6 +3,8 @@ import { AtSign, CheckCircle2, ChevronDown, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { TaskList } from "@/components/tasks/task-list";
+import { cookies } from "next/headers";
+import { RememberRole } from "@/components/tasks/remember-role";
 import { QuickAdd } from "@/components/tasks/quick-add";
 import { CelebrateWhenCleared } from "@/components/progress/celebrate";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -54,7 +56,9 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   const filters: TaskFilters = { ...parseFilters(raw), owner: ["me"] };
   const filtered = countActiveFilters({ ...filters, owner: [] }) > 0;
   // Owner, collaborator or both: which of your tasks to show.
-  const role = raw.role === "own" || raw.role === "collab" ? raw.role : "both";
+  // Opens on the last one you picked; "I own" the first time.
+  const asked = raw.role === "own" || raw.role === "collab" || raw.role === "both" ? raw.role : (await cookies()).get("my_role")?.value;
+  const role = asked === "collab" || asked === "both" ? asked : "own";
   const today = todayPKT();
   const weekEnd = weekEndPKT();
 
@@ -135,6 +139,19 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
     </section>
   );
 
+  // This month's on-time score.
+  const onTimeChip = (className: string) =>
+    scored.length > 0 && (
+      <span className={cn("items-center gap-2 rounded-[12px] bg-white px-3 py-2 text-[13px] text-ink shadow-sm", className)}>
+        <span className={cn("font-bold", onTimeCount / scored.length >= 0.8 ? "text-success-ink" : "text-warning-ink")}>
+          {Math.round((onTimeCount / scored.length) * 100)}% on time
+        </span>
+        <span className="text-ink-muted">
+          {onTimeCount} of {scored.length} finished by their due date this month
+        </span>
+      </span>
+    );
+
   return (
     <>
       <PageHeader
@@ -143,16 +160,18 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         description={formatDate(today, "EEEE d MMMM")}
       />
       <TaskTabs scope="my" view="list" search={filtersToSearch({ ...filters, owner: [] })} />
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <RememberRole role={role} />
+      {/* Pinned while you scroll, so switching never means scrolling back up. */}
+      <div className="sticky top-14 z-20 -mx-4 mb-4 flex flex-wrap items-center gap-2 border-b border-transparent bg-background/95 px-4 py-2 backdrop-blur md:top-0 md:-mx-12 md:px-12">
         {(
           [
             ["own", "I own", tasks.length],
-            ["collab", "I’m collaborating", collaborating.length],
-            ["both", "Both", null],
+            ["collab", "Collaborating", collaborating.length],
+            ["both", "All", tasks.length + collaborating.length],
           ] as const
         ).map(([key, label, n]) => {
           const params = new URLSearchParams(filtersToSearch({ ...filters, owner: [] }).slice(1));
-          if (key !== "both") params.set("role", key);
+          params.set("role", key);
           const qs = params.toString();
           return (
             <Link
@@ -169,17 +188,10 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
             </Link>
           );
         })}
-        {scored.length > 0 && (
-          <span className="ml-auto inline-flex items-center gap-2 rounded-[12px] bg-white px-3 py-2 text-[13px] text-ink shadow-sm">
-            <span className={cn("font-bold", onTimeCount / scored.length >= 0.8 ? "text-success-ink" : "text-warning-ink")}>
-              {Math.round((onTimeCount / scored.length) * 100)}% on time
-            </span>
-            <span className="text-ink-muted">
-              {onTimeCount} of {scored.length} finished by their due date this month
-            </span>
-          </span>
-        )}
+        {onTimeChip("ml-auto hidden md:inline-flex")}
       </div>
+      {/* On phones it sits below the switch, so the pinned bar stays one line. */}
+      {onTimeChip("mb-4 inline-flex md:hidden")}
       {!filtered && <CelebrateWhenCleared remaining={overdue + dueToday} line={clearedLine(today + viewer.id)} />}
 
       {/* Today at a glance (only when nothing is filtered, so the counts are the whole picture) */}
@@ -200,7 +212,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} allowPrivate />
       </div>
 
-      <TaskFilterBar filters={filters} options={options} hide={["owner", "sort"]} preserve={role === "both" ? undefined : { role }} />
+      <TaskFilterBar filters={filters} options={options} hide={["owner", "sort"]} preserve={{ role }} />
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       <div className="space-y-8">
@@ -267,7 +279,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
                         {items.length}
                       </span>
                     </h3>
-                    <TaskList tasks={items} showOwner={false} from="my" />
+                    <TaskList tasks={items} from="my" />
                   </div>
                 );
               })}
@@ -283,7 +295,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
               <span className="text-xs font-normal normal-case tracking-normal text-ink-muted">{filters.when.length ? "in the dates you picked" : "last 30 days"}</span>
               <ChevronDown className="ml-auto h-4 w-4 transition-transform group-open:rotate-180" />
             </summary>
-            <TaskList tasks={done.tasks} showOwner={false} showCompleted from="my" />
+            <TaskList tasks={done.tasks} showCompleted from="my" />
             <Link href="/my?status=done&sort=completed&dir=desc&when=all" className="mt-2 inline-block text-sm font-medium text-brand-primary hover:underline">
               See everything you&apos;ve completed
             </Link>
