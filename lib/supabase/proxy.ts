@@ -13,7 +13,7 @@ const ALLOWED_DOMAIN = "@highfy.pk";
 export const VIEWER_HEADER = "x-highfy-viewer";
 
 // Reachable without a session.
-const PUBLIC_PATHS = ["/login", "/auth/", "/api/cron/"];
+const PUBLIC_PATHS = ["/login", "/auth/", "/api/cron/", "/api/mcp", "/.well-known/"];
 
 export async function updateSession(request: NextRequest) {
   request.headers.delete(VIEWER_HEADER);
