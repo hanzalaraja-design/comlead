@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
-import { CornerDownRight, FolderKanban, NotebookPen, Pencil } from "lucide-react";
+import { CornerDownRight, FolderKanban, NotebookPen } from "lucide-react";
+import { CollaboratorsField, InlineNotes, InlineTitle, LinkTags, TaskLockSwitch, TeamsField } from "@/components/tasks/task-inline";
+import { InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
+import { getProjects, getTeamNames } from "@/lib/projects";
 import { SubtaskSection } from "@/components/tasks/subtasks";
 import { DOMAINS, domainHref } from "@/lib/domains";
-import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
-import { RichTextView } from "@/components/rich-text-view";
-import { DueLabel, MeetingTag, PriorityBadge, ProjectTag, StatusBadge, TagList } from "@/components/tasks/task-badges";
+import { DueLabel, PriorityBadge, StatusBadge, TagList } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
@@ -41,7 +42,7 @@ export default async function TaskPage({
   if (!taskData) notFound();
   const task = taskData as unknown as TaskListRow;
 
-  const [collabRes, commentsRes, filesRes, historyRes, people, subtasksRes] = await Promise.all([
+  const [collabRes, commentsRes, filesRes, historyRes, people, subtasksRes, teamsRes, teamNames, allProjects, meetingsRes, dbCanEdit, dbCanDelete] = await Promise.all([
     supabase.from("task_collaborators").select("user_id").eq("task_id", id),
     supabase
       .from("task_comments")
@@ -65,7 +66,16 @@ export default async function TaskPage({
     task.parent_task_id
       ? Promise.resolve({ data: [] })
       : supabase.from("tasks").select(TASK_SELECT).eq("parent_task_id", id).order("due_date", { ascending: true, nullsFirst: false }).order("created_at").then((r) => (r.error ? { data: [] } : r)),
+    // Its extra teams (empty if the database hasn't got them yet).
+    supabase.from("task_teams").select("department_id").eq("task_id", id).then((r) => (r.error ? { data: [] } : r)),
+    getTeamNames(),
+    getProjects(),
+    supabase.from("meetings").select("id, title, meeting_date").order("meeting_date", { ascending: false }).limit(40),
+    // The database's own answer, which knows about locks and every team.
+    supabase.rpc("can_edit_task", { p_task_id: id }),
+    supabase.rpc("can_delete_task", { p_task_id: id }),
   ]);
+  const extraTeamIds = ((teamsRes.data ?? []) as { department_id: string }[]).map((t) => t.department_id);
   const subtasks = ((subtasksRes.data ?? []) as unknown as TaskListRow[]).sort((a, b) => Number(a.status === "done") - Number(b.status === "done"));
   // Everyone who got this same task, when it was given to several people at once.
   const { data: setData } = task.set_id
@@ -94,9 +104,12 @@ export default async function TaskPage({
     // Whoever runs the main task runs its subtasks too.
     task.parent_task_id ? rpcTrue("can_edit_task", { p_task_id: task.parent_task_id }) : false,
   ]);
-  const canEdit = isLead || isOwner || isCollaborator || isCreator || isMeetingEditor || inProject || editsParent;
+  const canEdit =
+    typeof dbCanEdit.data === "boolean" ? dbCanEdit.data : isLead || isOwner || isCollaborator || isCreator || isMeetingEditor || inProject || editsParent;
+  const locked = !!task.locked;
   const canContribute = isMemberOf(viewer, task.department_id) || isOwner || isCollaborator || inProject;
-  const canDelete = isLead || managesProject || editsParent || (isCreator && (!task.owner_id || isOwner));
+  const canDelete =
+    typeof dbCanDelete.data === "boolean" ? dbCanDelete.data : isLead || managesProject || editsParent || (isCreator && (!task.owner_id || isOwner));
   // Anyone who can edit a task can hand it to anyone.
   const canReassign = canEdit;
 
@@ -129,6 +142,7 @@ export default async function TaskPage({
   const createdBy = person(task.created_by);
 
   return (
+    <PeopleProvider people={people}>
     <div className="mx-auto max-w-5xl">
       <PageHeader
         breadcrumb={[
@@ -137,44 +151,39 @@ export default async function TaskPage({
             : taskTrail(from, task, personName(task.owner))),
           shortTitle(task.title),
         ]}
-        title={task.title}
+        title={<InlineTitle taskId={id} title={task.title} editable={canEdit} />}
         description={
-          (task.project || task.meeting) && (
-            <span className="mt-1 flex flex-wrap gap-2">
-              {task.project && (
-                <Link href={domainHref(task.project)} className="max-w-full hover:opacity-80">
-                  <ProjectTag name={task.project.name} kind={task.project.kind} prefix={DOMAINS[task.project.kind].label} size="md" />
-                </Link>
-              )}
-              {task.meeting && (
-                <Link href={`/meetings/${task.meeting.id}`} className="max-w-full hover:opacity-80">
-                  <MeetingTag title={task.meeting.title} date={task.meeting.meeting_date} prefix="From meeting" size="md" />
-                </Link>
-              )}
-            </span>
+          (canEdit || task.project || task.meeting) && (
+            <LinkTags
+              taskId={id}
+              project={task.project ?? null}
+              meeting={task.meeting ?? null}
+              projects={allProjects.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, slug: p.slug, kind: p.kind }))}
+              meetings={(meetingsRes.data ?? []) as { id: string; title: string | null; meeting_date: string }[]}
+              editable={canEdit && !task.parent_task_id}
+            />
           )
         }
-        actions={
-          <>
-            {canEdit && (
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/tasks/${id}?edit=1${from ? `&from=${from}` : ""}`}>
-                  <Pencil className="h-4 w-4" /> Edit
-                </Link>
-              </Button>
-            )}
-            {canDelete && <DeleteTaskButton taskId={id} title={task.title} />}
-          </>
-        }
+        actions={canDelete ? <DeleteTaskButton taskId={id} title={task.title} /> : undefined}
       />
+      {locked && (
+        <p className="-mt-2 mb-4 rounded-[12px] bg-warning-soft px-3 py-2 text-sm text-warning-ink">
+          Locked by its owner{task.owner ? `, ${personName(task.owner)}` : ""}. Only they can change it.
+        </p>
+      )}
+      {canEdit && !locked && <p className="-mt-3 mb-4 text-xs text-ink-muted">Click any field to change it. It saves as you go.</p>}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="min-w-0 space-y-6">
           <div className="card-outlined space-y-4 p-4 md:p-6">
             <div className="flex flex-wrap items-center gap-2">
               <StatusSelect taskId={id} status={task.status} disabled={!canEdit} />
-              <PriorityBadge priority={task.priority} />
-              <DueLabel date={task.due_date} time={task.due_time} overdue={task.overdue} className="text-sm" />
+              {canEdit ? <InlinePriority taskId={id} priority={task.priority} /> : <PriorityBadge priority={task.priority} />}
+              {canEdit ? (
+                <InlineDue taskId={id} date={task.due_date} time={task.due_time} overdue={task.overdue} />
+              ) : (
+                <DueLabel date={task.due_date} time={task.due_time} overdue={task.overdue} className="text-sm" />
+              )}
             </div>
             {task.status === "blocked" && (
               <p className="rounded-[12px] bg-warning-soft px-3 py-2 text-sm text-warning-ink">
@@ -190,7 +199,7 @@ export default async function TaskPage({
                 </span>
               </p>
             )}
-            {task.description && <RichTextView html={task.description} />}
+            <InlineNotes taskId={id} html={task.description} editable={canEdit} />
           </div>
 
           {!task.parent_task_id && (
@@ -289,9 +298,13 @@ export default async function TaskPage({
 
         <aside className="h-fit space-y-4 surface p-4 text-sm lg:sticky lg:top-8">
           <Detail label="Owner">
-            <span className="flex items-center gap-2">
-              <PersonAvatar person={task.owner} /> {personName(task.owner)}
-            </span>
+            {canEdit && canReassign ? (
+              <InlineOwner taskId={id} owner={task.owner} />
+            ) : (
+              <span className="flex items-center gap-2">
+                <PersonAvatar person={task.owner} /> {personName(task.owner)}
+              </span>
+            )}
           </Detail>
           {task.owner_id && task.assigned_by && (
             <Detail label="Assigned by">
@@ -302,15 +315,10 @@ export default async function TaskPage({
               </span>
             </Detail>
           )}
-          {collaboratorIds.length > 0 && (
+          {(canEdit || collaboratorIds.length > 0) && (
             <Detail label="Collaborators">
-              <ul className="space-y-1">
-                {collaboratorIds.map((cid) => (
-                  <li key={cid} className="flex items-center gap-2">
-                    <PersonAvatar person={person(cid)} /> {personName(person(cid))}
-                  </li>
-                ))}
-              </ul>
+              <p className="-mt-0.5 mb-1.5 text-xs text-ink-muted">Others working on it with the owner</p>
+              <CollaboratorsField taskId={id} value={collaboratorIds} people={people} ownerId={task.owner_id} editable={canEdit} />
             </Detail>
           )}
           {task.project && (
@@ -321,10 +329,21 @@ export default async function TaskPage({
               </Link>
             </Detail>
           )}
-          {!task.parent && (task.department || !task.project) && (
-            <Detail label="Team">
-              {task.department?.name ??
-                (task.owner_id && task.owner_id !== task.created_by ? "None, a direct task" : "Private")}
+          {!task.parent && (
+            <Detail label="Teams">
+              <p className="mb-1.5 text-sm text-ink">
+                {task.department?.name ??
+                  (task.project ? "No main team" : task.owner_id && task.owner_id !== task.created_by ? "None, a direct task" : "Private")}
+              </p>
+              {(task.department || task.project) && (canEdit || extraTeamIds.length > 0) && (
+                <TeamsField
+                  taskId={id}
+                  value={extraTeamIds}
+                  teams={teamNames.filter((t) => t.id !== task.department_id)}
+                  editable={canEdit}
+                />
+              )}
+              {(task.department || task.project) && <p className="mt-1 text-xs text-ink-muted">It shows in each of these teams’ lists</p>}
             </Detail>
           )}
           {task.meeting && (
@@ -340,6 +359,11 @@ export default async function TaskPage({
               <TagList tags={task.tags} />
             </Detail>
           )}
+          {(isOwner || viewer.isAdmin || locked) && (
+            <div className="border-t border-line pt-3">
+              <TaskLockSwitch taskId={id} locked={locked} canToggle={isOwner || viewer.isAdmin} />
+            </div>
+          )}
           <p className="text-xs text-ink-muted">
             Added {formatPKT(task.created_at, "d MMM")}
             {createdBy && ` by ${personName(createdBy)}`}
@@ -348,6 +372,7 @@ export default async function TaskPage({
         </aside>
       </div>
     </div>
+    </PeopleProvider>
   );
 }
 

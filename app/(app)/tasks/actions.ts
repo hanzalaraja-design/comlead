@@ -520,17 +520,36 @@ const inlineSchema = z.object({
   owner_id: uuid.nullable().optional(),
   due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   priority: z.enum(["urgent", "high", "medium", "low"]).optional(),
+  title: z.string().trim().min(1, "A task needs a title").max(300).optional(),
+  description: z.string().max(100_000).optional(),
+  locked: z.boolean().optional(),
+  project_id: uuid.nullable().optional(),
+  meeting_id: uuid.nullable().optional(),
 });
 
-/** One field changed straight from a list: owner, due date or priority. */
+/**
+ * One field changed in place, from a list or the task page: owner, due date,
+ * priority, title, notes, lock, or what it's linked to.
+ */
 export async function updateTaskInline(
   taskId: string,
-  patch: { owner_id?: string | null; due_date?: string | null; priority?: string },
+  patch: {
+    owner_id?: string | null;
+    due_date?: string | null;
+    priority?: string;
+    title?: string;
+    description?: string;
+    locked?: boolean;
+    project_id?: string | null;
+    meeting_id?: string | null;
+  },
 ): Promise<ActionResult> {
   await requireViewer();
   const parsed = inlineSchema.safeParse({ taskId, ...patch });
-  if (!parsed.success) return { ok: false, error: "That change isn't valid." };
-  const { taskId: id, ...fields } = parsed.data;
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "That change isn't valid." };
+  const { taskId: id, description, ...rest } = parsed.data;
+  const fields: Record<string, unknown> = { ...rest };
+  if (description !== undefined) fields.description = isBlankHtml(description) ? null : sanitizeRichText(description);
   // Clearing the date clears its time too.
   const update = fields.due_date === null ? { ...fields, due_time: null } : fields;
 
@@ -541,5 +560,56 @@ export async function updateTaskInline(
 
   revalidateTaskViews(id);
   syncLater(() => syncTask(id));
+  return { ok: true };
+}
+
+/** Make a task's extra teams exactly these: it shows in each team's list. */
+export async function setTaskTeams(taskId: string, departmentIds: string[]): Promise<ActionResult> {
+  await requireViewer();
+  const ids = z.array(uuid).max(30).safeParse(departmentIds);
+  if (!uuid.safeParse(taskId).success || !ids.success) return { ok: false, error: "That change isn't valid." };
+  const supabase = await createClient();
+  const { data: current, error: readErr } = await supabase.from("task_teams").select("department_id").eq("task_id", taskId);
+  if (readErr) return { ok: false, error: friendlyError(readErr) };
+  const have = new Set((current ?? []).map((t) => t.department_id as string));
+  const want = new Set(ids.data);
+  const add = [...want].filter((d) => !have.has(d));
+  const remove = [...have].filter((d) => !want.has(d));
+  if (add.length) {
+    const { error } = await supabase.from("task_teams").insert(add.map((department_id) => ({ task_id: taskId, department_id })));
+    if (error) return { ok: false, error: friendlyError(error) };
+  }
+  if (remove.length) {
+    const { error } = await supabase.from("task_teams").delete().eq("task_id", taskId).in("department_id", remove);
+    if (error) return { ok: false, error: friendlyError(error) };
+  }
+  revalidateTaskViews(taskId);
+  return { ok: true };
+}
+
+/** Make a task's collaborators exactly these people (never its owner). */
+export async function setTaskCollaborators(taskId: string, userIds: string[]): Promise<ActionResult> {
+  await requireViewer();
+  const ids = z.array(uuid).max(50).safeParse(userIds);
+  if (!uuid.safeParse(taskId).success || !ids.success) return { ok: false, error: "That change isn't valid." };
+  const supabase = await createClient();
+  const [{ data: task }, { data: current }] = await Promise.all([
+    supabase.from("tasks").select("owner_id").eq("id", taskId).maybeSingle(),
+    supabase.from("task_collaborators").select("user_id").eq("task_id", taskId),
+  ]);
+  const have = new Set((current ?? []).map((c) => c.user_id as string));
+  const want = new Set(ids.data.filter((u) => u !== task?.owner_id));
+  const add = [...want].filter((u) => !have.has(u));
+  const remove = [...have].filter((u) => !want.has(u));
+  if (add.length) {
+    const { error } = await supabase.from("task_collaborators").insert(add.map((user_id) => ({ task_id: taskId, user_id })));
+    if (error) return { ok: false, error: friendlyError(error) };
+  }
+  if (remove.length) {
+    const { error } = await supabase.from("task_collaborators").delete().eq("task_id", taskId).in("user_id", remove);
+    if (error) return { ok: false, error: friendlyError(error) };
+  }
+  revalidateTaskViews(taskId);
+  syncLater(() => syncTask(taskId));
   return { ok: true };
 }

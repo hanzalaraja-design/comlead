@@ -63,6 +63,8 @@ export type Task = {
   /** Who gave it to its owner, and when. Set automatically. */
   assigned_by?: string | null;
   assigned_at?: string | null;
+  /** Locked: only its owner can change it. */
+  locked?: boolean;
 };
 
 /** Task row with the joins used by list views. */

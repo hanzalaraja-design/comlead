@@ -11,6 +11,7 @@ import { getPeople, requireViewer } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { DOMAINS, CATEGORY_LABELS, PROJECT_COLUMNS, canManageProject, datesText, domainHref, getProjectMembers, getTeamNames, homeTeamFor, isProjectOwner, membersByProject, ownersOf, toProject } from "@/lib/projects";
 import { LockButton } from "@/components/projects/lock-button";
+import { MeetingTag } from "@/components/tasks/task-badges";
 import type { ProjectKind } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
@@ -66,7 +67,20 @@ export function teamsText(names: string[]): string {
 export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; view: TaskView; month?: string }) {
   const { project, filters, base, teams, members, owners, isOwner, canManage, viewer } = loaded;
   const d = DOMAINS[project.kind];
-  const options = await getFilterOptions();
+  const supabase = await createClient();
+  const [options, meetingsRes] = await Promise.all([
+    getFilterOptions(),
+    // Meetings about it (empty if the database hasn't got links yet).
+    supabase
+      .from("meeting_projects")
+      .select("meeting:meetings(id, title, meeting_date)")
+      .eq("project_id", project.id)
+      .then((r) => (r.error ? { data: [] } : r)),
+  ]);
+  const meetings = ((meetingsRes.data ?? []) as unknown as { meeting: { id: string; title: string | null; meeting_date: string } | null }[])
+    .map((r) => r.meeting)
+    .filter((m): m is { id: string; title: string | null; meeting_date: string } => !!m)
+    .sort((a, b) => b.meeting_date.localeCompare(a.meeting_date));
   const search = filtersToSearch({ ...filters, project: [], ...(view === "board" ? { status: [] } : {}) });
   const dates = datesText(project, todayPKT());
   // Add tasks into the project's team when you're in it.
@@ -115,6 +129,17 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
         <p className="-mt-2 mb-4 flex items-center gap-2 rounded-[12px] bg-warning-soft px-3 py-2 text-sm text-warning-ink">
           Locked. Only the owners{owners.length ? `, ${owners.map((o) => personName(o)).join(" and ")},` : ""} can change its details. Task owners can still update their own tasks.
         </p>
+      )}
+      {meetings.length > 0 && (
+        <div className="-mt-2 mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-semibold text-ink-muted">Meetings</span>
+          {meetings.slice(0, 6).map((m) => (
+            <Link key={m.id} href={`/meetings/${m.id}`} className="hover:opacity-80">
+              <MeetingTag title={m.title} date={m.meeting_date} size="md" />
+            </Link>
+          ))}
+          <span className="text-xs text-ink-muted">Their action items land here. Link more from a meeting’s page.</span>
+        </div>
       )}
       {project.description && <p className="-mt-2 mb-4 max-w-3xl whitespace-pre-line text-sm text-ink-muted">{project.description}</p>}
       <TaskTabs scope="projects" view={view} search={search} base={base} />

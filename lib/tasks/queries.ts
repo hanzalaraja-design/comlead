@@ -9,9 +9,9 @@ export const TASK_SELECT = `
   id, title, description, department_id, owner_id, status, priority,
   due_date, due_time, source, meeting_id, tags, blocked_reason, created_by,
   created_at, updated_at, completed_at, overdue, set_id, project_id, parent_task_id,
-  assigned_by, assigned_at,
+  assigned_by, assigned_at, locked,
   owner:profiles!tasks_owner_id_fkey(id, email, full_name, avatar_url),
-  department:departments(id, name, slug),
+  department:departments!tasks_department_id_fkey(id, name, slug),
   project:projects(id, name, slug, kind),
   parent:parent_task_id(id, title),
   subtasks:tasks!parent_task_id(status),
@@ -27,7 +27,7 @@ export const TASK_SELECT_CORE = `
   due_date, due_time, source, meeting_id, tags, blocked_reason, created_by,
   created_at, updated_at, completed_at, overdue,
   owner:profiles!tasks_owner_id_fkey(id, email, full_name, avatar_url),
-  department:departments(id, name, slug),
+  department:departments!tasks_department_id_fkey(id, name, slug),
   meeting:meetings!tasks_meeting_id_fkey(id, title, meeting_date)
 `;
 
@@ -52,10 +52,28 @@ export async function fetchTasks(
 ): Promise<{ tasks: TaskListRow[]; truncated: boolean; error?: string }> {
   const supabase = await createClient();
   const asc = filters.dir === "asc";
+
+  // A team's list also holds tasks that name it as an extra team.
+  let teamOr: string | null = null;
+  if (filters.dept.length) {
+    const [depts, extra] = await Promise.all([
+      supabase.from("departments").select("id").in("slug", filters.dept),
+      supabase.from("task_teams").select("task_id, dept:departments!inner(slug)").in("dept.slug", filters.dept).limit(2000),
+    ]);
+    if (!depts.error && !extra.error) {
+      const deptIds = (depts.data ?? []).map((d) => d.id as string);
+      const taskIds = (extra.data ?? []).map((t) => t.task_id as string);
+      const parts = [`department_id.in.(${deptIds.join(",") || "00000000-0000-0000-0000-000000000000"})`];
+      if (taskIds.length) parts.push(`id.in.(${taskIds.join(",")})`);
+      teamOr = parts.join(",");
+    }
+  }
+
   const build = (legacy: boolean) => {
     // Team and project filters by slug through inner joins, so they don't need the lists first.
     let select = legacy ? TASK_SELECT_CORE : TASK_SELECT;
-    if (filters.dept.length) select += ", dept_filter:departments!inner(slug)";
+    const viaJoin = filters.dept.length && (legacy || !teamOr);
+    if (viaJoin) select += ", dept_filter:departments!tasks_department_id_fkey!inner(slug)";
     if (filters.project.length && !legacy) select += ", project_filter:projects!inner(slug)";
     let q = supabase.from("tasks").select(select);
 
@@ -70,6 +88,7 @@ export async function fetchTasks(
 
     // OR-groups are collected and applied once at the end (PostgREST takes a single "or").
     const orGroups: string[] = [];
+    if (teamOr && !legacy) orGroups.push(teamOr);
     if (filters.owner.length) {
       const ids = filters.owner.map((o) => (o === "me" ? ctx.viewerId : o)).filter((o) => o !== "none");
       const wantsNone = filters.owner.includes("none");
@@ -95,7 +114,7 @@ export async function fetchTasks(
     if (orGroups.length === 1) q = q.or(orGroups[0]);
     else if (orGroups.length > 1) q = q.or(`and(${orGroups.map((g) => `or(${g})`).join(",")})`);
 
-    if (filters.dept.length) q = q.in("dept_filter.slug", filters.dept);
+    if (viaJoin) q = q.in("dept_filter.slug", filters.dept);
     if (filters.project.length && !legacy) q = q.in("project_filter.slug", filters.project);
     if (filters.meeting) q = q.eq("meeting_id", filters.meeting);
     if (filters.tags.length) q = q.overlaps("tags", filters.tags);

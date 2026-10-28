@@ -1,3 +1,6 @@
+import { MeetingLinks } from "@/components/meetings/meeting-links";
+import { getProjects } from "@/lib/projects";
+import type { ProjectKind } from "@/lib/types";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
@@ -31,7 +34,7 @@ export default async function MeetingPage({
   if (!meetingData) notFound();
   const meeting = meetingData as Meeting;
 
-  const [departments, people, members, attendeesRes, itemsRes, prevRes] = await Promise.all([
+  const [departments, people, members, attendeesRes, itemsRes, prevRes, linksRes, allProjects] = await Promise.all([
     getDepartments(),
     getPeople(),
     getDepartmentMembers(),
@@ -47,7 +50,17 @@ export default async function MeetingPage({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // What it's about (empty if the database hasn't got links yet).
+    supabase
+      .from("meeting_projects")
+      .select("project:projects(id, name, slug, kind)")
+      .eq("meeting_id", id)
+      .then((r) => (r.error ? { data: [] } : r)),
+    getProjects(),
   ]);
+  const linked = ((linksRes.data ?? []) as unknown as { project: { id: string; name: string; slug: string; kind: ProjectKind } | null }[])
+    .map((r) => r.project)
+    .filter((p): p is { id: string; name: string; slug: string; kind: ProjectKind } => !!p);
 
   const dept = departments.find((d) => d.id === meeting.department_id);
   const peopleById = new Map(people.map((p) => [p.id, p]));
@@ -153,6 +166,12 @@ export default async function MeetingPage({
           <>
             {formatDate(meeting.meeting_date, "EEEE d MMMM yyyy")}
             {meeting.meeting_time && ` · ${formatTime(meeting.meeting_time)}`}
+            <MeetingLinks
+              meetingId={id}
+              linked={linked}
+              options={allProjects.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, slug: p.slug, kind: p.kind }))}
+              editable={canEdit}
+            />
           </>
         }
         actions={
