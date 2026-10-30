@@ -108,9 +108,9 @@ export function ProjectForm({
 
       {kind === "partnership" && (
         <fieldset className="space-y-1.5">
-          <legend className="mb-1.5 text-sm font-medium">Brand</legend>
+          <legend className="mb-1.5 text-sm font-medium">Kind of partnership</legend>
           <div className="inline-flex gap-1 rounded-[12px] bg-subtle p-1">
-            {(["beauty", "non_beauty"] as const).map((c) => (
+            {(["non_beauty", "beauty"] as const).map((c) => (
               <button
                 key={c}
                 type="button"
@@ -118,7 +118,7 @@ export function ProjectForm({
                 onClick={() => setCategory(c)}
                 className={cn("h-9 rounded-[9px] px-4 text-sm font-semibold", category === c ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink")}
               >
-                {c === "beauty" ? "Beauty brand" : "Non-beauty brand"}
+                {c === "beauty" ? "Beauty" : "Strategic"}
               </button>
             ))}
           </div>

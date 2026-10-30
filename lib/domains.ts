@@ -16,7 +16,8 @@ export const DOMAINS: Record<ProjectKind, { label: string; plural: string; path:
   },
 };
 
-export const CATEGORY_LABELS = { beauty: "Beauty brand", non_beauty: "Non-beauty brand" } as const;
+// Stored as beauty / non_beauty; everything that isn't a beauty brand is a strategic partnership.
+export const CATEGORY_LABELS = { beauty: "Beauty partnership", non_beauty: "Strategic partnership" } as const;
 
 export const isProjectKind = (v: unknown): v is ProjectKind => v === "project" || v === "campaign" || v === "partnership";
 

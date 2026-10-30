@@ -33,8 +33,8 @@ const TABS: Record<ProjectKind, { key: string; label: string; test: (p: Project,
     { key: "ended", label: "Ended", test: (p, today) => !!p.end_date && p.end_date < today },
   ],
   partnership: [
-    { key: "beauty", label: "Beauty brands", test: (p) => p.category === "beauty" },
-    { key: "non_beauty", label: "Non-beauty brands", test: (p) => p.category !== "beauty" },
+    { key: "strategic", label: "Strategic partnerships", test: (p) => p.category !== "beauty" },
+    { key: "beauty", label: "Beauty partnerships", test: (p) => p.category === "beauty" },
   ],
 };
 
