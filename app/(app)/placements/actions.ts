@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireViewer } from "@/lib/auth";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { emailHtml, emailTeamLater, placementsUrl } from "@/lib/notify";
-import { PLACEMENT_COLUMNS, datesText, slotName, type Placement, type Section } from "@/lib/placements";
+import { PLACEMENT_COLUMNS, SURFACE_LABELS, datesText, slotName, surfacesText, type Placement, type Section, type Surface } from "@/lib/placements";
 import { todayPKT } from "@/lib/time";
 
 const uuid = z.string().uuid();
@@ -27,6 +27,13 @@ const bookingSchema = z.object({
   products: text(1000),
   notes: text(2000),
   inspo_paths: z.array(z.string().max(300)).max(10),
+  // Website, app or both.
+  shows_on: z
+    .array(z.enum(["web", "app"]))
+    .min(1, "Pick the website, the app, or both.")
+    .max(2)
+    .optional()
+    .transform((v) => (v ? [...new Set(v)] : undefined)),
 });
 
 export type BookingInput = z.input<typeof bookingSchema>;
@@ -48,6 +55,7 @@ function details(p: Placement, section: Section): [string, string][] {
   const rows: [string, string][] = [
     ["Slot", slotName(section, p.position)],
     ["Dates", datesText(p, todayPKT())],
+    ["Shows on", surfacesText(p.shows_on ?? ["web"])],
   ];
   if (p.comms) rows.push(["Comms", p.comms]);
   if (p.products) rows.push(["Products", p.products]);
@@ -63,7 +71,7 @@ function check(input: BookingInput) {
   return { data: parsed.data } as const;
 }
 
-/** Commercial books a brand into a slot. Design is told. */
+/** Anyone books a brand into a slot. Design is told. */
 export async function bookPlacement(
   id: string,
   sectionKey: string,
@@ -101,7 +109,7 @@ export async function bookPlacement(
   return { ok: true };
 }
 
-/** Commercial edits a booking. If the banner was already made and its text changed, Design is told. */
+/** Whoever booked it (or Commercial) edits a booking. If the banner was already made and its text changed, Design is told. */
 export async function updatePlacement(id: string, input: BookingInput): Promise<ActionResult> {
   const { viewer, supabase } = await context();
   if (!uuid.safeParse(id).success) return { ok: false, error: "Booking not found." };
@@ -117,7 +125,7 @@ export async function updatePlacement(id: string, input: BookingInput): Promise<
 
   const { data, error } = await supabase.from("placements").update({ ...c.data, changed_from }).eq("id", id).select("id");
   if (error) return { ok: false, error: friendlyError(error) };
-  if (!data?.length) return { ok: false, error: "Only Commercial can change a booking." };
+  if (!data?.length) return { ok: false, error: "Only whoever booked it (or Commercial) can change it." };
 
   if (madeAlready && textChanged) {
     const after = (await load(supabase, id))!;
@@ -139,21 +147,21 @@ export async function updatePlacement(id: string, input: BookingInput): Promise<
   return { ok: true };
 }
 
-/** Commercial cancels a booking that isn't on the site yet. */
+/** Whoever booked it cancels a booking that isn't on the site yet. */
 export async function cancelPlacement(id: string): Promise<ActionResult> {
   const { supabase } = await context();
   if (!uuid.safeParse(id).success) return { ok: false, error: "Booking not found." };
   const before = await load(supabase, id);
   const { data, error } = await supabase.from("placements").delete().eq("id", id).select("id");
   if (error) return { ok: false, error: friendlyError(error) };
-  if (!data?.length) return { ok: false, error: "Only Commercial can cancel, and not once it's live. End it instead." };
+  if (!data?.length) return { ok: false, error: "Only whoever booked it (or Commercial) can cancel, and not once it's live. End it instead." };
   const files = [...(before?.p.inspo_paths ?? []), ...(before?.p.artwork_path ? [before.p.artwork_path] : [])];
   if (files.length) await supabase.storage.from("placement-files").remove(files);
   revalidatePath("/placements");
   return { ok: true };
 }
 
-/** Commercial ends a live booking today. Tech sees it in "Take down". */
+/** Whoever booked it ends a live booking today. Tech sees it in "Take down". */
 export async function endPlacementToday(id: string): Promise<ActionResult> {
   const { supabase } = await context();
   if (!uuid.safeParse(id).success) return { ok: false, error: "Booking not found." };
@@ -165,7 +173,7 @@ export async function endPlacementToday(id: string): Promise<ActionResult> {
     .lte("starts_on", today)
     .select("id");
   if (error) return { ok: false, error: friendlyError(error) };
-  if (!data?.length) return { ok: false, error: "Only Commercial can end a booking." };
+  if (!data?.length) return { ok: false, error: "Only whoever booked it (or Commercial) can end it." };
   revalidatePath("/placements");
   return { ok: true };
 }
@@ -236,6 +244,20 @@ async function setStage(id: string, stage: "live" | "ended", from: string[]): Pr
 }
 
 export const markLive = async (id: string) => setStage(id, "live", ["ready"]);
+
+/** Tech made it live on the website or the app. Once it's live everywhere it shows, it's Live. */
+export async function makeLiveOn(id: string, surface: Surface): Promise<ActionResult> {
+  const { supabase } = await context();
+  if (!uuid.safeParse(id).success || !(surface in SURFACE_LABELS)) return { ok: false, error: "Booking not found." };
+  const { data: p } = await supabase.from("placements").select("live_on, stage").eq("id", id).maybeSingle();
+  if (!p || p.stage !== "ready") return { ok: false, error: "It needs its banner before it can go live." };
+  const live_on = [...new Set([...((p.live_on as Surface[]) ?? []), surface])];
+  const { data, error } = await supabase.from("placements").update({ live_on }).eq("id", id).select("id");
+  if (error) return { ok: false, error: friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "Only Tech can do that." };
+  revalidatePath("/placements");
+  return { ok: true };
+}
 export const markTakenDown = async (id: string) => setStage(id, "ended", ["live", "ready"]);
 
 export type BulkRow = BookingInput & { section_key: string; position: number };

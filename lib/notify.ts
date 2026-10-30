@@ -56,7 +56,7 @@ export function emailHtml({ intro, rows, link, linkLabel }: { intro: string; row
 <p style="color:#6b6475;font-size:13px">Sent by Highfy Tasks.</p></div>`;
 }
 
-export const placementsUrl = (id?: string) => `${siteUrl()}/placements${id ? `?open=${id}` : ""}`;
+export const placementsUrl = (id?: string) => `${siteUrl()}/placements?tab=web${id ? `&open=${id}` : ""}`;
 
 /** Email a team after the response is sent; a failure is logged, never shown. */
 export function emailTeamLater(role: PlacementRole, subject: string, html: string) {
@@ -69,3 +69,18 @@ export function emailTeamLater(role: PlacementRole, subject: string, html: strin
     }
   });
 }
+
+/** Email one person (by profile id) after the response is sent. */
+export function emailPersonLater(userId: string | null | undefined, subject: string, html: string) {
+  if (!userId || !isEmailConfigured()) return;
+  after(async () => {
+    try {
+      const { data } = await createAdminClient().from("profiles").select("email, status").eq("id", userId).maybeSingle();
+      if (data?.status === "active") await sendEmail([data.email as string], subject, html);
+    } catch (e) {
+      console.error("[email:person]", e);
+    }
+  });
+}
+
+export const requestUrl = (channel: string, id: string) => `${siteUrl()}/placements?tab=${channel}&open=${id}`;

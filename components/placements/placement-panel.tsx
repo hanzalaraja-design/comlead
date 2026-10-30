@@ -19,6 +19,10 @@ import {
   statusOf,
   statusText,
   usesProducts,
+  SURFACE_LABELS,
+  SURFACES,
+  surfacesText,
+  type Surface,
   type Placement,
   type PlacementRole,
   type Section,
@@ -27,7 +31,7 @@ import {
   bookPlacement,
   cancelPlacement,
   endPlacementToday,
-  markLive,
+  makeLiveOn,
   markOnFigma,
   markTakenDown,
   submitArtwork,
@@ -217,6 +221,10 @@ function Details({
 
       <dl className="grid grid-cols-[88px_1fr] gap-x-3 gap-y-2 text-sm">
         <Row label="Dates">{datesText(p, today)}</Row>
+        <Row label="Shows on">
+          {surfacesText(p.shows_on?.length ? p.shows_on : ["web"])}
+          {p.stage === "ready" && p.live_on.length > 0 && ` · live on ${surfacesText(p.live_on)} so far`}
+        </Row>
         {usesProducts(section) ? <Row label="Products">{p.products || "—"}</Row> : <Row label="Comms">{p.comms || "—"}</Row>}
         {p.notes && <Row label="Notes">{p.notes}</Row>}
         {section.size_hint && <Row label="Size">{section.size_hint}</Row>}
@@ -282,11 +290,18 @@ function Details({
             {upload.busy === p.id ? "Uploading…" : art ? "Replace the preview image" : "Add a preview image (optional)"}
           </Button>
         )}
-        {role === "tech" && p.stage === "ready" && (
-          <Button disabled={pending} onClick={() => run(() => markLive(p.id), `${p.brand} is live.`)}>
-            Picked from Figma, mark live
-          </Button>
-        )}
+        {role === "tech" &&
+          p.stage === "ready" &&
+          (p.shows_on.length ? p.shows_on : (["web"] as Surface[])).map((s) => (
+            <Button
+              key={s}
+              variant={p.live_on.includes(s) ? "outline" : "default"}
+              disabled={pending || p.live_on.includes(s)}
+              onClick={() => run(() => makeLiveOn(p.id, s), `${p.brand} is live on the ${SURFACE_LABELS[s].toLowerCase()}.`)}
+            >
+              {p.live_on.includes(s) ? `Live on ${SURFACE_LABELS[s]} ✓` : `Make live on ${SURFACE_LABELS[s]}`}
+            </Button>
+          ))}
         {role === "tech" && p.stage === "live" && (
           <Button variant="outline" disabled={pending} onClick={() => run(() => markTakenDown(p.id), `${p.brand} is taken down.`)}>
             Taken down
@@ -330,6 +345,7 @@ function BookingForm({
   const [ongoing, setOngoing] = useState(existing ? existing.ends_on === null : false);
   const [words, setWords] = useState((usesProducts(section) ? existing?.products : existing?.comms) ?? "");
   const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [shows, setShows] = useState<Surface[]>(existing?.shows_on?.length ? existing.shows_on : ["web", "app"]);
   const [inspo, setInspo] = useState<string[]>(existing?.inspo_paths ?? []);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
@@ -362,7 +378,9 @@ function BookingForm({
       products: products ? words : (existing?.products ?? null),
       notes,
       inspo_paths: inspo,
+      shows_on: shows,
     };
+    if (!shows.length) return void toast.error("Pick the website, the app, or both.");
     start(async () => {
       const res = existing ? await updatePlacement(existing.id, input) : await bookPlacement(id, section.key, position, input);
       if (!res.ok) return void toast.error(res.error);
@@ -377,6 +395,31 @@ function BookingForm({
         <Label htmlFor="pl-brand">Brand</Label>
         <Input id="pl-brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. COSRX" required autoFocus={!existing} />
       </div>
+      <fieldset className="space-y-1.5">
+        <legend className="mb-1.5 text-sm font-medium">Shows on</legend>
+        <div className="flex gap-2">
+          {SURFACES.map((s) => {
+            const on = shows.includes(s);
+            return (
+              <label
+                key={s}
+                className={cn(
+                  "flex flex-1 cursor-pointer items-center gap-2 rounded-[12px] border px-3 py-2 text-sm font-semibold",
+                  on ? "border-brand-primary bg-brand-bg text-ink" : "border-line text-ink-muted",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() => setShows((x) => (on ? x.filter((y) => y !== s) : [...x, s]))}
+                  className="size-4 accent-[hsl(var(--brand-primary))]"
+                />
+                {SURFACE_LABELS[s]}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="pl-from">From</Label>
