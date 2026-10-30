@@ -290,7 +290,7 @@ export const TOOLS: Tool[] = [
   {
     name: "create_task",
     description:
-      "Create a task. With no team and no project it's private to the owner (or a direct task between you and them). Give parent_task_id to make it a subtask, meeting_id to make it a meeting action item. Dates are YYYY-MM-DD.",
+      "Create a task. Every task needs a team (or a project, campaign or partnership); if you're only in one team it goes there. Give parent_task_id to make it a subtask, meeting_id to make it a meeting action item. Dates are YYYY-MM-DD.",
     inputSchema: {
       type: "object",
       properties: {
@@ -321,6 +321,14 @@ export const TOOLS: Tool[] = [
         const { data: m } = await u.db.from("meetings").select("department_id").eq("id", meetingId).maybeSingle();
         if (!m) throw new UserError("No meeting with that id that you can see.");
         departmentId = m.department_id as string;
+      }
+      if (!parentId && !departmentId && !project) {
+        // Every task has a team: yours when there's only one, otherwise ask.
+        const { data: mine } = await u.db.from("department_members").select("department:departments(id, name)").eq("user_id", u.userId);
+        const teams = ((mine ?? []) as unknown as { department: { id: string; name: string } | null }[]).map((m) => m.department).filter((d) => !!d);
+        if (teams.length !== 1)
+          throw new UserError(`Which team is this for? Give "team"${teams.length ? `: ${teams.map((t) => t!.name).join(", ")}` : ""}.`);
+        departmentId = teams[0]!.id;
       }
       const description = str(a, "description", 20000);
       const row = {

@@ -6,22 +6,22 @@ import { CornerDownLeft, Plus } from "lucide-react";
 import { quickAddTask } from "@/app/(app)/tasks/actions";
 import { cn } from "@/lib/utils";
 
-/** Type, press Enter, done. Private tasks are yours; team tasks go to the team's admin. */
+/** Type, press Enter, done. From My tasks it's yours; elsewhere team tasks go to the team's admin. */
 export function QuickAdd({
   departments,
   defaultDepartmentId = null,
-  allowPrivate = false,
+  mine = false,
   projectId,
 }: {
   departments: { id: string; name: string }[];
   defaultDepartmentId?: string | null;
-  /** Offer "Private (only you)", first and selected by default. */
-  allowPrivate?: boolean;
+  /** On My tasks: what you add is yours, in whichever team you pick. */
+  mine?: boolean;
   /** Inside a project: the task goes in it, and it's yours. */
   projectId?: string;
 }) {
   const [title, setTitle] = useState("");
-  const [dept, setDept] = useState<string>(defaultDepartmentId ?? (allowPrivate ? "" : departments[0]?.id ?? ""));
+  const [dept, setDept] = useState<string>(defaultDepartmentId ?? departments[0]?.id ?? "");
   const [pending, startTransition] = useTransition();
   const input = useRef<HTMLInputElement>(null);
 
@@ -30,13 +30,11 @@ export function QuickAdd({
     const value = title;
     setTitle("");
     startTransition(async () => {
-      const res = await quickAddTask(value, dept || null, projectId);
+      const res = await quickAddTask(value, dept || null, projectId, mine);
       if (res.ok)
         toast.success(
           projectId
             ? "Added to the project. It's yours."
-            : !dept
-            ? "Added to your private list."
             : res.data!.owner === "you"
               ? "Added. It's yours."
               : res.data!.owner
@@ -74,14 +72,13 @@ export function QuickAdd({
       {/* On phones the picker and button appear once you start typing. */}
       <div className={cn("flex items-center gap-2", !title.trim() && "hidden sm:flex")}>
         {/* Only asked when it isn't obvious. */}
-        {!projectId && departments.length + (allowPrivate ? 1 : 0) > 1 && (
+        {!projectId && departments.length > 1 && (
           <select
             aria-label="Team"
             value={dept}
             onChange={(e) => setDept(e.target.value)}
             className="h-9 field max-w-[11rem] px-2 text-sm"
           >
-            {allowPrivate && <option value="">Private (only you)</option>}
             {departments.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}

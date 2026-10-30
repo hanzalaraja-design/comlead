@@ -401,3 +401,41 @@ export function TaskLockSwitch({ taskId, locked, canToggle }: { taskId: string; 
     </div>
   );
 }
+
+/** An older task saved without a team: choose the team it belongs to. */
+export function PickTeam({ taskId, teams }: { taskId: string; teams: { id: string; name: string }[] }) {
+  const { pending, run } = useSaver();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm text-warning-ink">No team yet.</p>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={pending}
+            className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-line px-2.5 text-[13px] text-ink-muted hover:text-ink"
+          >
+            <Plus className="h-3.5 w-3.5" /> Pick a team
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-56 p-1">
+          {teams.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                run(() => updateTaskInline(taskId, { department_id: t.id }), undefined, `Moved to ${t.name}.`);
+              }}
+              className="flex w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-subtle"
+            >
+              {t.name}
+            </button>
+          ))}
+          {!teams.length && <p className="px-2 py-1.5 text-sm text-ink-muted">You aren&apos;t in a team yet.</p>}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}

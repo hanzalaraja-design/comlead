@@ -71,9 +71,13 @@ function readTaskForm(formData: FormData) {
 function shape<T extends { department_id: string | null; project_id: string | null; meeting_id: string | null }>(v: T, isSubtask = false): T {
   if (v.department_id) return v;
   if (isSubtask) return { ...v, department_id: null, project_id: null, meeting_id: null };
-  // No team: yours (private) or someone else's (a direct task from you).
+  // In a project with no main team: the project is its home.
   return { ...v, meeting_id: null };
 }
+
+/** Every task belongs to a team or a project (subtasks follow their main task). */
+const NEEDS_TEAM = "Pick a team for this task.";
+const homeless = (v: { department_id: string | null; project_id: string | null }) => !v.department_id && !v.project_id;
 
 function revalidateTaskViews(taskId?: string) {
   revalidatePath("/", "layout");
@@ -85,6 +89,7 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
   const v = shape(parsed.data);
+  if (homeless(v)) return { ok: false, error: NEEDS_TEAM };
   // Several owners: everyone gets their own task, so each can tick it off.
   const owners = v.owner_ids.length ? [...new Set(v.owner_ids)] : [v.owner_id];
   const setId = owners.length > 1 ? crypto.randomUUID() : null;
@@ -144,7 +149,9 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
   if (!uuid.safeParse(taskId).success) return { ok: false, error: "Invalid task" };
   const parsed = readTaskForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid task" };
-  const v = shape(parsed.data, formData.get("subtask") === "1");
+  const isSubtask = formData.get("subtask") === "1";
+  const v = shape(parsed.data, isSubtask);
+  if (!isSubtask && homeless(v)) return { ok: false, error: NEEDS_TEAM };
 
   const supabase = await createClient();
   const before = await closingWithOpenSubtasks(supabase, taskId, v.status, formData.get("subtasks"));
@@ -292,6 +299,8 @@ export async function quickAddTask(
   input: string,
   departmentId: string | null,
   projectId?: string,
+  /** Added from My tasks: it's yours, whichever team it's in. */
+  mine = false,
 ): Promise<ActionResult<{ id: string; owner: string | null }>> {
   const viewer = await requireViewer();
   let title = input.trim().replace(/\s+/g, " ");
@@ -299,6 +308,7 @@ export async function quickAddTask(
   if (dept && !uuid.safeParse(dept).success) return { ok: false, error: "Pick a team for this task." };
   const project = projectId || null;
   if (project && !uuid.safeParse(project).success) return { ok: false, error: "That project wasn't found." };
+  if (!dept && !project) return { ok: false, error: NEEDS_TEAM };
 
   let priority: "urgent" | "high" | "medium" = "medium";
   const bang = /\s*(!{1,2})$/.exec(title);
@@ -324,12 +334,12 @@ export async function quickAddTask(
   if (title.length > 300) return { ok: false, error: "That's a bit long for a title." };
 
   const supabase = await createClient();
-  // Private tasks are yours. Team tasks go to the team's admin (the one who joined first)
-  // to hand out; if you're one of its admins, to you; with no admin, unassigned.
+  // From My tasks it's yours. Otherwise team tasks go to the team's admin (the one who
+  // joined first) to hand out; if you're one of its admins, to you; with no admin, unassigned.
   let owner: string | null = viewer.id;
   let ownerName: string | null = null;
   // In a project, what you add is yours.
-  if (dept && !project && !viewer.leadDeptIds.includes(dept)) {
+  if (dept && !project && !mine && !viewer.leadDeptIds.includes(dept)) {
     const { data: lead } = await supabase
       .from("department_members")
       .select("user_id, profile:profiles(full_name, email)")
@@ -512,6 +522,8 @@ const inlineSchema = z.object({
   locked: z.boolean().optional(),
   project_id: uuid.nullable().optional(),
   meeting_id: uuid.nullable().optional(),
+  // Only to give a task without a team its team (the database checks you're in it).
+  department_id: uuid.optional(),
 });
 
 /**
@@ -529,6 +541,7 @@ export async function updateTaskInline(
     locked?: boolean;
     project_id?: string | null;
     meeting_id?: string | null;
+    department_id?: string;
   },
 ): Promise<ActionResult> {
   await requireViewer();

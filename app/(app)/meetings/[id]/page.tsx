@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAiConfigured } from "@/lib/ai/claude";
 import { withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
 import { formatDate, formatPKT, formatTime } from "@/lib/time";
-import type { Meeting } from "@/lib/types";
+import type { Meeting, PersonRef } from "@/lib/types";
 
 export default async function MeetingPage({
   params,
@@ -34,7 +34,7 @@ export default async function MeetingPage({
   if (!meetingData) notFound();
   const meeting = meetingData as Meeting;
 
-  const [departments, people, members, attendeesRes, itemsRes, prevRes, linksRes, allProjects] = await Promise.all([
+  const [departments, people, members, attendeesRes, itemsRes, prevRes, linksRes, allProjects, logRes] = await Promise.all([
     getDepartments(),
     getPeople(),
     getDepartmentMembers(),
@@ -57,6 +57,8 @@ export default async function MeetingPage({
       .eq("meeting_id", id)
       .then((r) => (r.error ? { data: [] } : r)),
     getProjects(),
+    // Who wrote and edited the minutes.
+    supabase.rpc("meeting_minutes_log", { p_meeting_id: id }).then((r) => (r.error ? { data: [] } : r)),
   ]);
   const linked = ((linksRes.data ?? []) as unknown as { project: { id: string; name: string; slug: string; kind: ProjectKind } | null }[])
     .map((r) => r.project)
@@ -72,6 +74,15 @@ export default async function MeetingPage({
   if (prev) {
     const { data } = await withTaskSelect((select) => supabase.from("tasks").select(select).eq("meeting_id", prev.id).order("created_at"));
     prevItems = (data ?? []) as unknown as TaskListRow[];
+  }
+
+  // One line per sitting: saves by the same person within an hour count once.
+  const minutesLog: { person: PersonRef | undefined; at: string }[] = [];
+  for (const e of (logRes.data ?? []) as { actor_id: string | null; created_at: string }[]) {
+    const last = minutesLog[minutesLog.length - 1];
+    const person = e.actor_id ? peopleById.get(e.actor_id) : undefined;
+    if (last && last.person?.id === person?.id && Date.parse(e.created_at) - Date.parse(last.at) < 3600_000) last.at = e.created_at;
+    else minutesLog.push({ person, at: e.created_at });
   }
 
   const isLead = canLead(viewer, meeting.department_id);
@@ -214,6 +225,19 @@ export default async function MeetingPage({
           <RichTextView html={meeting.minutes} />
         ) : (
           <p className="text-sm text-muted-foreground">No minutes yet.</p>
+        )}
+        {minutesLog.length > 0 && (
+          <ul className="mt-4 space-y-1 border-t border-line pt-3 text-xs text-ink-muted">
+            {minutesLog.map((e, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <PersonAvatar person={e.person} className="h-5 w-5" />
+                <span>
+                  <span className="font-semibold text-ink">{e.person ? personName(e.person) : "Someone"}</span> {i === 0 ? "wrote the minutes" : "edited them"} ·{" "}
+                  {formatPKT(e.at, "d MMM, h:mm a")}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

@@ -44,10 +44,14 @@ export const PRIORITY_STYLES: Record<TaskPriority, string> = {
 
 export const OPEN_STATUSES: TaskStatus[] = ["todo", "in_progress", "blocked"];
 
-/** First name only, which is how the team refers to each other. */
+// Words that come before the name people actually go by ("Muhammad Uzair" is Uzair).
+const PREFIXES = new Set(["muhammad", "mohammad", "mohammed", "muhammed", "mohd", "m", "m.", "syed", "sayed", "sheikh", "shaikh", "hafiz"]);
+
+/** The name people go by (usually the first name), which is how the team refers to each other. */
 export function personName(p: { full_name: string | null; email: string } | null | undefined): string {
   if (!p) return "Unassigned";
-  return fullName(p).split(/\s+/)[0];
+  const words = fullName(p).split(/\s+/);
+  return words.find((w) => !PREFIXES.has(w.toLowerCase())) ?? words[0];
 }
 
 /** Their whole name, for Admin and wherever two people might share a first name. */
