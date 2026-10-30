@@ -113,7 +113,7 @@ function TaskListItem({
           {showProject && t.project && <ProjectTag name={t.project.name} kind={t.project.kind} />}
           {t.meeting && <MeetingTag title={t.meeting.title} date={t.meeting.meeting_date} />}
           {showDepartment && t.department && <span>{t.department.name}</span>}
-          {!t.department_id && !t.project_id && !t.parent_task_id && (!t.owner_id || t.owner_id === t.created_by) && (
+          {!t.department_id && !t.project_id && !t.parent_task_id && (!t.owner_id || t.owner_id === t.created_by) && !t.collaborators?.length && (
             <span className="font-medium text-brand-primary">Private</span>
           )}
           {t.parent && (

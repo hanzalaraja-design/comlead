@@ -78,15 +78,7 @@ export default async function TaskPage({
   ]);
   const extraTeamIds = ((teamsRes.data ?? []) as { department_id: string }[]).map((t) => t.department_id);
   const subtasks = ((subtasksRes.data ?? []) as unknown as TaskListRow[]).sort((a, b) => Number(a.status === "done") - Number(b.status === "done"));
-  // Everyone who got this same task, when it was given to several people at once.
-  const { data: setData } = task.set_id
-    ? await supabase.from("tasks").select("id, status, owner_id, due_date").eq("set_id", task.set_id).is("deleted_at", null)
-    : { data: null };
-  const set = (setData ?? []) as { id: string; status: TaskStatus; owner_id: string | null; due_date: string | null }[];
-
   const peopleById = new Map<string, PersonRef>(people.map((p) => [p.id, p]));
-  // Opening the task counts as reading any mentions of you in it.
-  await supabase.from("task_mentions").update({ seen_at: new Date().toISOString() }).eq("task_id", id).eq("user_id", viewer.id).is("seen_at", null);
   const person = (pid: unknown) => (typeof pid === "string" ? peopleById.get(pid) ?? null : null);
   const collaboratorIds = (collabRes.data ?? []).map((c) => c.user_id as string);
 
@@ -97,14 +89,22 @@ export default async function TaskPage({
   const isCreator = task.created_by === viewer.id;
   // People in the meeting an action item came from can edit and reassign it.
   const rpcTrue = async (fn: string, args: Record<string, string>) => ((await supabase.rpc(fn, args)).data as boolean | null) === true;
-  const [isMeetingEditor, inProject, managesProject, editsParent] = await Promise.all([
+  // All at once: each of these only needs the task.
+  const [isMeetingEditor, inProject, managesProject, editsParent, { data: setData }] = await Promise.all([
     task.meeting_id ? rpcTrue("can_edit_meeting", { p_meeting_id: task.meeting_id }) : false,
     // Everyone in a project shares its tasks.
     task.project_id ? rpcTrue("is_project_member", { p_project_id: task.project_id }) : false,
     task.project_id ? rpcTrue("can_manage_project", { p_project_id: task.project_id }) : false,
     // Whoever runs the main task runs its subtasks too.
     task.parent_task_id ? rpcTrue("can_edit_task", { p_task_id: task.parent_task_id }) : false,
+    // Everyone who got this same task, when it was given to several people at once.
+    task.set_id
+      ? supabase.from("tasks").select("id, status, owner_id, due_date").eq("set_id", task.set_id).is("deleted_at", null)
+      : Promise.resolve({ data: null }),
+    // Opening the task counts as reading any mentions of you in it.
+    supabase.from("task_mentions").update({ seen_at: new Date().toISOString() }).eq("task_id", id).eq("user_id", viewer.id).is("seen_at", null),
   ]);
+  const set = (setData ?? []) as { id: string; status: TaskStatus; owner_id: string | null; due_date: string | null }[];
   const canEdit =
     typeof dbCanEdit.data === "boolean" ? dbCanEdit.data : isLead || isOwner || isCollaborator || isCreator || isMeetingEditor || inProject || editsParent;
   const locked = !!task.locked;
@@ -335,7 +335,7 @@ export default async function TaskPage({
               {task.department || task.project ? (
                 <TeamsField taskId={id} mainId={task.department_id} value={extraTeamIds} teams={teamNames} editable={canEdit} />
               ) : (
-                <p className="text-sm text-ink">{task.owner_id && task.owner_id !== task.created_by ? "None, a direct task" : "Private"}</p>
+                <p className="text-sm text-ink">{task.owner_id && task.owner_id !== task.created_by ? "None, a direct task" : collaboratorIds.length || extraTeamIds.length ? "No team" : "Private"}</p>
               )}
             </Detail>
           )}
