@@ -7,7 +7,14 @@ import { addDaysISO, formatDate } from "@/lib/time";
  */
 
 export type PlacementRole = "commercial" | "design" | "tech";
-export const ROLE_LABELS: Record<PlacementRole, string> = { commercial: "Commercial", design: "Design", tech: "Tech" };
+// Anyone can book a slot now, so the booking view is just "Bookings".
+export const ROLE_LABELS: Record<PlacementRole, string> = { commercial: "Bookings", design: "Design", tech: "Tech" };
+
+/** Where a booking shows: the website, the app, or both. */
+export type Surface = "web" | "app";
+export const SURFACES: Surface[] = ["web", "app"];
+export const SURFACE_LABELS: Record<Surface, string> = { web: "Website", app: "App" };
+export const surfacesText = (s: Surface[]) => (s.length === 2 ? "Website + App" : SURFACE_LABELS[s[0]] ?? "Website");
 
 export type SectionKind = "banner" | "text" | "icons" | "carousel" | "tiles" | "badge";
 
@@ -37,13 +44,16 @@ export type Placement = {
   artwork_path: string | null;
   stage: Stage;
   changed_from: { comms?: string | null; products?: string | null } | null;
+  /** Where it shows, and where Tech has already made it live. */
+  shows_on: Surface[];
+  live_on: Surface[];
   created_by: string | null;
   created_at: string;
   updated_at: string;
 };
 
 export const PLACEMENT_COLUMNS =
-  "id, section_key, position, brand, starts_on, ends_on, comms, products, notes, inspo_paths, artwork_path, stage, changed_from, created_by, created_at, updated_at";
+  "id, section_key, position, brand, starts_on, ends_on, comms, products, notes, inspo_paths, artwork_path, stage, changed_from, shows_on, live_on, created_by, created_at, updated_at";
 
 /** Bookings that end within this many days show as "ending soon". */
 export const ENDING_DAYS = 3;

@@ -8,6 +8,7 @@ import {
   slotLabel,
   statusOf,
   statusText,
+  surfacesText,
   usesProducts,
   type Placement,
   type Section,
@@ -112,6 +113,11 @@ export function HomepageMap({
                       )}
                     >
                       {statusText(k, p, today)}
+                    </span>
+                  )}
+                  {s.kind !== "icons" && (
+                    <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-1.5 text-[10px] font-semibold leading-[18px] text-ink">
+                      {surfacesText(p.shows_on?.length ? p.shows_on : ["web"])}
                     </span>
                   )}
                   {s.kind === "icons" && art && (

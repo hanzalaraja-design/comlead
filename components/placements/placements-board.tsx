@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { addDaysISO, formatDate } from "@/lib/time";
 import {
   ROLE_LABELS,
+  SURFACE_LABELS,
   activeOn,
   datesText,
   emptySlots,
@@ -23,12 +24,14 @@ import {
   toDesign,
   toPutLive,
   toTakeDown,
+  surfacesText,
   usesProducts,
   type Placement,
   type PlacementRole,
   type Section,
+  type Surface,
 } from "@/lib/placements";
-import { markLive, markOnFigma, markTakenDown } from "@/app/(app)/placements/actions";
+import { makeLiveOn, markOnFigma, markTakenDown } from "@/app/(app)/placements/actions";
 import { HomepageMap } from "./homepage-map";
 import { PlacementPanel, useArtworkUpload, type PanelMode } from "./placement-panel";
 import { STATUS_CHIP } from "./styles";
@@ -82,7 +85,7 @@ export function PlacementsBoard({
 
   // Drop "?open=" from the address once it's been used.
   useEffect(() => {
-    if (openId) router.replace("/placements", { scroll: false });
+    if (openId) router.replace("/placements?tab=web", { scroll: false });
   }, [openId, router]);
 
   const canBook = role === "commercial";
@@ -284,11 +287,22 @@ export function PlacementsBoard({
               empty: "Nothing waiting to go live.",
               items: toPutLive(placements).map((p) =>
                 card(p, {
-                  sub: `${slotName(sectionOf(p.section_key), p.position)} · on Figma · goes live ${relativeDay(p.starts_on, today)}`,
+                  sub: `${slotName(sectionOf(p.section_key), p.position)} · ${surfacesText(p.shows_on)} · goes live ${relativeDay(p.starts_on, today)}`,
                   action: (
-                    <Button size="sm" className="flex-1" disabled={pending} onClick={() => act(() => markLive(p.id), `${p.brand} is live.`)}>
-                      Mark live
-                    </Button>
+                    <>
+                      {(p.shows_on.length ? p.shows_on : (["web"] as Surface[])).map((s) => (
+                        <Button
+                          key={s}
+                          size="sm"
+                          className="flex-1"
+                          variant={p.live_on.includes(s) ? "outline" : "default"}
+                          disabled={pending || p.live_on.includes(s)}
+                          onClick={() => act(() => makeLiveOn(p.id, s), `${p.brand} is live on the ${SURFACE_LABELS[s].toLowerCase()}.`)}
+                        >
+                          {p.live_on.includes(s) ? `Live on ${SURFACE_LABELS[s]} ✓` : `Make live on ${SURFACE_LABELS[s]}`}
+                        </Button>
+                      ))}
+                    </>
                   ),
                 }),
               ),
