@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   NotebookPen,
   Settings,
   Sparkles,
@@ -30,6 +31,8 @@ const MAIN: NavItem[] = [
   { href: "/my", label: "Tasks", icon: CheckSquare },
   { href: "/tasks", label: "All teams", icon: LayoutList },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
+  // Comments you were tagged in.
+  { href: "/comments", label: "Comments", icon: MessageSquare },
 ];
 
 // Domains: each with its tag colour.

@@ -33,7 +33,9 @@ export function QuickAdd({
       const res = await quickAddTask(value, dept || null, projectId, mine);
       if (res.ok)
         toast.success(
-          projectId
+          res.data!.done
+            ? "Logged as done."
+            : projectId
             ? "Added to the project. It's yours."
             : res.data!.owner === "you"
               ? "Added. It's yours."

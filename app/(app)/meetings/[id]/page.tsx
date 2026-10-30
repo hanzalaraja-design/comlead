@@ -244,7 +244,8 @@ export default async function MeetingPage({
       <section>
         <h2 className="kicker mb-2 text-ink">Action items</h2>
         {items.length ? (
-          <TaskList tasks={items} showDepartment={false} />
+          // Finished ones stay in view, after what's still open.
+          <TaskList tasks={[...items].sort((a, b) => Number(a.status === "done") - Number(b.status === "done"))} showDepartment={false} />
         ) : (
           <p className="text-sm text-muted-foreground">No action items.</p>
         )}

@@ -7,7 +7,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel } from "@/components/tasks/task-badges";
 import { PRIORITIES, PRIORITY_STYLES, fullName, personName } from "@/lib/labels";
-import { addDaysISO, todayPKT } from "@/lib/time";
+import { addDaysISO, formatDate, todayPKT } from "@/lib/time";
+import { ON_TIME_STYLES, onTimeStatus, pktDay } from "@/lib/tasks/ontime";
 import { cn } from "@/lib/utils";
 import type { PersonRef, TaskPriority } from "@/lib/types";
 import { updateTaskInline } from "@/app/(app)/tasks/actions";
@@ -214,6 +215,44 @@ export function CollaboratorsChip({ ids }: { ids: string[] }) {
             </li>
           ))}
         </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** "Done 29 Oct · On time" on a finished task; its owner can correct the day. */
+export function DoneOn({ taskId, completedAt, dueDate, editable }: { taskId: string; completedAt: string; dueDate: string | null; editable: boolean }) {
+  const { value, save, pending } = useSave<string>(pktDay(completedAt), (d) => ({ done_on: d }), taskId);
+  const [open, setOpen] = useState(false);
+  const onTime = onTimeStatus(dueDate, `${value}T12:00:00+05:00`);
+  const label = (
+    <span className="inline-flex items-center gap-1.5 text-sm text-ink-muted">
+      Done {formatDate(value, "EEE d MMM")}
+      {onTime && <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>}
+    </span>
+  );
+  if (!editable) return label;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label="Done on. Change" disabled={pending} className="rounded-full px-1 hover:ring-2 hover:ring-line">
+          {label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-60 space-y-2 p-3">
+        <p className="text-xs text-ink-muted">Done on a different day? Pick it here.</p>
+        <input
+          type="date"
+          max={todayPKT()}
+          defaultValue={value}
+          onChange={(e) => {
+            if (e.target.value && e.target.value !== value) {
+              setOpen(false);
+              save(e.target.value);
+            }
+          }}
+          className="h-9 w-full field px-2 text-sm"
+        />
       </PopoverContent>
     </Popover>
   );

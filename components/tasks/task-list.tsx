@@ -161,9 +161,9 @@ function TaskListItem({
         <InlinePriority taskId={t.id} priority={t.priority} />
       </div>
       <div className="hidden md:block">
-        {showCompleted ? (
+        {showCompleted || t.status === "done" ? (
           <span className="flex flex-col items-start gap-1">
-            <span className="text-xs text-muted-foreground">{formatPKT(t.completed_at, "d MMM, h:mm a")}</span>
+            <span className="text-xs text-muted-foreground">{showCompleted ? formatPKT(t.completed_at, "d MMM, h:mm a") : `Done ${formatPKT(t.completed_at, "d MMM")}`}</span>
             {onTime && <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>}
           </span>
         ) : (

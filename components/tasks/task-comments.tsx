@@ -211,7 +211,7 @@ export function TaskComments({
               Comment
             </Button>
             <span className="inline-flex items-center gap-1 text-xs text-ink-muted">
-              <AtSign className="h-3 w-3" /> Tagged people get it in their inbox and can open the task.
+              <AtSign className="h-3 w-3" /> Tagged people get it under Comments and by email, and can open the task.
             </span>
           </div>
         </form>

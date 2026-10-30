@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
 import { CornerDownRight, FolderKanban, NotebookPen } from "lucide-react";
 import { CollaboratorsField, InlineNotes, InlineTitle, LinkTags, PickTeam, TaskLockSwitch, TeamsField } from "@/components/tasks/task-inline";
-import { InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
+import { DoneOn, InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
 import { getProjects, getTeamNames } from "@/lib/projects";
 import { SubtaskSection } from "@/components/tasks/subtasks";
 import { DOMAINS, domainHref } from "@/lib/domains";
@@ -185,6 +185,9 @@ export default async function TaskPage({
               ) : (
                 <DueLabel date={task.due_date} time={task.due_time} overdue={task.overdue} className="text-sm" />
               )}
+              {task.status === "done" && task.completed_at && (
+                <DoneOn taskId={id} completedAt={task.completed_at} dueDate={task.due_date} editable={isOwner || viewer.isAdmin} />
+              )}
             </div>
             {task.status === "blocked" && (
               <p className="rounded-[12px] bg-warning-soft px-3 py-2 text-sm text-warning-ink">
@@ -359,7 +362,6 @@ export default async function TaskPage({
           <p className="text-xs text-ink-muted">
             Added {formatPKT(task.created_at, "d MMM")}
             {createdBy && ` by ${personName(createdBy)}`}
-            {task.completed_at && ` · done ${formatPKT(task.completed_at, "d MMM")}`}
           </p>
         </aside>
       </div>

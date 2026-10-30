@@ -22,7 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         placements={!!canPlace}
         name={personName(viewer.profile)}
         email={viewer.email}
-        badges={{ "/my": mentions ?? 0, "/overdue": overdue ?? 0, "/placements": (placementTodo as number | null) ?? 0 }}
+        badges={{ "/comments": mentions ?? 0, "/overdue": overdue ?? 0, "/placements": (placementTodo as number | null) ?? 0 }}
       />
       <main className="min-w-0 flex-1 px-4 pb-24 pt-5 md:px-12 md:pb-12 md:pt-10">{children}</main>
       <SubtaskPrompt />

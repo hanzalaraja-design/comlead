@@ -40,15 +40,12 @@ export const getTeamNames = cache(async (): Promise<{ id: string; name: string }
   return [...directory, ...visible.filter((d) => !directory.some((x) => x.id === d.id))];
 });
 
-const getProjectPeople = cache(async () => {
-  const supabase = await createClient();
-  const { data } = await supabase.rpc("project_people");
-  return (data ?? []) as { project_id: string; user_id: string }[];
-});
-
-/** project_id → everyone in it: named people, its teams and whoever started it. */
+/**
+ * project_id → the people on it: its owners and the people picked by name.
+ * Its teams can see it, but only the people picked are on it.
+ */
 export async function membersByProject(projects: Project[]): Promise<Record<string, string[]>> {
-  const rows = await getProjectPeople();
+  const rows = await getProjectMembers();
   const out: Record<string, string[]> = Object.fromEntries(projects.map((p) => [p.id, [] as string[]]));
   for (const r of rows) out[r.project_id]?.push(r.user_id);
   return out;

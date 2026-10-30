@@ -43,6 +43,7 @@ export async function ListView({
   showOwner = true,
   showDepartment = true,
   showProject = true,
+  show,
 }: {
   filters: TaskFilters;
   viewerId: string;
@@ -53,7 +54,13 @@ export async function ListView({
   showOwner?: boolean;
   showDepartment?: boolean;
   showProject?: boolean;
+  /**
+   * Projects, campaigns and partnerships: finished tasks stay in the list, at
+   * the bottom, with an All / Open / Done switch. The value is the ?show= param.
+   */
+  show?: string;
 }) {
+  if (show !== undefined) return <ListWithDone filters={filters} viewerId={viewerId} scope={scope} from={from} show={show} showOwner={showOwner} showDepartment={showDepartment} />;
   // The default (open tasks) also lists what was finished, with the same filters.
   const withDone = Array.isArray(filters.status) && filters.status.length === 0 && !filters.overdue;
   const [{ tasks, truncated, error }, done] = await Promise.all([
@@ -86,6 +93,76 @@ export async function ListView({
           </h2>
           <TaskList tasks={completed} showCompleted showOwner={showOwner} showDepartment={showDepartment} showProject={showProject} from={from} />
         </section>
+      )}
+    </>
+  );
+}
+
+/** Open and finished tasks together, finished ones last, with how many are done. */
+async function ListWithDone({
+  filters,
+  viewerId,
+  scope,
+  from,
+  show,
+  showOwner,
+  showDepartment,
+}: {
+  filters: TaskFilters;
+  viewerId: string;
+  scope: ScopeRef;
+  from: TaskFrom;
+  show: string;
+  showOwner: boolean;
+  showDepartment: boolean;
+}) {
+  const mode = show === "open" || show === "done" ? show : "all";
+  const custom = !(Array.isArray(filters.status) && filters.status.length === 0) || filters.overdue;
+  const [open, done] = await Promise.all([
+    fetchTasks(filters, { viewerId }),
+    custom ? null : fetchTasks({ ...filters, status: ["done"], sort: "completed", dir: "desc" }, { viewerId }, 500),
+  ]);
+  const finished = done?.tasks ?? [];
+  const total = open.tasks.length + finished.length;
+  const tasks = mode === "open" ? open.tasks : mode === "done" ? finished : [...open.tasks, ...finished];
+  const link = (m: string) => {
+    const params = new URLSearchParams(filtersToSearch(filters).slice(1));
+    if (m !== "all") params.set("show", m);
+    const q = params.toString();
+    return viewHref(scope, "list", q ? `?${q}` : "");
+  };
+  return (
+    <>
+      {open.error && <p className="mb-3 text-sm text-danger">{open.error}</p>}
+      {!custom && total > 0 && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-sm text-ink-muted">
+            <span className="h-1.5 w-28 overflow-hidden rounded-full bg-subtle">
+              <span className="block h-full rounded-full bg-success" style={{ width: `${Math.round((finished.length / total) * 100)}%` }} />
+            </span>
+            {finished.length} of {total} done
+          </span>
+          <nav aria-label="Show" className="inline-flex rounded-[12px] bg-subtle p-0.5 text-sm">
+            {(["all", "open", "done"] as const).map((m) => (
+              <Link
+                key={m}
+                href={link(m)}
+                aria-current={mode === m ? "page" : undefined}
+                className={cn("rounded-[10px] px-3 py-1 font-semibold", mode === m ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink")}
+              >
+                {m === "all" ? "All" : m === "open" ? "Open" : "Done"}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      )}
+      {tasks.length ? (
+        <TaskList tasks={tasks} showOwner={showOwner} showDepartment={showDepartment} showProject={false} from={from} />
+      ) : (
+        <EmptyState>{mode === "done" ? "Nothing finished yet." : mode === "open" ? "Nothing open here." : "No tasks yet."}</EmptyState>
+      )}
+      {open.truncated && (
+        <p className="mt-3 text-center text-xs text-muted-foreground">Showing the first {TASK_LIMIT}. Narrow the filters to see the rest.</p>
       )}
     </>
   );
