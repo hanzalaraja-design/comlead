@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AtSign, CheckCircle2, ChevronDown, TriangleAlert } from "lucide-react";
+import { CheckCircle2, ChevronDown, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { TaskList } from "@/components/tasks/task-list";
@@ -7,17 +7,15 @@ import { cookies } from "next/headers";
 import { RememberRole } from "@/components/tasks/remember-role";
 import { QuickAdd } from "@/components/tasks/quick-add";
 import { CelebrateWhenCleared } from "@/components/progress/celebrate";
-import { PersonAvatar } from "@/components/person-avatar";
-import { MarkMentionsRead } from "@/components/my/mention-buttons";
-import { getDepartments, getPeople, isMemberOf, requireViewer, viewerId } from "@/lib/auth";
-import { OPEN_STATUSES, personName } from "@/lib/labels";
+import { getDepartments, isMemberOf, requireViewer, viewerId } from "@/lib/auth";
+import { OPEN_STATUSES } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { countActiveFilters, filtersToSearch, parseFilters, type TaskFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskTabs } from "@/components/tasks/task-tabs";
 import { comparePriority, fetchTasks, withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
-import { addDaysISO, formatDate, formatPKT, startOfDayPKT, todayPKT, weekEndPKT } from "@/lib/time";
+import { addDaysISO, formatDate, startOfDayPKT, todayPKT, weekEndPKT } from "@/lib/time";
 import { onTimeStatus } from "@/lib/tasks/ontime";
 import { clearedLine, emptyLine, todayLine } from "@/lib/voice";
 
@@ -41,14 +39,6 @@ function groupOf(t: TaskListRow, today: string, weekEnd: string): GroupKey {
   return "later";
 }
 
-type Mention = {
-  id: string;
-  created_at: string;
-  seen_at: string | null;
-  mentioned_by: string | null;
-  task: { id: string; title: string } | null;
-  comment: { body: string } | null;
-};
 
 export default async function MyTasksPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [id, supabase, raw] = await Promise.all([viewerId(), createClient(), searchParams]);
@@ -64,7 +54,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
 
   // Everything at once: no query here waits for another.
   const monthStart = `${today.slice(0, 7)}-01`;
-  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, meetingMentionsRes, people, done, options, monthDone] = await Promise.all([
+  const [viewer, departments, { tasks, error }, collabRes, done, options, monthDone] = await Promise.all([
     requireViewer(),
     getDepartments(),
     fetchTasks({ ...filters, sort: "due", dir: "asc" }, { viewerId: id }),
@@ -79,22 +69,6 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(100),
     ),
-    supabase
-      .from("task_mentions")
-      .select("id, created_at, seen_at, mentioned_by, task:tasks(id, title), comment:task_comments(body)")
-      .eq("user_id", id)
-      .order("created_at", { ascending: false })
-      .limit(15),
-    // Tagged in a meeting's comments (empty if the database hasn't got them yet).
-    supabase
-      .from("meeting_mentions")
-      .select("id, created_at, seen_at, mentioned_by, meeting:meetings(id, title, meeting_date), comment:meeting_comments(body)")
-      .eq("user_id", id)
-      .is("seen_at", null)
-      .order("created_at", { ascending: false })
-      .limit(15)
-      .then((r) => (r.error ? { data: [] } : r)),
-    getPeople(),
     // Done: the dates picked in When, or the last 30 days. Newest first.
     fetchTasks(
       filters.when.length
@@ -118,22 +92,6 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   const onTimeCount = scored.filter((x) => x!.onTime).length;
 
   const collaborating = (collabRes.data ?? []) as unknown as TaskListRow[];
-  // Only mentions you haven't read; opening the task or ticking one clears it.
-  type MeetingMention = Omit<Mention, "task"> & { meeting: { id: string; title: string | null; meeting_date: string } | null };
-  const mentions = [
-    ...((mentionsRes.data ?? []) as unknown as Mention[])
-      .filter((m) => m.task && !m.seen_at)
-      .map((m) => ({ ...m, title: m.task!.title, href: `/tasks/${m.task!.id}#comments` })),
-    ...((meetingMentionsRes.data ?? []) as unknown as MeetingMention[])
-      .filter((m) => m.meeting)
-      .map((m) => ({
-        ...m,
-        title: `${m.meeting!.title || "Meeting"} · ${formatDate(m.meeting!.meeting_date, "d MMM")}`,
-        href: `/meetings/${m.meeting!.id}?tab=comments`,
-      })),
-  ].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const unseen = mentions.length;
-  const peopleById = new Map(people.map((p) => [p.id, p]));
 
   const grouped = new Map<GroupKey, TaskListRow[]>(GROUPS.map((g) => [g.key, []]));
   for (const t of tasks) grouped.get(groupOf(t, today, weekEnd))!.push(t);
@@ -237,39 +195,6 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       <div className="space-y-8">
-        {/* Mentions first when something is new: it's what someone is waiting on. */}
-        {mentions.length > 0 && (
-          <section>
-            <h2 className="kicker mb-2 flex items-center gap-2 text-ink">
-              <AtSign className="h-4 w-4" /> Mentioned
-              <span className="rounded-full bg-brand-primary px-2 py-0.5 text-xs text-white">{unseen} new</span>
-              {unseen > 1 && <MarkMentionsRead className="ml-auto normal-case tracking-normal" />}
-            </h2>
-            <ul className="divide-y divide-line surface">
-              {mentions.map((m) => {
-                const by = m.mentioned_by ? peopleById.get(m.mentioned_by) : undefined;
-                return (
-                  <li key={m.id} className="relative flex gap-3 bg-brand-bg/40 px-4 py-3 hover:bg-subtle/60">
-                    <PersonAvatar person={by} className="mt-0.5 h-7 w-7" />
-                    <div className="min-w-0 flex-1">
-                      <Link href={m.href} className="font-semibold text-ink after:absolute after:inset-0">
-                        {m.title}
-                      </Link>
-                      <p className="line-clamp-2 text-sm text-ink-muted">
-                        <span className="font-medium text-ink">{personName(by)}:</span> {m.comment?.body}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <span className="text-xs text-ink-muted">{formatPKT(m.created_at, "d MMM")}</span>
-                      <MarkMentionsRead id={m.id} className="-mr-1.5" />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )}
-
         {role === "collab" && collabSection}
 
         {role !== "collab" && <section>

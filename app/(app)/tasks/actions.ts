@@ -12,6 +12,7 @@ import { addDaysISO, parseISODate, todayPKT } from "@/lib/time";
 import { personName } from "@/lib/labels";
 import { emailSubtaskDone, emailSubtaskGiven } from "@/lib/tasks/subtasks";
 import { OPEN_SUBTASKS } from "@/lib/tasks/open-subtasks";
+import { emailCommentMentions } from "@/lib/tasks/mentions";
 
 const uuid = z.string().uuid();
 const optionalUuid = z
@@ -450,9 +451,10 @@ export async function addComment(taskId: string, body: string, mentionIds: strin
     // Tagged people become collaborators, so they can open the task, and get it in their inbox.
     const { error: mErr } = await supabase.rpc("add_comment_mentions", { p_comment_id: data.id, p_user_ids: mentions });
     if (mErr) return { ok: false, error: friendlyError(mErr) };
+    emailCommentMentions(taskId, mentions, viewer.id, text);
   }
   revalidatePath(`/tasks/${taskId}`);
-  if (mentions.length) revalidatePath("/my");
+  if (mentions.length) revalidatePath("/", "layout");
   return { ok: true };
 }
 

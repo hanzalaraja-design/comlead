@@ -10,7 +10,6 @@ import { personName } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { PersonRef } from "@/lib/types";
 import { addComment, deleteComment } from "@/app/(app)/tasks/actions";
-import { addMeetingComment, deleteMeetingComment } from "@/app/(app)/meetings/actions";
 
 export type CommentRow = {
   id: string;
@@ -46,17 +45,14 @@ function CommentBody({ body, people }: { body: string; people: PersonRef[] }) {
   );
 }
 
-/** Comments on a task, or on a meeting (give meetingId instead). */
 export function TaskComments({
   taskId,
-  meetingId,
   comments,
   canComment,
   people,
   viewerId,
 }: {
-  taskId?: string;
-  meetingId?: string;
+  taskId: string;
   comments: CommentRow[];
   canComment: boolean;
   /** Everyone who can be tagged with @. */
@@ -108,7 +104,7 @@ export function TaskComments({
       .filter(([name]) => body.includes(`@${name}`))
       .map(([, id]) => id);
     startTransition(async () => {
-      const res = meetingId ? await addMeetingComment(meetingId, body, ids) : await addComment(taskId!, body, ids);
+      const res = await addComment(taskId, body, ids);
       if (res.ok) {
         setBody("");
         setTagged({});
@@ -135,7 +131,7 @@ export function TaskComments({
                     className="ml-auto text-muted-foreground hover:text-danger"
                     onClick={() =>
                       startTransition(async () => {
-                        const res = meetingId ? await deleteMeetingComment(c.id, meetingId) : await deleteComment(c.id, taskId!);
+                        const res = await deleteComment(c.id, taskId);
                         if (!res.ok) toast.error(res.error);
                       })
                     }
@@ -215,7 +211,7 @@ export function TaskComments({
               Comment
             </Button>
             <span className="inline-flex items-center gap-1 text-xs text-ink-muted">
-              <AtSign className="h-3 w-3" /> Tagged people get it in their inbox{meetingId ? " and by email" : ""} and can open the {meetingId ? "meeting" : "task"}.
+              <AtSign className="h-3 w-3" /> Tagged people get it under Comments and by email, and can open the task.
             </span>
           </div>
         </form>

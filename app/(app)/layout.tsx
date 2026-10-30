@@ -7,10 +7,9 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [id, supabase] = await Promise.all([viewerId(), createClient()]);
-  const [viewer, { count: mentions }, { count: meetingMentions }, { count: overdue }, { data: canPlace }, { data: placementTodo }] = await Promise.all([
+  const [viewer, { count: mentions }, { count: overdue }, { data: canPlace }, { data: placementTodo }] = await Promise.all([
     requireViewer(),
     supabase.from("task_mentions").select("id", { count: "exact", head: true }).eq("user_id", id).is("seen_at", null),
-    supabase.from("meeting_mentions").select("id", { count: "exact", head: true }).eq("user_id", id).is("seen_at", null),
     supabase.from("tasks").select("id", { count: "exact", head: true }).eq("owner_id", id).eq("overdue", true),
     supabase.rpc("can_use_placements"),
     supabase.rpc("placement_todo_count"),
@@ -23,7 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         placements={!!canPlace}
         name={personName(viewer.profile)}
         email={viewer.email}
-        badges={{ "/my": (mentions ?? 0) + (meetingMentions ?? 0), "/overdue": overdue ?? 0, "/placements": (placementTodo as number | null) ?? 0 }}
+        badges={{ "/comments": mentions ?? 0, "/overdue": overdue ?? 0, "/placements": (placementTodo as number | null) ?? 0 }}
       />
       <main className="min-w-0 flex-1 px-4 pb-24 pt-5 md:px-12 md:pb-12 md:pt-10">{children}</main>
       <SubtaskPrompt />
