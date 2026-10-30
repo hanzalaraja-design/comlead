@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
 import { TaskList } from "@/components/tasks/task-list";
+import { TaskComments } from "@/components/tasks/task-comments";
+import { cn } from "@/lib/utils";
 import { MeetingEditor } from "@/components/meetings/meeting-editor";
 import { canLead, getDepartmentMembers, getDepartments, getPeople, requireViewer } from "@/lib/auth";
 import { personName } from "@/lib/labels";
@@ -23,9 +25,10 @@ export default async function MeetingPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{ edit?: string; tab?: string }>;
 }) {
-  const [{ id }, { edit }] = await Promise.all([params, searchParams]);
+  const [{ id }, { edit, tab: rawTab }] = await Promise.all([params, searchParams]);
+  const tab = rawTab === "actions" || rawTab === "comments" ? rawTab : "minutes";
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const viewer = await requireViewer();
   const supabase = await createClient();
@@ -34,7 +37,7 @@ export default async function MeetingPage({
   if (!meetingData) notFound();
   const meeting = meetingData as Meeting;
 
-  const [departments, people, members, attendeesRes, itemsRes, prevRes, linksRes, allProjects, logRes] = await Promise.all([
+  const [departments, people, members, attendeesRes, itemsRes, prevRes, linksRes, allProjects, logRes, commentsRes] = await Promise.all([
     getDepartments(),
     getPeople(),
     getDepartmentMembers(),
@@ -59,7 +62,17 @@ export default async function MeetingPage({
     getProjects(),
     // Who wrote and edited the minutes.
     supabase.rpc("meeting_minutes_log", { p_meeting_id: id }).then((r) => (r.error ? { data: [] } : r)),
+    // Comments (empty if the database hasn't got them yet).
+    supabase
+      .from("meeting_comments")
+      .select("id, body, created_at, author_id")
+      .eq("meeting_id", id)
+      .order("created_at")
+      .then((r) => (r.error ? { data: [] } : r)),
+    // Opening the meeting counts as reading any mentions of you in it.
+    supabase.from("meeting_mentions").update({ seen_at: new Date().toISOString() }).eq("meeting_id", id).eq("user_id", viewer.id).is("seen_at", null),
   ]);
+  const comments = (commentsRes.data ?? []) as { id: string; body: string; created_at: string; author_id: string }[];
   const linked = ((linksRes.data ?? []) as unknown as { project: { id: string; name: string; slug: string; kind: ProjectKind } | null }[])
     .map((r) => r.project)
     .filter((p): p is { id: string; name: string; slug: string; kind: ProjectKind } => !!p);
@@ -196,61 +209,110 @@ export default async function MeetingPage({
         }
       />
 
-      {attendeeIds.length > 0 && (
-        <section className="surface p-4 md:p-6">
-          <h2 className="kicker mb-2 text-ink">Attendees</h2>
-          <ul className="flex flex-wrap gap-2">
-            {attendeeIds.map((uid) => (
-              <li key={uid} className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-3 text-sm">
-                <PersonAvatar person={peopleById.get(uid)} />
-                {personName(peopleById.get(uid))}
-              </li>
-            ))}
-          </ul>
+      <nav aria-label="Meeting" className="-mt-2 flex gap-5 border-b border-line">
+        {(
+          [
+            ["minutes", "Minutes", 0],
+            ["actions", "Action items", items.length],
+            ["comments", "Comments", comments.length],
+          ] as const
+        ).map(([key, label, n]) => (
+          <Link
+            key={key}
+            href={key === "minutes" ? `/meetings/${id}` : `/meetings/${id}?tab=${key}`}
+            aria-current={tab === key ? "page" : undefined}
+            className={cn(
+              "-mb-px inline-flex min-h-11 items-center gap-1.5 border-b-2 px-1 text-[15px] font-semibold",
+              tab === key ? "border-brand-primary text-ink" : "border-transparent text-ink-muted hover:text-ink",
+            )}
+          >
+            {label}
+            {n > 0 && <span className="rounded-full bg-brand-bg px-1.5 text-xs text-brand-primary">{n}</span>}
+          </Link>
+        ))}
+      </nav>
+
+      {tab === "minutes" && (
+        <>
+          {attendeeIds.length > 0 && (
+            <section className="surface p-4 md:p-6">
+              <h2 className="kicker mb-2 text-ink">Attendees</h2>
+              <ul className="flex flex-wrap gap-2">
+                {attendeeIds.map((uid) => (
+                  <li key={uid} className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-3 text-sm">
+                    <PersonAvatar person={peopleById.get(uid)} />
+                    {personName(peopleById.get(uid))}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {carryForward}
+
+          {meeting.agenda && (
+            <section className="surface p-4 md:p-6">
+              <h2 className="kicker mb-2 text-ink">Agenda</h2>
+              <p className="whitespace-pre-wrap text-sm">{meeting.agenda}</p>
+            </section>
+          )}
+
+          <section className="surface p-4 md:p-6">
+            <h2 className="kicker mb-2 text-ink">Minutes</h2>
+            {meeting.minutes ? (
+              <RichTextView html={meeting.minutes} />
+            ) : (
+              <p className="text-sm text-muted-foreground">No minutes yet.</p>
+            )}
+            {minutesLog.length > 0 && (
+              <ul className="mt-4 space-y-1 border-t border-line pt-3 text-xs text-ink-muted">
+                {minutesLog.map((e, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <PersonAvatar person={e.person} className="h-5 w-5" />
+                    <span>
+                      <span className="font-semibold text-ink">{e.person ? personName(e.person) : "Someone"}</span> {i === 0 ? "wrote the minutes" : "edited them"} ·{" "}
+                      {formatPKT(e.at, "d MMM, h:mm a")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <p className="text-xs text-muted-foreground">Last updated {formatPKT(meeting.updated_at)}</p>
+        </>
+      )}
+
+      {tab === "actions" && (
+        <section>
+          <h2 className="kicker mb-2 text-ink">Action items</h2>
+          {items.length ? (
+            // Finished ones stay in view, after what's still open.
+            <TaskList tasks={[...items].sort((a, b) => Number(a.status === "done") - Number(b.status === "done"))} showDepartment={false} />
+          ) : (
+            <p className="text-sm text-muted-foreground">No action items.</p>
+          )}
         </section>
       )}
 
-      {carryForward}
-
-      {meeting.agenda && (
+      {tab === "comments" && (
         <section className="surface p-4 md:p-6">
-          <h2 className="kicker mb-2 text-ink">Agenda</h2>
-          <p className="whitespace-pre-wrap text-sm">{meeting.agenda}</p>
+          <TaskComments
+            meetingId={id}
+            canComment
+            people={people}
+            viewerId={viewer.id}
+            comments={comments.map((c) => ({
+              id: c.id,
+              body: c.body,
+              created_at: c.created_at,
+              created_label: formatPKT(c.created_at, "d MMM, h:mm a"),
+              author: peopleById.get(c.author_id) ?? null,
+              mine: c.author_id === viewer.id,
+            }))}
+          />
         </section>
       )}
-
-      <section className="surface p-4 md:p-6">
-        <h2 className="kicker mb-2 text-ink">Minutes</h2>
-        {meeting.minutes ? (
-          <RichTextView html={meeting.minutes} />
-        ) : (
-          <p className="text-sm text-muted-foreground">No minutes yet.</p>
-        )}
-        {minutesLog.length > 0 && (
-          <ul className="mt-4 space-y-1 border-t border-line pt-3 text-xs text-ink-muted">
-            {minutesLog.map((e, i) => (
-              <li key={i} className="flex items-center gap-2">
-                <PersonAvatar person={e.person} className="h-5 w-5" />
-                <span>
-                  <span className="font-semibold text-ink">{e.person ? personName(e.person) : "Someone"}</span> {i === 0 ? "wrote the minutes" : "edited them"} ·{" "}
-                  {formatPKT(e.at, "d MMM, h:mm a")}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <h2 className="kicker mb-2 text-ink">Action items</h2>
-        {items.length ? (
-          <TaskList tasks={items} showDepartment={false} />
-        ) : (
-          <p className="text-sm text-muted-foreground">No action items.</p>
-        )}
-      </section>
-
-      <p className="text-xs text-muted-foreground">Last updated {formatPKT(meeting.updated_at)}</p>
     </div>
   );
 }

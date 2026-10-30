@@ -18,6 +18,7 @@ import { createTask, updateTask } from "@/app/(app)/tasks/actions";
 import { askAboutOpenSubtasks } from "@/components/tasks/subtask-prompt";
 import { NeededFromOthers, type SubtaskDraft } from "@/components/tasks/subtasks";
 import { openSubtaskCount } from "@/lib/tasks/open-subtasks";
+import { formatDate, todayPKT } from "@/lib/time";
 
 export type TaskFormProps = {
   task?: Task;
@@ -67,6 +68,10 @@ export function TaskForm(props: TaskFormProps) {
   );
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo");
   const [dueDate, setDueDate] = useState(task?.due_date ?? "");
+  // Logging something after the fact: a new task with a past date can be saved as done that day.
+  const canBeDone = !task && !!dueDate && dueDate < todayPKT();
+  const [doneBefore, setDoneBefore] = useState(false);
+  const alreadyDone = canBeDone && doneBefore;
   const [collaborators, setCollaborators] = useState<string[]>(props.collaboratorIds ?? []);
   // New team tasks can go to several people at once: one task each.
   const [owners, setOwners] = useState<string[]>(props.defaultOwnerId ? [props.defaultOwnerId] : []);
@@ -129,6 +134,7 @@ export function TaskForm(props: TaskFormProps) {
       {!pickDepartment && <input type="hidden" name="department_id" value={departmentId} />}
       {props.isSubtask && <input type="hidden" name="subtask" value="1" />}
       {!task && <input type="hidden" name="status" value="todo" />}
+      {alreadyDone && <input type="hidden" name="done_on" value={dueDate} />}
 
       <div className="space-y-1.5">
         <Label htmlFor="title">What needs doing</Label>
@@ -171,6 +177,12 @@ export function TaskForm(props: TaskFormProps) {
         <div className="space-y-1.5">
           <Label htmlFor="due_date">Due</Label>
           <Input id="due_date" name="due_date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-10" />
+          {canBeDone && (
+            <label className="flex items-center gap-2 pt-1 text-[13px] text-ink">
+              <input type="checkbox" checked={doneBefore} onChange={(e) => setDoneBefore(e.target.checked)} className="h-4 w-4 accent-[hsl(var(--success))]" />
+              Already done on {formatDate(dueDate, "EEE d MMM")}
+            </label>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="priority">Priority</Label>

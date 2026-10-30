@@ -10,7 +10,14 @@ import { Input } from "@/components/ui/input";
 import { PRIORITIES, SOURCES, STATUSES } from "@/lib/labels";
 import { SORTS, countActiveFilters, filtersToSearch, type SortKey, type TaskFilters } from "@/lib/tasks/filters";
 import { cn } from "@/lib/utils";
-import { WHEN, type WhenKey } from "@/lib/tasks/when";
+import { WHEN, whenRanges, type WhenKey } from "@/lib/tasks/when";
+import { formatDate } from "@/lib/time";
+
+const WHEN_PILLS: WhenKey[][] = [
+  ["last_week", "this_week", "next_week"],
+  ["last_month", "this_month", "next_month"],
+  ["all"],
+];
 import type { TaskPriority, TaskSource, TaskStatus } from "@/lib/types";
 
 export type FilterOptions = {
@@ -28,6 +35,7 @@ export function TaskFilterBar({
   options,
   hide = [],
   preserve,
+  whenPills = false,
 }: {
   filters: TaskFilters;
   options: FilterOptions;
@@ -35,6 +43,8 @@ export function TaskFilterBar({
   hide?: ("dept" | "project" | "owner" | "status" | "sort" | "overdue" | "when")[];
   /** Extra query params the page needs kept (e.g. the calendar month). */
   preserve?: Record<string, string>;
+  /** My tasks and My team: When as a row of week and month pills instead of a menu. */
+  whenPills?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -79,8 +89,50 @@ export function TaskFilterBar({
   const showingDone = Array.isArray(filters.status) && filters.status.length === 1 && filters.status[0] === "done";
   const active = countActiveFilters(filters);
 
+  // Ticking adds a range; All time stands alone.
+  const toggleWhen = (k: WhenKey) =>
+    apply({
+      when: k === "all" ? (filters.when.includes("all") ? [] : ["all"]) : filters.when.includes(k) ? filters.when.filter((x) => x !== k) : [...filters.when.filter((x) => x !== "all"), k],
+    });
+  const ranges = whenRanges(filters.when);
+
   return (
     <div className="mb-4 space-y-2">
+      {whenPills && (
+        <div className="space-y-1.5">
+          <div role="group" aria-label="When" className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
+            {WHEN_PILLS.map((group, gi) => (
+              <span key={gi} className="flex shrink-0 items-center gap-1.5">
+                {gi > 0 && <span aria-hidden className="mx-1 h-5 w-px bg-line" />}
+                {group.map((k) => {
+                  const on = filters.when.includes(k);
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => toggleWhen(k)}
+                      className={cn(
+                        "inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-3 text-[13px] font-semibold",
+                        on ? "border-ink bg-ink text-white" : "border-line bg-white text-ink hover:bg-subtle",
+                      )}
+                    >
+                      {WHEN.find((w) => w.value === k)!.label}
+                      {on && <X className="h-3 w-3 opacity-70" />}
+                    </button>
+                  );
+                })}
+              </span>
+            ))}
+          </div>
+          {ranges && ranges.length > 0 && (
+            <p className="text-xs text-ink-muted">
+              Showing {ranges.map((r) => (r.from === r.to ? formatDate(r.from, "d MMM") : `${formatDate(r.from, "d MMM")} to ${formatDate(r.to, "d MMM")}`)).join(" and ")}
+              {" "}· open tasks by due date, finished ones by the day they were done
+            </p>
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1 md:max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -115,7 +167,7 @@ export function TaskFilterBar({
             Completed
           </button>
         )}
-        {!hide.includes("when") && (
+        {!hide.includes("when") && !whenPills && (
           <MultiSelect
             label="When"
             options={WHEN.map((w) => ({ value: w.value, label: w.label }))}

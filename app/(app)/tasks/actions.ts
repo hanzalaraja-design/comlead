@@ -47,7 +47,18 @@ const taskSchema = z.object({
   meeting_id: optionalUuid,
   project_id: optionalUuid,
   collaborators: z.array(uuid).max(50),
+  // "Already done on" a past day: a new task logged after the fact.
+  done_on: z
+    .string()
+    .optional()
+    .transform((v) => v || null)
+    .pipe(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
 });
+
+/** Midday, Pakistan time, on that day: when a task logged after the fact was done. */
+function doneOnTimestamp(day: string): string {
+  return new Date(`${day}T12:00:00+05:00`).toISOString();
+}
 
 function readTaskForm(formData: FormData) {
   return taskSchema.safeParse({
@@ -64,6 +75,7 @@ function readTaskForm(formData: FormData) {
     meeting_id: formData.get("meeting_id") ?? undefined,
     project_id: formData.get("project_id") ?? undefined,
     collaborators: formData.getAll("collaborators").map(String).filter(Boolean),
+    done_on: formData.get("done_on") ?? undefined,
   });
 }
 
@@ -99,7 +111,8 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
     title: v.title,
     description: isBlankHtml(v.description) ? null : sanitizeRichText(v.description),
     department_id: v.department_id,
-    status: v.status,
+    status: v.done_on && v.done_on <= todayPKT() ? ("done" as const) : v.status,
+    completed_at: v.done_on && v.done_on <= todayPKT() ? doneOnTimestamp(v.done_on) : null,
     priority: v.priority,
     due_date: v.due_date,
     due_time: v.due_date ? v.due_time : null,
@@ -301,7 +314,7 @@ export async function quickAddTask(
   projectId?: string,
   /** Added from My tasks: it's yours, whichever team it's in. */
   mine = false,
-): Promise<ActionResult<{ id: string; owner: string | null }>> {
+): Promise<ActionResult<{ id: string; owner: string | null; done: boolean }>> {
   const viewer = await requireViewer();
   let title = input.trim().replace(/\s+/g, " ");
   const dept = departmentId || null;
@@ -310,6 +323,9 @@ export async function quickAddTask(
   if (project && !uuid.safeParse(project).success) return { ok: false, error: "That project wasn't found." };
   if (!dept && !project) return { ok: false, error: NEEDS_TEAM };
 
+  // "… ✓" or "… done" at the end: it's already done (logged after the fact).
+  const tick = /\s+(?:✓|✔|✅|done)$/i.exec(title);
+  if (tick) title = title.slice(0, tick.index).trim();
   let priority: "urgent" | "high" | "medium" = "medium";
   const bang = /\s*(!{1,2})$/.exec(title);
   if (bang) {
@@ -319,10 +335,11 @@ export async function quickAddTask(
   let due: string | null = null;
   const today = todayPKT();
   const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-  const word = /\s+(today|tomorrow|tmrw|mon|tue|wed|thu|fri|sat|sun)(?:day|sday|nesday|rsday|urday)?$/i.exec(title);
+  const word = /\s+(today|tomorrow|tmrw|yesterday|yday|mon|tue|wed|thu|fri|sat|sun)(?:day|sday|nesday|rsday|urday)?$/i.exec(title);
   if (word) {
     const w = word[1].toLowerCase();
     if (w === "today") due = today;
+    else if (w === "yesterday" || w === "yday") due = addDaysISO(today, -1);
     else if (w === "tomorrow" || w === "tmrw") due = addDaysISO(today, 1);
     else {
       const now = parseISODate(today).getDay();
@@ -339,7 +356,8 @@ export async function quickAddTask(
   let owner: string | null = viewer.id;
   let ownerName: string | null = null;
   // In a project, what you add is yours.
-  if (dept && !project && !mine && !viewer.leadDeptIds.includes(dept)) {
+  // Something you already did is yours, too.
+  if (dept && !project && !mine && !tick && !viewer.leadDeptIds.includes(dept)) {
     const { data: lead } = await supabase
       .from("department_members")
       .select("user_id, profile:profiles(full_name, email)")
@@ -354,13 +372,22 @@ export async function quickAddTask(
   }
   const { data, error } = await supabase
     .from("tasks")
-    .insert({ title, department_id: dept, project_id: project, owner_id: owner, priority, due_date: due, created_by: viewer.id })
+    .insert({
+      title,
+      department_id: dept,
+      project_id: project,
+      owner_id: owner,
+      priority,
+      due_date: due,
+      created_by: viewer.id,
+      ...(tick ? { status: "done" as const, completed_at: due && due <= today ? doneOnTimestamp(due) : null } : {}),
+    })
     .select("id")
     .single();
   if (error || !data) return { ok: false, error: friendlyError(error) };
   revalidateTaskViews(data.id);
   syncLater(() => syncTask(data.id));
-  return { ok: true, data: { id: data.id as string, owner: owner === viewer.id ? "you" : ownerName } };
+  return { ok: true, data: { id: data.id as string, owner: owner === viewer.id ? "you" : ownerName, done: !!tick } };
 }
 
 export async function setTaskStatus(
@@ -524,6 +551,8 @@ const inlineSchema = z.object({
   meeting_id: uuid.nullable().optional(),
   // Only to give a task without a team its team (the database checks you're in it).
   department_id: uuid.optional(),
+  // When a finished task was done (its owner can correct it).
+  done_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 /**
@@ -542,13 +571,18 @@ export async function updateTaskInline(
     project_id?: string | null;
     meeting_id?: string | null;
     department_id?: string;
+    done_on?: string;
   },
 ): Promise<ActionResult> {
   await requireViewer();
   const parsed = inlineSchema.safeParse({ taskId, ...patch });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "That change isn't valid." };
-  const { taskId: id, description, ...rest } = parsed.data;
+  const { taskId: id, description, done_on, ...rest } = parsed.data;
   const fields: Record<string, unknown> = { ...rest };
+  if (done_on) {
+    if (done_on > todayPKT()) return { ok: false, error: "That day hasn't happened yet." };
+    fields.completed_at = doneOnTimestamp(done_on);
+  }
   if (description !== undefined) fields.description = isBlankHtml(description) ? null : sanitizeRichText(description);
   // Clearing the date clears its time too.
   const update = fields.due_date === null ? { ...fields, due_time: null } : fields;

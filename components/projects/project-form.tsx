@@ -31,7 +31,7 @@ export function ProjectForm({
   project?: Project;
   /** Its owners now (they can lock it). */
   ownerIds?: string[];
-  /** People added by name (its teams are in anyway). */
+  /** People added by name: the ones working on it. */
   memberIds?: string[];
   /** Every team: any of them can be brought in. */
   departments: { id: string; name: string }[];
@@ -151,18 +151,20 @@ export function ProjectForm({
         <div className="space-y-1.5">
           <Label>Teams</Label>
           <MultiSelect
-            label="Pick teams (everyone in them joins)"
+            label="Pick teams"
             options={departments.map((x) => ({ value: x.id, label: x.name }))}
             value={teams}
             onChange={setTeams}
             className="h-10 w-full justify-between rounded-[12px] text-sm"
           />
-          {kind === "project" && <p className="text-xs text-ink-muted">No team = an individual project, just its owners and the people below.</p>}
+          <p className="text-xs text-ink-muted">
+            {teams.length ? "It shows in these teams' lists. Only the people you pick below are on it." : kind === "project" ? "No team = an individual project, just its owners and the people below." : "Only the people you pick below are on it."}
+          </p>
         </div>
         <div className="space-y-1.5">
-          <Label>{teams.length ? "Also add" : "People"}</Label>
+          <Label>People</Label>
           <MultiSelect
-            label={teams.length ? "People from other teams" : "Add people"}
+            label="Add people"
             options={personOptions.filter((p) => !owners.includes(p.value))}
             value={members}
             onChange={setMembers}

@@ -193,6 +193,7 @@ export async function MyTeamHeader({
         options={options}
         hide={view === "board" ? ["dept", "status", "sort"] : view === "calendar" ? ["dept", "sort", "when"] : ["dept"]}
         preserve={{ ...keep, ...(month ? { month } : {}) }}
+        whenPills={view !== "calendar"}
       />
     </>
   );

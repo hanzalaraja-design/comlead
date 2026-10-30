@@ -8,6 +8,7 @@ import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { isBlankHtml, sanitizeRichText } from "@/lib/sanitize";
 import { syncLater } from "@/lib/calendar/schedule";
 import { syncTasksForMeeting } from "@/lib/calendar/sync";
+import { emailMeetingMentions } from "@/lib/meetings/mentions";
 
 const uuid = z.string().uuid();
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -171,5 +172,40 @@ export async function setMeetingProjects(meetingId: string, projectIds: string[]
     if (error) return { ok: false, error: friendlyError(error) };
   }
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** A comment on a meeting; tagged people get it in their inbox and by email. */
+export async function addMeetingComment(meetingId: string, body: string, mentionIds: string[] = []): Promise<ActionResult> {
+  const viewer = await requireViewer();
+  const text = body.trim();
+  if (!uuid.safeParse(meetingId).success || !text) return { ok: false, error: "Write a comment first." };
+  if (text.length > 10_000) return { ok: false, error: "Comment is too long." };
+  const mentions = [...new Set(mentionIds)].filter((m) => uuid.safeParse(m).success && m !== viewer.id).slice(0, 20);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("meeting_comments")
+    .insert({ meeting_id: meetingId, author_id: viewer.id, body: text })
+    .select("id")
+    .single();
+  if (error || !data) return { ok: false, error: friendlyError(error) };
+  if (mentions.length) {
+    const { error: mErr } = await supabase.rpc("add_meeting_mentions", { p_comment_id: data.id, p_user_ids: mentions });
+    if (mErr) return { ok: false, error: friendlyError(mErr) };
+    emailMeetingMentions(meetingId, mentions, viewer.id, text);
+  }
+  revalidatePath(`/meetings/${meetingId}`);
+  if (mentions.length) revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function deleteMeetingComment(commentId: string, meetingId: string): Promise<ActionResult> {
+  await requireViewer();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("meeting_comments").delete().eq("id", commentId).select("id");
+  if (error) return { ok: false, error: friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "You can only delete your own comments." };
+  revalidatePath(`/meetings/${meetingId}`);
   return { ok: true };
 }

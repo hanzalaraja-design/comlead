@@ -34,6 +34,7 @@ export function MyHeader({ view, filters, options, month }: { view: TaskView; fi
         options={options}
         hide={view === "board" ? ["owner", "status", "sort"] : ["owner", "sort", "when"]}
         preserve={month ? { month } : undefined}
+        whenPills={view === "board"}
       />
     </>
   );

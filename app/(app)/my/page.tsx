@@ -64,7 +64,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
 
   // Everything at once: no query here waits for another.
   const monthStart = `${today.slice(0, 7)}-01`;
-  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, people, done, options, monthDone] = await Promise.all([
+  const [viewer, departments, { tasks, error }, collabRes, mentionsRes, meetingMentionsRes, people, done, options, monthDone] = await Promise.all([
     requireViewer(),
     getDepartments(),
     fetchTasks({ ...filters, sort: "due", dir: "asc" }, { viewerId: id }),
@@ -85,6 +85,15 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       .eq("user_id", id)
       .order("created_at", { ascending: false })
       .limit(15),
+    // Tagged in a meeting's comments (empty if the database hasn't got them yet).
+    supabase
+      .from("meeting_mentions")
+      .select("id, created_at, seen_at, mentioned_by, meeting:meetings(id, title, meeting_date), comment:meeting_comments(body)")
+      .eq("user_id", id)
+      .is("seen_at", null)
+      .order("created_at", { ascending: false })
+      .limit(15)
+      .then((r) => (r.error ? { data: [] } : r)),
     getPeople(),
     // Done: the dates picked in When, or the last 30 days. Newest first.
     fetchTasks(
@@ -110,7 +119,19 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
 
   const collaborating = (collabRes.data ?? []) as unknown as TaskListRow[];
   // Only mentions you haven't read; opening the task or ticking one clears it.
-  const mentions = ((mentionsRes.data ?? []) as unknown as Mention[]).filter((m) => m.task && !m.seen_at);
+  type MeetingMention = Omit<Mention, "task"> & { meeting: { id: string; title: string | null; meeting_date: string } | null };
+  const mentions = [
+    ...((mentionsRes.data ?? []) as unknown as Mention[])
+      .filter((m) => m.task && !m.seen_at)
+      .map((m) => ({ ...m, title: m.task!.title, href: `/tasks/${m.task!.id}#comments` })),
+    ...((meetingMentionsRes.data ?? []) as unknown as MeetingMention[])
+      .filter((m) => m.meeting)
+      .map((m) => ({
+        ...m,
+        title: `${m.meeting!.title || "Meeting"} · ${formatDate(m.meeting!.meeting_date, "d MMM")}`,
+        href: `/meetings/${m.meeting!.id}?tab=comments`,
+      })),
+  ].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const unseen = mentions.length;
   const peopleById = new Map(people.map((p) => [p.id, p]));
 
@@ -212,7 +233,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} mine />
       </div>
 
-      <TaskFilterBar filters={filters} options={options} hide={["owner", "sort"]} preserve={{ role }} />
+      <TaskFilterBar filters={filters} options={options} hide={["owner", "sort"]} preserve={{ role }} whenPills />
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
       <div className="space-y-8">
@@ -231,8 +252,8 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
                   <li key={m.id} className="relative flex gap-3 bg-brand-bg/40 px-4 py-3 hover:bg-subtle/60">
                     <PersonAvatar person={by} className="mt-0.5 h-7 w-7" />
                     <div className="min-w-0 flex-1">
-                      <Link href={`/tasks/${m.task!.id}#comments`} className="font-semibold text-ink after:absolute after:inset-0">
-                        {m.task!.title}
+                      <Link href={m.href} className="font-semibold text-ink after:absolute after:inset-0">
+                        {m.title}
                       </Link>
                       <p className="line-clamp-2 text-sm text-ink-muted">
                         <span className="font-medium text-ink">{personName(by)}:</span> {m.comment?.body}

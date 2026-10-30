@@ -192,7 +192,14 @@ export async function DomainListPage({ kind, params, searchParams }: ItemProps) 
   return (
     <>
       <ProjectHeader loaded={loaded} view="list" />
-      <ListView filters={loaded.filters} viewerId={loaded.viewer.id} scope={loaded.base} from="project" showProject={false} />
+      <ListView
+        filters={loaded.filters}
+        viewerId={loaded.viewer.id}
+        scope={loaded.base}
+        from="project"
+        showProject={false}
+        show={typeof raw.show === "string" ? raw.show : ""}
+      />
     </>
   );
 }
