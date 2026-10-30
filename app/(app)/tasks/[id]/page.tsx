@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
 import { CornerDownRight, FolderKanban, NotebookPen } from "lucide-react";
-import { CollaboratorsField, InlineNotes, InlineTitle, LinkTags, TaskLockSwitch, TeamsField } from "@/components/tasks/task-inline";
+import { CollaboratorsField, InlineNotes, InlineTitle, LinkTags, PickTeam, TaskLockSwitch, TeamsField } from "@/components/tasks/task-inline";
 import { InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
 import { getProjects, getTeamNames } from "@/lib/projects";
 import { SubtaskSection } from "@/components/tasks/subtasks";
@@ -335,7 +335,11 @@ export default async function TaskPage({
               {task.department || task.project ? (
                 <TeamsField taskId={id} mainId={task.department_id} value={extraTeamIds} teams={teamNames} editable={canEdit} />
               ) : (
-                <p className="text-sm text-ink">{task.owner_id && task.owner_id !== task.created_by ? "None, a direct task" : collaboratorIds.length || extraTeamIds.length ? "No team" : "Private"}</p>
+                canEdit ? (
+                  <PickTeam taskId={id} teams={teamNames.filter((t) => viewer.memberDeptIds.includes(t.id))} />
+                ) : (
+                  <p className="text-sm text-ink-muted">No team yet</p>
+                )
               )}
             </Detail>
           )}

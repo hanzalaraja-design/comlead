@@ -209,7 +209,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       </div>}
 
       <div className="mb-6">
-        <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} allowPrivate />
+        <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} mine />
       </div>
 
       <TaskFilterBar filters={filters} options={options} hide={["owner", "sort"]} preserve={{ role }} />

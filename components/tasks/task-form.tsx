@@ -55,14 +55,15 @@ export function TaskForm(props: TaskFormProps) {
     const home = projects.find((p) => p.id === id)?.department_id;
     return home && props.departments.some((d) => d.id === home) ? home : PRIVATE;
   };
-  // New tasks start private unless opened from a team or project; a team task can't be made private again,
-  // but in a project it can leave the team.
-  const offerPrivate = !task || task.department_id === null;
-  const offerNoTeam = offerPrivate || !!projectId;
+  // Every task has a team; only a project's task may go without one (the project is its home).
+  const firstTeam = props.departments[0]?.id ?? PRIVATE;
+  const offerNoTeam = !!projectId;
+  // An older task saved without a team gets one the next time it's edited.
+  const needsTeam = !!task && !task.department_id && !task.project_id && !props.isSubtask;
   const [departmentId, setDepartmentId] = useState(
     task
-      ? task.department_id ?? PRIVATE
-      : props.defaultDepartmentId ?? (props.defaultProjectId ? projectTeam(props.defaultProjectId) : PRIVATE),
+      ? task.department_id ?? (task.project_id ? PRIVATE : firstTeam)
+      : props.defaultDepartmentId ?? (props.defaultProjectId ? projectTeam(props.defaultProjectId) : firstTeam),
   );
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo");
   const [dueDate, setDueDate] = useState(task?.due_date ?? "");
@@ -72,7 +73,6 @@ export function TaskForm(props: TaskFormProps) {
   // Anyone can give a new task to anyone, several at once: one task each.
   const pickOwners = !task;
   const [drafts, setDrafts] = useState<SubtaskDraft[]>([]);
-  const forOthers = pickOwners ? owners.some((o) => o !== props.defaultOwnerId) : !!task?.owner_id && task.owner_id !== task.created_by;
   // The extras stay folded away unless the task already uses them.
   const [more, setMore] = useState(
     !!task && !!(task.description || task.due_time || (props.collaboratorIds ?? []).length),
@@ -81,7 +81,8 @@ export function TaskForm(props: TaskFormProps) {
   // Everyone can be given a task; people in the team or project come first.
   const near = new Set([...(props.membersByDept[departmentId] ?? []), ...(props.membersByProject?.[projectId] ?? [])]);
   const ownerOptions = [...props.people].sort((a, b) => Number(near.has(b.id)) - Number(near.has(a.id)));
-  const pickDepartment = !props.isSubtask && (props.departments.length > 1 || offerNoTeam) && (!task || props.canMove || offerNoTeam);
+  const pickDepartment =
+    !props.isSubtask && (props.departments.length > 1 || offerNoTeam || needsTeam) && (!task || props.canMove || offerNoTeam || needsTeam);
 
   function onSubmit(formData: FormData) {
     for (const c of collaborators) formData.append("collaborators", c);
@@ -188,7 +189,7 @@ export function TaskForm(props: TaskFormProps) {
             <select id="department_id" name="department_id" className={selectClass} value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
               {offerNoTeam && (
                 <option value={PRIVATE}>
-                  {projectId ? "No team (just the project)" : forOthers ? "No team (just you and them)" : "Private (only you)"}
+                  No team (just the project)
                 </option>
               )}
               {props.departments.map((d) => (
@@ -212,7 +213,7 @@ export function TaskForm(props: TaskFormProps) {
                 setProjectId(next);
                 // New tasks follow the project to its team; leaving a project can't leave a task teamless and shared.
                 if (!task && next) setDepartmentId(projectTeam(next));
-                else if (!next && departmentId === PRIVATE && !offerPrivate) setDepartmentId(task?.department_id ?? PRIVATE);
+                else if (!next && departmentId === PRIVATE) setDepartmentId(task?.department_id ?? firstTeam);
               }}
             >
               <option value="">None</option>
