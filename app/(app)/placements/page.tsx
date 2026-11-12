@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { PlacementsBoard } from "@/components/placements/placements-board";
 import { ChannelRequests, DesignRequests, type LinkOption, type WebItem } from "@/components/placements/requests";
 import { getPeople, requireViewer } from "@/lib/auth";
-import { CHANNELS, CREATIVE_COLUMNS, designerGroups, isChannel, isOpen, upForGrabs, type Channel, type CreativeRequest } from "@/lib/creative";
+import { CHANNELS, CREATIVE_COLUMNS, designerGroups, isChannel, isOpen, upForGrabs, type Channel, type CreativeRequest, type RequestComment } from "@/lib/creative";
 import { getProjects } from "@/lib/projects";
 import { createClient } from "@/lib/supabase/server";
 import { PLACEMENT_COLUMNS, slotName, surfacesText, toDesign, type Placement, type PlacementRole, type Section } from "@/lib/placements";
@@ -89,6 +89,16 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
       designDept ? supabase.from("department_members").select("user_id").eq("department_id", designDept) : Promise.resolve({ data: [] }),
     ]);
     const shown = tab === "design" ? requests : requests.filter((r) => r.channel === tab);
+    // Comments on these requests (empty if the database hasn't got them yet).
+    const { data: commentRows } = shown.length
+      ? await supabase
+          .from("creative_request_comments")
+          .select("id, request_id, author_id, body, image_paths, created_at")
+          .in("request_id", shown.map((r) => r.id))
+          .order("created_at")
+          .limit(2000)
+          .then((r) => (r.error ? { data: [] } : r))
+      : { data: [] };
     const paths = shown.flatMap((r) => [...r.ref_paths, ...r.art_paths]);
     const { data: signed } = paths.length
       ? await supabase.storage.from("placement-files").createSignedUrls(paths, 3600)
@@ -104,6 +114,7 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
       canAssign,
       designers: people.filter((p) => designerIds.has(p.id)),
       today,
+      comments: (commentRows ?? []) as RequestComment[],
     };
     // Homepage banners Design still has to make sit in the same list.
     const web: WebItem[] = toDesign(placements).map((p) => {

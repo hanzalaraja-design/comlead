@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PersonAvatar } from "@/components/person-avatar";
 import { personName } from "@/lib/labels";
+import { PlainText } from "@/components/plain-text";
+import { CommentImages, PendingImages, usePastedImages } from "@/components/pasted-images";
 import { cn } from "@/lib/utils";
 import type { PersonRef } from "@/lib/types";
 import { addComment, deleteComment } from "@/app/(app)/tasks/actions";
@@ -14,6 +16,8 @@ import { addComment, deleteComment } from "@/app/(app)/tasks/actions";
 export type CommentRow = {
   id: string;
   body: string;
+  /** Screenshots posted with it. */
+  images?: string[];
   created_at: string;
   created_label: string;
   author: PersonRef | null;
@@ -22,27 +26,31 @@ export type CommentRow = {
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** Shows "@Name" for anyone in `people` as a highlighted mention. */
+/** Shows "@Name" for anyone in `people` as a highlighted mention, and pasted cells as a table. */
 function CommentBody({ body, people }: { body: string; people: PersonRef[] }) {
   const names = useMemo(
     () => people.map((p) => personName(p)).filter(Boolean).sort((a, b) => b.length - a.length),
     [people],
   );
-  if (!names.length || !body.includes("@")) return <>{body}</>;
-  const re = new RegExp(`(@(?:${names.map(escapeRe).join("|")}))`, "g");
-  return (
-    <>
-      {body.split(re).map((part, i) =>
-        i % 2 === 1 ? (
-          <span key={i} className="rounded bg-brand-bg px-1 font-medium text-brand-primary">
-            {part}
-          </span>
-        ) : (
-          <Fragment key={i}>{part}</Fragment>
-        ),
-      )}
-    </>
-  );
+  const re = names.length ? new RegExp(`(@(?:${names.map(escapeRe).join("|")}))`, "g") : null;
+  const mentions = (text: string) =>
+    !re || !text.includes("@") ? (
+      text
+    ) : (
+      <>
+        {text.split(re).map((part, i) =>
+          i % 2 === 1 ? (
+            <span key={i} className="rounded bg-brand-bg px-1 font-medium text-brand-primary">
+              {part}
+            </span>
+          ) : (
+            <Fragment key={i}>{part}</Fragment>
+          ),
+        )}
+      </>
+    );
+  // Cells pasted from a sheet show as a table.
+  return <PlainText text={body} render={mentions} />;
 }
 
 export function TaskComments({
@@ -64,6 +72,7 @@ export function TaskComments({
   const [query, setQuery] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const [tagged, setTagged] = useState<Record<string, string>>({});
+  const pasted = usePastedImages();
   const box = useRef<HTMLTextAreaElement>(null);
   // Where the caret goes after a name is inserted; applied as soon as React updates the box.
   const caretAfter = useRef<number | null>(null);
@@ -104,9 +113,10 @@ export function TaskComments({
       .filter(([name]) => body.includes(`@${name}`))
       .map(([, id]) => id);
     startTransition(async () => {
-      const res = await addComment(taskId, body, ids);
+      const res = await addComment(taskId, body, ids, pasted.images);
       if (res.ok) {
         setBody("");
+        pasted.clear();
         setTagged({});
         if (ids.length) toast.success(ids.length === 1 ? "Comment posted. They've been tagged." : `Comment posted. ${ids.length} people tagged.`);
       } else toast.error(res.error);
@@ -140,9 +150,10 @@ export function TaskComments({
                   </button>
                 )}
               </div>
-              <p className="mt-1 whitespace-pre-wrap break-words text-sm">
+              <div className="mt-1 whitespace-pre-wrap break-words text-sm">
                 <CommentBody body={c.body} people={people} />
-              </p>
+              </div>
+              <CommentImages paths={c.images} />
             </div>
           </li>
         ))}
@@ -160,6 +171,7 @@ export function TaskComments({
               ref={box}
               value={body}
               onChange={(e) => onChange(e.target.value, e.target.selectionStart)}
+              onPaste={pasted.onPaste}
               onKeyDown={(e) => {
                 if (matches.length) {
                   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -182,7 +194,7 @@ export function TaskComments({
                   submit();
                 }
               }}
-              placeholder="Write a comment. Type @ to tag someone."
+              placeholder="Write a comment. Type @ to tag someone, or paste a screenshot."
               rows={3}
               aria-label="Comment"
             />
@@ -206,8 +218,9 @@ export function TaskComments({
               </ul>
             )}
           </div>
+          <PendingImages state={pasted} />
           <div className="flex items-center gap-2">
-            <Button type="submit" size="sm" disabled={pending || !body.trim()}>
+            <Button type="submit" size="sm" disabled={pending || pasted.uploading || (!body.trim() && !pasted.images.length)}>
               Comment
             </Button>
             <span className="inline-flex items-center gap-1 text-xs text-ink-muted">

@@ -13,6 +13,7 @@ import { personName } from "@/lib/labels";
 import { emailSubtaskDone, emailSubtaskGiven } from "@/lib/tasks/subtasks";
 import { OPEN_SUBTASKS } from "@/lib/tasks/open-subtasks";
 import { emailCommentMentions } from "@/lib/tasks/mentions";
+import { isInlineImage } from "@/lib/inline-image";
 
 const uuid = z.string().uuid();
 const optionalUuid = z
@@ -433,17 +434,18 @@ export async function deleteTask(taskId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-export async function addComment(taskId: string, body: string, mentionIds: string[] = []): Promise<ActionResult> {
+export async function addComment(taskId: string, body: string, mentionIds: string[] = [], images: string[] = []): Promise<ActionResult> {
   const viewer = await requireViewer();
   const text = body.trim();
-  if (!uuid.safeParse(taskId).success || !text) return { ok: false, error: "Write a comment first." };
+  const pics = images.filter(isInlineImage).slice(0, 6);
+  if (!uuid.safeParse(taskId).success || (!text && !pics.length)) return { ok: false, error: "Write a comment first." };
   if (text.length > 10_000) return { ok: false, error: "Comment is too long." };
   const mentions = [...new Set(mentionIds)].filter((m) => uuid.safeParse(m).success && m !== viewer.id).slice(0, 20);
 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("task_comments")
-    .insert({ task_id: taskId, author_id: viewer.id, body: text })
+    .insert({ task_id: taskId, author_id: viewer.id, body: text, ...(pics.length ? { image_paths: pics } : {}) })
     .select("id")
     .single();
   if (error || !data) return { ok: false, error: friendlyError(error) };

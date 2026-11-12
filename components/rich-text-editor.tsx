@@ -4,9 +4,27 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
-import { Bold, Columns3, Heading2, Italic, Link2, List, ListOrdered, Quote, Rows3, Strikethrough, Table2, Trash2 } from "lucide-react";
-import { useState } from "react";
+import Image from "@tiptap/extension-image";
+import type { EditorView } from "@tiptap/pm/view";
+import { Bold, Columns3, Heading2, ImagePlus, Italic, Link2, List, ListOrdered, Quote, Rows3, Strikethrough, Table2, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { imagesIn, uploadInlineImage } from "@/lib/inline-upload";
 import { cn } from "@/lib/utils";
+
+/** Upload screenshots and put them where the cursor (or the drop) is. */
+async function insertImages(view: EditorView, files: File[], at?: number) {
+  for (const file of files) {
+    try {
+      const src = await uploadInlineImage(file);
+      const node = view.state.schema.nodes.image.create({ src, alt: file.name || "Screenshot" });
+      const pos = at ?? view.state.selection.from;
+      view.dispatch(view.state.tr.insert(Math.min(pos, view.state.doc.content.size), node));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't add the image.");
+    }
+  }
+}
 
 /**
  * Rich text editor. Writes its HTML into a hidden input called `name`, so it
@@ -35,6 +53,7 @@ export function RichTextEditor({
       }),
       Placeholder.configure({ placeholder: placeholder ?? "Write something…" }),
       TableKit.configure({ table: { resizable: false } }),
+      Image.configure({ inline: false, allowBase64: false }),
     ],
     content: defaultValue ?? "",
     editorProps: {
@@ -45,6 +64,13 @@ export function RichTextEditor({
       // Cells copied from Excel or Sheets as plain tab-separated text become a table.
       handlePaste: (view, event) => {
         const data = event.clipboardData;
+        // A screenshot (and not a table copied from a sheet, which also carries a picture of itself).
+        const images = imagesIn(data);
+        if (images.length && !data?.getData("text/html").includes("<table")) {
+          event.preventDefault();
+          void insertImages(view, images);
+          return true;
+        }
         if (!data || data.getData("text/html").includes("<table")) return false;
         const text = data.getData("text/plain").replace(/\r/g, "").replace(/\n+$/, "");
         const rows = text.split("\n");
@@ -58,9 +84,19 @@ export function RichTextEditor({
         // A fresh paste event (no clipboard data), so this handler steps aside the second time.
         return view.pasteHTML(html);
       },
+      handleDrop: (view, event) => {
+        const images = imagesIn(event.dataTransfer);
+        if (!images.length) return false;
+        event.preventDefault();
+        const at = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        void insertImages(view, images, at);
+        return true;
+      },
     },
     onUpdate: ({ editor }) => {
-      const next = editor.isEmpty ? "" : editor.getHTML();
+      // A picture or a table on its own still counts as content.
+      const out = editor.getHTML();
+      const next = editor.isEmpty && !/<img|<table/.test(out) ? "" : out;
       setHtml(next);
       onChange?.(next);
     },
@@ -76,6 +112,7 @@ export function RichTextEditor({
 }
 
 function Toolbar({ editor }: { editor: Editor | null }) {
+  const file = useRef<HTMLInputElement>(null);
   if (!editor) return <div className="h-9 border-b" />;
   const btn = (active: boolean) =>
     cn("rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground", active && "bg-accent text-foreground");
@@ -118,6 +155,21 @@ function Toolbar({ editor }: { editor: Editor | null }) {
         <Link2 className="h-4 w-4" />
       </button>
       <span className="mx-1 w-px self-stretch bg-line" />
+      <input
+        ref={file}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          const files = [...(e.target.files ?? [])];
+          e.target.value = "";
+          if (files.length) void insertImages(editor.view, files);
+        }}
+      />
+      <button type="button" aria-label="Add an image" title="Add an image (or paste a screenshot)" className={btn(false)} onClick={() => file.current?.click()}>
+        <ImagePlus className="h-4 w-4" />
+      </button>
       <button
         type="button"
         aria-label="Insert a table"
