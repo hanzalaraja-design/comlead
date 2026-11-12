@@ -319,3 +319,108 @@ export async function bookMany(rows: BulkRow[]): Promise<ActionResult<{ saved: n
   }
   return { ok: true, data: { saved: saved.length, failed } };
 }
+
+// ---------------------------------------------------------------------------
+// Daily deals: the month sheet. Each cell is a one-day booking of the
+// announcement bar or hero slide 1 / 2, so the homepage map follows it.
+// ---------------------------------------------------------------------------
+
+export type DealSlot = "announcement" | "hero1" | "hero2";
+const DEAL_SLOTS: Record<DealSlot, { key: string; position: number }> = {
+  announcement: { key: "announcement", position: 1 },
+  hero1: { key: "hero", position: 1 },
+  hero2: { key: "hero", position: 2 },
+};
+const dealText = z.string().trim().max(300);
+
+/** Type into a day's cell: create, change or clear that day's booking. */
+export async function saveDailyDeal(day: string, slot: DealSlot, text: string, existingId?: string): Promise<ActionResult> {
+  const { viewer, supabase } = await context();
+  const d = date.safeParse(day);
+  const t = dealText.safeParse(text);
+  if (!d.success || !(slot in DEAL_SLOTS) || !t.success) return { ok: false, error: "That isn't valid." };
+  const value = t.data.slice(0, 120);
+  const { key, position } = DEAL_SLOTS[slot];
+
+  if (existingId) {
+    if (!uuid.safeParse(existingId).success) return { ok: false, error: "Booking not found." };
+    const before = await load(supabase, existingId);
+    if (!before) return { ok: false, error: "Booking not found." };
+    if (before.p.starts_on !== before.p.ends_on)
+      return { ok: false, error: `${before.p.brand} runs ${datesText(before.p, todayPKT())}. Change it in Placements.` };
+    if (!value) return cancelPlacement(existingId);
+    // The day's text is the booking's name; if the banner was already made, Design is asked to redo it.
+    const madeAlready = before.p.stage === "ready" || before.p.stage === "live";
+    const changed_from = madeAlready && value !== before.p.brand ? (before.p.changed_from ?? { comms: before.p.brand, products: before.p.products }) : before.p.changed_from;
+    const { data, error } = await supabase
+      .from("placements")
+      .update({ brand: value.slice(0, 120), comms: null, changed_from })
+      .eq("id", existingId)
+      .select("id");
+    if (error) return { ok: false, error: friendlyError(error) };
+    if (!data?.length) return { ok: false, error: "Only whoever booked it (or Commercial) can change it." };
+    revalidatePath("/placements");
+    revalidatePath("/daily-deals");
+    return { ok: true };
+  }
+
+  if (!value) return { ok: true };
+  const { error } = await supabase.from("placements").insert({
+    section_key: key,
+    position,
+    brand: value.slice(0, 120),
+    starts_on: d.data,
+    ends_on: d.data,
+    shows_on: ["web", "app"],
+    created_by: viewer.id,
+  });
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/placements");
+  revalidatePath("/daily-deals");
+  return { ok: true };
+}
+
+export type DealRow = { date: string; announcement?: string; hero1?: string; hero2?: string };
+
+/** Paste a month from the sheet: one booking per filled cell. Design gets one email. */
+export async function saveDailyDeals(rows: DealRow[]): Promise<ActionResult<{ saved: number; failed: string[] }>> {
+  const { viewer, supabase } = await context();
+  if (!Array.isArray(rows) || !rows.length || rows.length > 62) return { ok: false, error: "Paste between 1 and 62 days." };
+  let saved = 0;
+  const failed: string[] = [];
+  for (const row of rows) {
+    if (!date.safeParse(row.date).success) {
+      failed.push(`${row.date}: not a date`);
+      continue;
+    }
+    for (const slot of ["announcement", "hero1", "hero2"] as const) {
+      const value = (row[slot] ?? "").trim().slice(0, 120);
+      if (!value) continue;
+      const { key, position } = DEAL_SLOTS[slot];
+      const { error } = await supabase.from("placements").insert({
+        section_key: key,
+        position,
+        brand: value.slice(0, 120),
+        starts_on: row.date,
+        ends_on: row.date,
+        shows_on: ["web", "app"],
+        created_by: viewer.id,
+      });
+      if (error) failed.push(`${row.date} ${slot === "announcement" ? "announcement" : slot === "hero1" ? "hero 1" : "hero 2"}: ${friendlyError(error)}`);
+      else saved++;
+    }
+  }
+  if (saved)
+    emailTeamLater(
+      "design",
+      `${saved} daily deal banner${saved === 1 ? "" : "s"} to design`,
+      emailHtml({
+        intro: `${viewer.profile.full_name ?? "Someone"} added ${saved} daily deal${saved === 1 ? "" : "s"} for the homepage. They're in your Design list.`,
+        link: `${placementsUrl().replace("?tab=web", "?tab=design")}`,
+        linkLabel: "Open the Design list",
+      }),
+    );
+  revalidatePath("/placements");
+  revalidatePath("/daily-deals");
+  return { ok: true, data: { saved, failed } };
+}

@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { PlacementsBoard } from "@/components/placements/placements-board";
 import { ChannelRequests, DesignRequests, type LinkOption, type WebItem } from "@/components/placements/requests";
 import { getPeople, requireViewer } from "@/lib/auth";
-import { CHANNELS, CREATIVE_COLUMNS, designerGroups, isChannel, isOpen, upForGrabs, type Channel, type CreativeRequest, type RequestComment } from "@/lib/creative";
+import { CHANNELS, CREATIVE_COLUMNS, designGroups, isChannel, isOpen, type Channel, type CreativeRequest, type RequestComment } from "@/lib/creative";
 import { getProjects } from "@/lib/projects";
 import { createClient } from "@/lib/supabase/server";
 import { PLACEMENT_COLUMNS, slotName, surfacesText, toDesign, type Placement, type PlacementRole, type Section } from "@/lib/placements";
@@ -14,7 +14,7 @@ export const metadata = { title: "Placements · Highfy Tasks" };
 
 type Tab = "web" | Channel | "design";
 
-export default async function PlacementsPage({ searchParams }: { searchParams: Promise<{ open?: string; tab?: string }> }) {
+export default async function PlacementsPage({ searchParams }: { searchParams: Promise<{ open?: string; tab?: string; date?: string }> }) {
   const [viewer, supabase, sp] = await Promise.all([requireViewer(), createClient(), searchParams]);
   const today = todayPKT();
   const [{ data: roleData }, { data: sectionData }, { data: placementData }, { data: settings }, requestsRes] = await Promise.all([
@@ -46,8 +46,8 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
 
   // Counts on the tabs: what's open, and for Design what needs them.
   const openIn = (c: Channel) => requests.filter((r) => r.channel === c && isOpen(r)).length;
-  const g = designerGroups(requests, viewer.id, today);
-  const designCount = g.due.length + g.changes.length + upForGrabs(requests).length;
+  const g = designGroups(requests, today);
+  const designCount = g.due.length + g.changes.length;
   const tabs: { key: Tab; label: string; n: number }[] = [
     { key: "web", label: "App / Website", n: 0 },
     ...CHANNELS.map((c) => ({ key: c.key as Tab, label: c.label, n: openIn(c.key) })),
@@ -176,6 +176,7 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
         defaultRole={defaultRole}
         today={today}
         openId={openId}
+        startDate={sp.date}
       />
     </>
   );

@@ -80,19 +80,18 @@ export const byNeeded = (a: CreativeRequest, b: CreativeRequest) =>
   (a.needed_by ?? "9999").localeCompare(b.needed_by ?? "9999") || a.created_at.localeCompare(b.created_at);
 
 /**
- * A designer's day, in the order they should look at it: what's late or due
- * today, what was sent back, what's coming up, and what's waiting on someone else.
+ * Design's list, in the order to look at it: what's late or due today, what
+ * was sent back, what's coming up, and what's waiting on someone else. The
+ * whole team's by default; pass a designer for just theirs.
  */
-export function designerGroups(requests: CreativeRequest[], designerId: string, today: string) {
-  const mine = requests.filter((r) => r.designer_id === designerId && isOpen(r)).sort(byNeeded);
-  const working = mine.filter((r) => r.status === "in_design" || r.status === "requested");
+export function designGroups(requests: CreativeRequest[], today: string, designerId?: string) {
+  const open = requests.filter((r) => isOpen(r) && (!designerId || r.designer_id === designerId)).sort(byNeeded);
+  const working = open.filter((r) => r.status === "in_design" || r.status === "requested");
   return {
     changes: working.filter((r) => !!r.change_note),
     due: working.filter((r) => !r.change_note && !!r.needed_by && r.needed_by <= today),
     upcoming: working.filter((r) => !r.change_note && (!r.needed_by || r.needed_by > today)),
-    waiting: mine.filter((r) => r.status === "in_review" || r.status === "approved"),
+    waiting: open.filter((r) => r.status === "in_review" || r.status === "approved"),
   };
 }
 
-/** New requests nobody has taken yet. */
-export const upForGrabs = (requests: CreativeRequest[]) => requests.filter((r) => r.status === "requested" && !r.designer_id).sort(byNeeded);

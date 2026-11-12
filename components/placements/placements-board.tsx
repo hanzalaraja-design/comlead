@@ -64,6 +64,7 @@ export function PlacementsBoard({
   defaultRole,
   today,
   openId,
+  startDate,
 }: {
   sections: Section[];
   placements: Placement[];
@@ -72,13 +73,15 @@ export function PlacementsBoard({
   defaultRole: PlacementRole;
   today: string;
   openId: string | null;
+  /** Show the homepage on this day (yyyy-MM-dd) instead of today. */
+  startDate?: string;
 }) {
   const router = useRouter();
   const wide = useWide();
   const [role, setRole] = useState<PlacementRole>(defaultRole);
   const [tab, setTab] = useState<"map" | "list" | "schedule">("map");
   const [bulk, setBulk] = useState(false);
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : today);
   const [mode, setMode] = useState<PanelMode | null>(() => (openId && placements.some((p) => p.id === openId) ? { kind: "view", id: openId } : null));
   const upload = useArtworkUpload();
   const [pending, start] = useTransition();

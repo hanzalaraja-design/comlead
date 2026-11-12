@@ -4,11 +4,12 @@ import { emailHtml, escapeHtml, isEmailConfigured, placementsUrl, sendEmail, tea
 import { ENDING_DAYS, PLACEMENT_COLUMNS, nextAfter, relativeDay, slotName, toPutLive, toTakeDown, type Placement, type Section } from "@/lib/placements";
 import { addDaysISO, todayPKT } from "@/lib/time";
 import { siteUrl } from "@/lib/calendar/sync";
-import { CHANNEL_LABELS, CREATIVE_COLUMNS, designerGroups, type CreativeRequest } from "@/lib/creative";
+import { CHANNEL_LABELS, CREATIVE_COLUMNS, designGroups, type CreativeRequest } from "@/lib/creative";
+import { personName } from "@/lib/labels";
 
 // Morning reminders (see vercel.json): Commercial (and whoever booked) hear about bookings ending
 // in 3 days and today with nothing after them; Tech about banners to put up
-// or take down today; each designer about their late, due and sent-back work. Vercel sends "Authorization: Bearer $CRON_SECRET".
+// or take down today; the Design team about what's late, due or sent back. Vercel sends "Authorization: Bearer $CRON_SECRET".
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
@@ -63,32 +64,31 @@ export async function GET(request: NextRequest) {
     sent.tech = goLive.length + takeDown.length;
   }
 
-  // Each designer: what's late or due today, and what was sent back.
+  // The Design team: what's late or due today, and what was sent back (whoever is on it).
   const { data: requestData } = await db
     .from("creative_requests")
     .select(CREATIVE_COLUMNS)
     .in("status", ["requested", "in_design"])
-    .not("designer_id", "is", null)
     .then((r) => (r.error ? { data: [] } : r));
-  const requests = (requestData ?? []) as unknown as CreativeRequest[];
-  const designerIds = [...new Set(requests.map((r) => r.designer_id!))];
-  if (designerIds.length) {
-    const { data: people } = await db.from("profiles").select("id, email, status").in("id", designerIds);
-    for (const person of people ?? []) {
-      if (person.status !== "active") continue;
-      const g = designerGroups(requests, person.id as string, today);
-      if (!g.due.length && !g.changes.length) continue;
-      const line = (r: CreativeRequest) =>
-        `<li><b>${escapeHtml(r.title)}</b> (${CHANNEL_LABELS[r.channel]})${r.change_note ? `: changes asked, “${escapeHtml(r.change_note)}”` : r.needed_by ? `: due ${escapeHtml(relativeDay(r.needed_by, today))}` : ""}</li>`;
-      const html = emailHtml({ intro: "Your design work for today:", link: `${siteUrl()}/placements?tab=design`, linkLabel: "Open your list" }).replace(
-        "</p>",
-        `</p>${g.due.length ? `<p><b>Late or due today</b></p><ul>${g.due.map(line).join("")}</ul>` : ""}${
-          g.changes.length ? `<p><b>Changes asked</b></p><ul>${g.changes.map(line).join("")}</ul>` : ""
-        }`,
-      );
-      await sendEmail([person.email as string], `Design today: ${g.due.length + g.changes.length} to do`, html);
-      sent.design = (sent.design ?? 0) + 1;
-    }
+  const g = designGroups((requestData ?? []) as unknown as CreativeRequest[], today);
+  if (g.due.length || g.changes.length) {
+    const { data: people } = await db.from("profiles").select("id, full_name, email");
+    const name = (id: string | null) => {
+      const p = (people ?? []).find((x) => x.id === id);
+      return p ? personName(p as { full_name: string | null; email: string }) : "nobody on it yet";
+    };
+    const line = (r: CreativeRequest) =>
+      `<li><b>${escapeHtml(r.title)}</b> (${CHANNEL_LABELS[r.channel]}, ${escapeHtml(name(r.designer_id))})${
+        r.change_note ? `: revision asked, “${escapeHtml(r.change_note)}”` : r.needed_by ? `: due ${escapeHtml(relativeDay(r.needed_by, today))}` : ""
+      }</li>`;
+    const html = emailHtml({ intro: "Design today:", link: `${siteUrl()}/placements?tab=design`, linkLabel: "Open the Design list" }).replace(
+      "</p>",
+      `</p>${g.due.length ? `<p><b>Late or due today</b></p><ul>${g.due.map(line).join("")}</ul>` : ""}${
+        g.changes.length ? `<p><b>Revision asked</b></p><ul>${g.changes.map(line).join("")}</ul>` : ""
+      }`,
+    );
+    await sendEmail(await teamEmails("design"), `Design today: ${g.due.length + g.changes.length} to do`, html);
+    sent.design = g.due.length + g.changes.length;
   }
 
   return NextResponse.json({ ok: true, sent });

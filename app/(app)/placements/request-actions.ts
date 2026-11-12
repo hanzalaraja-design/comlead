@@ -87,7 +87,7 @@ export async function createRequest(id: string, channel: string, input: RequestI
   return { ok: true };
 }
 
-/** A designer takes it (or the lead gives it to someone). */
+/** Who in Design is on it (the team decides; this just records it). */
 export async function takeRequest(id: string, designerId?: string): Promise<ActionResult> {
   const { viewer, supabase } = await context();
   const who = designerId ?? viewer.id;
@@ -115,14 +115,19 @@ export async function takeRequest(id: string, designerId?: string): Promise<Acti
 
 /** Design adds the files it made (uploaded to Storage from the browser). */
 export async function addArtwork(id: string, paths: string[]): Promise<ActionResult> {
-  const { supabase } = await context();
+  const { viewer, supabase } = await context();
   if (!uuid.safeParse(id).success || !paths.length || paths.some((p) => !p.startsWith(`requests/${id}/art/`)))
     return { ok: false, error: "Those files don't belong to this request." };
   const r = await load(supabase, id);
   if (!r) return { ok: false, error: "Request not found." };
+  // Whoever uploads first is on it, if nobody was.
   const { data, error } = await supabase
     .from("creative_requests")
-    .update({ art_paths: [...r.art_paths, ...paths].slice(-30) })
+    .update({
+      art_paths: [...r.art_paths, ...paths].slice(-30),
+      ...(r.status === "requested" ? { status: "in_design" } : {}),
+      ...(r.designer_id ? {} : { designer_id: viewer.id }),
+    })
     .eq("id", id)
     .select("id");
   if (error) return { ok: false, error: friendlyError(error) };
@@ -138,7 +143,12 @@ export async function sendForReview(id: string): Promise<ActionResult> {
   const r = await load(supabase, id);
   if (!r) return { ok: false, error: "Request not found." };
   if (!r.art_paths.length) return { ok: false, error: "Add the files first." };
-  const { data, error } = await supabase.from("creative_requests").update({ status: "in_review" }).eq("id", id).eq("status", "in_design").select("id");
+  const { data, error } = await supabase
+    .from("creative_requests")
+    .update({ status: "in_review", ...(r.designer_id ? {} : { designer_id: viewer.id }) })
+    .eq("id", id)
+    .in("status", ["requested", "in_design"])
+    .select("id");
   if (error) return { ok: false, error: friendlyError(error) };
   if (!data?.length) return { ok: false, error: "Only Design can send it for review." };
   emailPersonLater(
