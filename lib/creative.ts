@@ -22,12 +22,13 @@ export const CHANNEL_STYLES: Record<Channel | "web", string> = {
   partnerships: "bg-[#e3f3f2] text-[#0f6e6e]",
 };
 
-export type RequestStatus = "requested" | "in_design" | "in_review" | "approved" | "live" | "cancelled";
+export type RequestStatus = "requested" | "in_design" | "in_review" | "approved" | "done" | "live" | "cancelled";
 export const STATUS_LABELS: Record<RequestStatus, string> = {
   requested: "Requested",
   in_design: "In design",
   in_review: "In review",
   approved: "Approved",
+  done: "Completed",
   live: "Live",
   cancelled: "Cancelled",
 };
@@ -36,6 +37,7 @@ export const STATUS_STYLES: Record<RequestStatus, string> = {
   in_design: "bg-info-soft text-info-ink",
   in_review: "bg-warning-soft text-warning-ink",
   approved: "bg-success-soft text-success-ink",
+  done: "bg-success-soft text-success-ink",
   live: "bg-success-soft text-success-ink",
   cancelled: "bg-subtle text-ink-muted",
 };
@@ -65,7 +67,13 @@ export type CreativeRequest = {
 export const CREATIVE_COLUMNS =
   "id, channel, title, formats, brief, project_id, needed_by, live_from, live_to, status, change_note, ref_paths, art_paths, version, requested_by, designer_id, created_at, updated_at, live_at";
 
-export const isOpen = (r: Pick<CreativeRequest, "status">) => r.status !== "live" && r.status !== "cancelled";
+/** Still with Design or waiting on the asker. Completed, live and cancelled ones are closed. */
+export const isOpen = (r: Pick<CreativeRequest, "status">) => r.status !== "live" && r.status !== "cancelled" && r.status !== "done";
+
+/** The version a file was uploaded for ("requests/<id>/art/v2/…"); older uploads count as version 1. */
+export const fileVersion = (path: string) => Number(/\/art\/v(\d+)\//.exec(path)?.[1] ?? 1);
+
+export type RequestComment = { id: string; request_id: string; author_id: string; body: string; image_paths: string[]; created_at: string };
 
 /** Soonest needed first; no date last. */
 export const byNeeded = (a: CreativeRequest, b: CreativeRequest) =>

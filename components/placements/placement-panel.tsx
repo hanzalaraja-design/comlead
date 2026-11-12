@@ -38,6 +38,7 @@ import {
   updatePlacement,
 } from "@/app/(app)/placements/actions";
 import { STATUS_CHIP } from "./styles";
+import { PlainText } from "@/components/plain-text";
 
 const BUCKET = "placement-files";
 const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-80);
@@ -226,7 +227,13 @@ function Details({
           {p.stage === "ready" && p.live_on.length > 0 && ` · live on ${surfacesText(p.live_on)} so far`}
         </Row>
         {usesProducts(section) ? <Row label="Products">{p.products || "—"}</Row> : <Row label="Comms">{p.comms || "—"}</Row>}
-        {p.notes && <Row label="Notes">{p.notes}</Row>}
+        {p.notes && (
+          <Row label="Notes">
+            <span className="block whitespace-pre-wrap">
+              <PlainText text={p.notes} />
+            </span>
+          </Row>
+        )}
         {section.size_hint && <Row label="Size">{section.size_hint}</Row>}
         <Row label="Next">{next ? `${next.brand} from ${relativeDay(next.starts_on, today)}` : "Nothing booked yet"}</Row>
       </dl>
@@ -353,7 +360,7 @@ function BookingForm({
   const fileInput = useRef<HTMLInputElement>(null);
   const products = usesProducts(section);
 
-  async function addInspo(files: FileList | null) {
+  async function addInspo(files: FileList | File[] | null) {
     if (!files?.length) return;
     setUploading(true);
     try {
@@ -454,7 +461,20 @@ function BookingForm({
         <Label htmlFor="pl-notes">
           Instructions or inspo <span className="font-normal text-ink-muted">(optional)</span>
         </Label>
-        <Textarea id="pl-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything Design should know" />
+        <Textarea
+          id="pl-notes"
+          rows={3}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          // A pasted screenshot goes in with the inspo images.
+          onPaste={(e) => {
+            const images = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
+            if (!images.length || e.clipboardData.getData("text/html").includes("<table")) return;
+            e.preventDefault();
+            void addInspo(images);
+          }}
+          placeholder="Anything Design should know. Paste a screenshot to add it as inspo."
+        />
       </div>
       {inspo.length > 0 && (
         <div className="flex flex-wrap gap-2">

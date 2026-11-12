@@ -47,7 +47,8 @@ export default async function TaskPage({
     supabase.from("task_collaborators").select("user_id").eq("task_id", id),
     supabase
       .from("task_comments")
-      .select("id, body, created_at, author_id")
+      // "*" so it still works before the screenshots column exists.
+      .select("*")
       .eq("task_id", id)
       .order("created_at"),
     supabase
@@ -258,6 +259,7 @@ export default async function TaskPage({
               comments={(commentsRes.data ?? []).map((c) => ({
                 id: c.id as string,
                 body: c.body as string,
+                images: ((c as { image_paths?: string[] }).image_paths ?? []) as string[],
                 created_at: c.created_at as string,
                 created_label: formatPKT(c.created_at as string, "d MMM, h:mm a"),
                 author: person(c.author_id),

@@ -9,6 +9,7 @@ import { CHANNEL_LABELS, CREATIVE_COLUMNS, isChannel, type CreativeRequest } fro
 import { personName } from "@/lib/labels";
 import { emailHtml, emailPersonLater, emailTeamLater, requestUrl } from "@/lib/notify";
 import { formatDate } from "@/lib/time";
+import { isInlineImage } from "@/lib/inline-image";
 
 const uuid = z.string().uuid();
 const date = z
@@ -162,14 +163,14 @@ export async function askForChanges(id: string, note: string): Promise<ActionRes
     .from("creative_requests")
     .update({ status: "in_design", change_note: text })
     .eq("id", id)
-    .in("status", ["in_review", "approved"])
+    .in("status", ["in_review", "approved", "done", "live"])
     .select("id");
   if (error) return { ok: false, error: friendlyError(error) };
   if (!data?.length) return { ok: false, error: "Only whoever asked can ask for changes." };
   emailPersonLater(
     r.designer_id,
-    `Changes asked: ${r.title}`,
-    emailHtml({ intro: `${personName(viewer.profile)} asked for changes: “${text}”`, rows: rows(r), link: requestUrl(r.channel, id), linkLabel: "Open the request" }),
+    `Revision asked: ${r.title}`,
+    emailHtml({ intro: `${personName(viewer.profile)} asked for a revision: “${text}”`, rows: rows(r), link: requestUrl(r.channel, id), linkLabel: "Open the request" }),
   );
   done();
   return { ok: true };
@@ -186,6 +187,83 @@ async function setStatus(id: string, status: "approved" | "live" | "cancelled", 
 }
 
 export const approveRequest = async (id: string) => setStatus(id, "approved", ["in_review"], "Only whoever asked can approve it.");
-export const markRequestLive = async (id: string) => setStatus(id, "live", ["approved", "in_review"], "Only whoever asked can mark it live.");
+export const markRequestLive = async (id: string) => setStatus(id, "live", ["approved", "in_review", "done"], "Only whoever asked can mark it live.");
 export const cancelRequest = async (id: string) =>
-  setStatus(id, "cancelled", ["requested", "in_design", "in_review", "approved"], "Only whoever asked can cancel it.");
+  setStatus(id, "cancelled", ["requested", "in_design", "in_review", "approved", "done"], "Only whoever asked can cancel it.");
+
+/** Whoever asked changes the request: what, formats, brief, link, dates, references. */
+export async function updateRequest(id: string, input: RequestInput): Promise<ActionResult> {
+  const { supabase } = await context();
+  if (!uuid.safeParse(id).success) return { ok: false, error: "Request not found." };
+  const parsed = requestSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Some values aren't valid." };
+  const v = parsed.data;
+  if (v.live_from && v.live_to && v.live_to < v.live_from) return { ok: false, error: "The end date has to be on or after the start date." };
+  if (v.ref_paths.some((p) => !p.startsWith(`requests/${id}/refs/`))) return { ok: false, error: "A file doesn't belong to this request." };
+  const { data, error } = await supabase.from("creative_requests").update(v).eq("id", id).select("id");
+  if (error) return { ok: false, error: friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "Only whoever asked can change it." };
+  done();
+  return { ok: true };
+}
+
+/** Design marks it complete, whether or not it went through review (e.g. sent another way). */
+export async function markRequestComplete(id: string): Promise<ActionResult> {
+  const { viewer, supabase } = await context();
+  if (!uuid.safeParse(id).success) return { ok: false, error: "Request not found." };
+  const r = await load(supabase, id);
+  if (!r) return { ok: false, error: "Request not found." };
+  const { data, error } = await supabase
+    .from("creative_requests")
+    .update({ status: "done", designer_id: r.designer_id ?? viewer.id })
+    .eq("id", id)
+    .in("status", ["requested", "in_design", "in_review", "approved"])
+    .select("id");
+  if (error) return { ok: false, error: friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "Only Design can mark it complete." };
+  if (r.requested_by !== viewer.id)
+    emailPersonLater(
+      r.requested_by,
+      `Done: ${r.title}`,
+      emailHtml({
+        intro: `${personName(viewer.profile)} marked this complete.${r.art_paths.length ? " The files are on the request." : ""} If something's still needed, ask for a revision there.`,
+        rows: rows(r),
+        link: requestUrl(r.channel, id),
+        linkLabel: "Open the request",
+      }),
+    );
+  done();
+  return { ok: true };
+}
+
+/** A comment on a request (with screenshots if pasted). The asker and the designer hear about it. */
+export async function addRequestComment(id: string, body: string, images: string[] = []): Promise<ActionResult> {
+  const { viewer, supabase } = await context();
+  const text = body.trim();
+  const pics = images.filter(isInlineImage).slice(0, 6);
+  if (!uuid.safeParse(id).success) return { ok: false, error: "Request not found." };
+  if (!text && !pics.length) return { ok: false, error: "Write a comment first." };
+  if (text.length > 10_000) return { ok: false, error: "That comment is too long." };
+  const { error } = await supabase.from("creative_request_comments").insert({ request_id: id, author_id: viewer.id, body: text, image_paths: pics });
+  if (error) return { ok: false, error: friendlyError(error) };
+  const r = await load(supabase, id);
+  if (r)
+    for (const who of new Set([r.requested_by, r.designer_id].filter((x): x is string => !!x && x !== viewer.id)))
+      emailPersonLater(
+        who,
+        `${personName(viewer.profile)} commented: ${r.title}`,
+        emailHtml({ intro: `${personName(viewer.profile)}: “${text || "(a screenshot)"}”`, rows: rows(r), link: requestUrl(r.channel, id), linkLabel: "Reply" }),
+      );
+  done();
+  return { ok: true };
+}
+
+export async function deleteRequestComment(commentId: string): Promise<ActionResult> {
+  const { supabase } = await context();
+  if (!uuid.safeParse(commentId).success) return { ok: false, error: "Comment not found." };
+  const { data, error } = await supabase.from("creative_request_comments").delete().eq("id", commentId).select("id");
+  if (error) return { ok: false, error: friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "You can only delete your own comments." };
+  done();
+  return { ok: true };
+}

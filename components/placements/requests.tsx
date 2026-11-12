@@ -23,10 +23,12 @@ import {
   STATUS_STYLES,
   byNeeded,
   designerGroups,
+  fileVersion,
   isOpen,
   upForGrabs,
   type Channel,
   type CreativeRequest,
+  type RequestComment,
 } from "@/lib/creative";
 import type { PersonRef, ProjectKind } from "@/lib/types";
 import {
@@ -36,20 +38,27 @@ import {
   cancelRequest,
   createRequest,
   markRequestLive,
+  addRequestComment,
+  deleteRequestComment,
+  markRequestComplete,
   sendForReview,
   takeRequest,
+  updateRequest,
   type RequestInput,
 } from "@/app/(app)/placements/request-actions";
+import { imagesIn } from "@/lib/inline-upload";
+import { PlainText } from "@/components/plain-text";
+import { CommentImages, PendingImages, usePastedImages } from "@/components/pasted-images";
 
 const BUCKET = "placement-files";
 const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-80);
 const isImage = (path: string) => /\.(png|jpe?g|gif|webp|avif)$/i.test(path);
 
-async function upload(id: string, folder: "refs" | "art", files: File[]): Promise<string[]> {
+async function upload(id: string, folder: "refs" | `art/v${number}`, files: File[]): Promise<string[]> {
   const supabase = createClient();
   const paths: string[] = [];
   for (const file of files) {
-    const path = `requests/${id}/${folder}/${Date.now()}-${safeName(file.name)}`;
+    const path = `requests/${id}/${folder}/${Date.now()}-${safeName(file.name || "screenshot.png")}`;
     const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type || undefined });
     if (error) throw new Error(`Couldn't upload ${file.name}: ${error.message}`);
     paths.push(path);
@@ -70,6 +79,8 @@ type Shared = {
   canAssign: boolean;
   designers: PersonRef[];
   today: string;
+  /** Comments on the requests shown, oldest first. */
+  comments: RequestComment[];
 };
 
 function ChannelTag({ channel }: { channel: Channel | "web" }) {
@@ -84,7 +95,7 @@ function StatusChip({ r }: { r: CreativeRequest }) {
   const sentBack = r.status === "in_design" && !!r.change_note;
   return (
     <span className={cn("inline-block rounded-lg px-2 py-0.5 text-xs font-bold", sentBack ? "bg-warning-soft text-warning-ink" : STATUS_STYLES[r.status])}>
-      {sentBack ? "Changes asked" : STATUS_LABELS[r.status]}
+      {sentBack ? "Revision asked" : STATUS_LABELS[r.status]}
     </span>
   );
 }
@@ -130,7 +141,7 @@ export function ChannelRequests({
   const links = new Map(shared.links.map((l) => [l.id, l]));
   const list = requests
     .filter((r) => r.status !== "cancelled")
-    .filter((r) => (show === "open" ? isOpen(r) : show === "live" ? r.status === "live" : true))
+    .filter((r) => (show === "open" ? isOpen(r) : show === "live" ? r.status === "live" || r.status === "done" : true))
     .sort((a, b) => Number(!isOpen(a)) - Number(!isOpen(b)) || byNeeded(a, b));
   const current = requests.find((r) => r.id === open);
 
@@ -146,7 +157,7 @@ export function ChannelRequests({
               onClick={() => setShow(k)}
               className={cn("rounded-[10px] px-3 py-1 font-semibold", show === k ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink")}
             >
-              {k === "open" ? "Open" : k === "live" ? "Live" : "All"}
+              {k === "open" ? "Open" : k === "live" ? "Done" : "All"}
             </button>
           ))}
         </div>
@@ -214,14 +225,16 @@ export function ChannelRequests({
   );
 }
 
-function NewRequest({ channel, links, onDone }: { channel: Channel; links: LinkOption[]; onDone: () => void }) {
-  const [id] = useState(() => crypto.randomUUID());
-  const [refs, setRefs] = useState<{ path: string; name: string }[]>([]);
+function NewRequest({ channel, links, onDone, existing }: { channel: Channel; links: LinkOption[]; onDone: () => void; existing?: CreativeRequest }) {
+  const [id] = useState(() => existing?.id ?? crypto.randomUUID());
+  const [refs, setRefs] = useState<{ path: string; name: string }[]>(
+    () => existing?.ref_paths.map((path) => ({ path, name: path.split("/").pop()!.replace(/^\d+-/, "") })) ?? [],
+  );
   const [uploading, setUploading] = useState(false);
   const [pending, start] = useTransition();
   const file = useRef<HTMLInputElement>(null);
 
-  async function add(files: FileList | null) {
+  async function add(files: FileList | File[] | null) {
     if (!files?.length) return;
     setUploading(true);
     try {
@@ -247,9 +260,9 @@ function NewRequest({ channel, links, onDone }: { channel: Channel; links: LinkO
       ref_paths: refs.map((r) => r.path),
     };
     start(async () => {
-      const res = await createRequest(id, channel, input);
+      const res = existing ? await updateRequest(id, input) : await createRequest(id, channel, input);
       if (!res.ok) return void toast.error(res.error);
-      toast.success("Sent to Design.");
+      toast.success(existing ? "Saved." : "Sent to Design.");
       onDone();
     });
   }
@@ -258,23 +271,37 @@ function NewRequest({ channel, links, onDone }: { channel: Channel; links: LinkO
     <form action={save} className="flex flex-col gap-3">
       <div className="space-y-1.5">
         <Label htmlFor="cr-title">What do you need?</Label>
-        <Input id="cr-title" name="title" required maxLength={200} autoFocus placeholder="e.g. 11.11 countdown posts" />
+        <Input id="cr-title" name="title" required maxLength={200} autoFocus={!existing} defaultValue={existing?.title} placeholder="e.g. 11.11 countdown posts" />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="cr-formats">
           Formats <span className="font-normal text-ink-muted">(optional)</span>
         </Label>
-        <Input id="cr-formats" name="formats" maxLength={500} placeholder="e.g. Post 1:1 ×3, Story ×3" />
+        <Input id="cr-formats" name="formats" maxLength={500} defaultValue={existing?.formats ?? ""} placeholder="e.g. Post 1:1 ×3, Story ×3" />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="cr-brief">Brief and copy</Label>
-        <Textarea id="cr-brief" name="brief" rows={4} maxLength={5000} placeholder="What it says, the look, anything Design should know" />
+        <Textarea
+          id="cr-brief"
+          name="brief"
+          rows={4}
+          maxLength={5000}
+          defaultValue={existing?.brief ?? ""}
+          // A pasted screenshot is added to the references.
+          onPaste={(e) => {
+            const images = imagesIn(e.clipboardData);
+            if (!images.length || e.clipboardData.getData("text/html").includes("<table")) return;
+            e.preventDefault();
+            void add(images);
+          }}
+          placeholder="What it says, the look, anything Design should know. Paste a screenshot or cells from a sheet."
+        />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="cr-link">
           Link to <span className="font-normal text-ink-muted">(optional)</span>
         </Label>
-        <select id="cr-link" name="project_id" defaultValue="" className="h-10 w-full field px-3 text-sm">
+        <select id="cr-link" name="project_id" defaultValue={existing?.project_id ?? ""} className="h-10 w-full field px-3 text-sm">
           <option value="">Nothing</option>
           {(["campaign", "project", "partnership"] as const).map((k) => {
             const list = links.filter((l) => l.kind === k);
@@ -292,18 +319,18 @@ function NewRequest({ channel, links, onDone }: { channel: Channel; links: LinkO
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="cr-needed">Needed by</Label>
-        <Input id="cr-needed" name="needed_by" type="date" required />
+        <Input id="cr-needed" name="needed_by" type="date" required defaultValue={existing?.needed_by ?? ""} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="cr-from">
             Goes live <span className="font-normal text-ink-muted">(optional)</span>
           </Label>
-          <Input id="cr-from" name="live_from" type="date" />
+          <Input id="cr-from" name="live_from" type="date" defaultValue={existing?.live_from ?? ""} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="cr-to">Until</Label>
-          <Input id="cr-to" name="live_to" type="date" />
+          <Input id="cr-to" name="live_to" type="date" defaultValue={existing?.live_to ?? ""} />
         </div>
       </div>
       {refs.length > 0 && (
@@ -319,14 +346,14 @@ function NewRequest({ channel, links, onDone }: { channel: Channel; links: LinkO
           ))}
         </ul>
       )}
-      <input ref={file} type="file" multiple hidden onChange={(e) => add(e.target.files).finally(() => (e.target.value = ""))} />
+      <input ref={file} type="file" multiple hidden onChange={(e) => add(e.target.files ? [...e.target.files] : null).finally(() => (e.target.value = ""))} />
       <Button type="button" variant="outline" onClick={() => file.current?.click()} disabled={uploading || refs.length >= 10}>
         <ImagePlus className="h-4 w-4" /> {uploading ? "Uploading…" : "Add references, KV or logos"}
       </Button>
       <Button type="submit" disabled={pending || uploading}>
-        {pending ? "Sending…" : "Send to Design"}
+        {pending ? "Saving…" : existing ? "Save changes" : "Send to Design"}
       </Button>
-      <p className="text-center text-xs text-ink-muted">Design is told by email. You&apos;ll hear back when it&apos;s ready to review.</p>
+      {!existing && <p className="text-center text-xs text-ink-muted">Design is told by email. You&apos;ll hear back when it&apos;s ready to review.</p>}
     </form>
   );
 }
@@ -392,10 +419,14 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
   const link = shared.links.find((l) => l.id === r.project_id);
   const [pending, start] = useTransition();
   const [note, setNote] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const asker = r.requested_by === shared.viewerId;
   const mine = r.designer_id === shared.viewerId;
+  const canDesign = shared.isDesign && (mine || shared.canAssign || !r.designer_id);
+  // Files are grouped by the version they were made for, newest first.
+  const versions = [...new Set(r.art_paths.map(fileVersion))].sort((a, b) => b - a);
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, done: string, close = false) =>
     start(async () => {
@@ -405,11 +436,11 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
       if (close) onClose();
     });
 
-  async function addFiles(files: FileList | null) {
-    if (!files?.length) return;
+  async function addFiles(files: File[]) {
+    if (!files.length) return;
     setUploading(true);
     try {
-      const paths = await upload(r.id, "art", [...files].slice(0, 20));
+      const paths = await upload(r.id, `art/v${r.version + 1}`, files.slice(0, 20));
       const res = await addArtwork(r.id, paths);
       if (!res.ok) toast.error(res.error);
       else toast.success(paths.length === 1 ? "File added." : `${paths.length} files added.`);
@@ -420,6 +451,16 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
     }
   }
 
+  if (editing)
+    return (
+      <div className="space-y-3">
+        <NewRequest channel={r.channel} links={shared.links} existing={r} onDone={() => setEditing(false)} />
+        <Button variant="ghost" className="w-full" onClick={() => setEditing(false)}>
+          Cancel
+        </Button>
+      </div>
+    );
+
   const row = (label: string, value: React.ReactNode) =>
     value ? (
       <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2 py-1.5 text-sm">
@@ -428,11 +469,13 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
       </div>
     ) : null;
 
+  const revisionLabel = r.status === "in_review" ? "Ask for changes" : "Ask for a revision";
+
   return (
     <div className="flex flex-col gap-4">
       {r.change_note && r.status === "in_design" && (
         <p className="rounded-[12px] bg-warning-soft px-3 py-2 text-sm text-warning-ink">
-          <span className="font-semibold">Changes asked:</span> {r.change_note}
+          <span className="font-semibold">Revision asked:</span> {r.change_note}
         </p>
       )}
       <div className="divide-y divide-line">
@@ -442,10 +485,29 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
         {row("Goes live", r.live_from ? `${day(r.live_from)}${r.live_to ? ` to ${day(r.live_to)}` : ""}` : null)}
         {row("Formats", r.formats)}
         {row("Part of", link ? `${DOMAINS[link.kind].label} · ${link.name}` : null)}
-        {row("Brief", r.brief && <span className="whitespace-pre-wrap">{r.brief}</span>)}
+        {row(
+          "Brief",
+          r.brief && (
+            <div className="whitespace-pre-wrap">
+              <PlainText text={r.brief} />
+            </div>
+          ),
+        )}
       </div>
+      {asker && r.status !== "live" && (
+        <Button variant="outline" size="sm" className="self-start" onClick={() => setEditing(true)}>
+          Edit request
+        </Button>
+      )}
       <FileList paths={r.ref_paths} urls={shared.urls} title="References" />
-      <FileList paths={r.art_paths} urls={shared.urls} title={r.version ? `From Design · version ${r.version}${r.status === "in_design" ? " (working on the next)" : ""}` : "From Design"} />
+      {versions.map((v, i) => (
+        <FileList
+          key={v}
+          paths={r.art_paths.filter((p) => fileVersion(p) === v)}
+          urls={shared.urls}
+          title={`From Design · version ${v}${i === 0 ? (v > r.version ? " (in progress)" : " (latest)") : ""}`}
+        />
+      ))}
 
       {/* Design */}
       {shared.isDesign && r.status === "requested" && (
@@ -471,28 +533,43 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
           </select>
         </label>
       )}
-      {shared.isDesign && (mine || shared.canAssign) && r.status === "in_design" && (
+      {canDesign && r.status === "in_design" && (
         <>
-          <input ref={file} type="file" multiple hidden onChange={(e) => addFiles(e.target.files).finally(() => (e.target.value = ""))} />
+          <input
+            ref={file}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = [...(e.target.files ?? [])];
+              e.target.value = "";
+              void addFiles(files);
+            }}
+          />
           <Button variant="outline" onClick={() => file.current?.click()} disabled={uploading}>
-            <Upload className="h-4 w-4" /> {uploading ? "Uploading…" : "Upload files"}
+            <Upload className="h-4 w-4" /> {uploading ? "Uploading…" : `Upload files for version ${r.version + 1}`}
           </Button>
-          <Button disabled={pending || !r.art_paths.length} onClick={() => run(() => sendForReview(r.id), "Sent for review. They've been told.", true)}>
+          <Button disabled={pending || !r.art_paths.some((p) => fileVersion(p) > r.version)} onClick={() => run(() => sendForReview(r.id), "Sent for review. They've been told.", true)}>
             Send for review
           </Button>
         </>
       )}
+      {canDesign && ["requested", "in_design", "in_review", "approved"].includes(r.status) && (
+        <Button variant="outline" disabled={pending} onClick={() => run(() => markRequestComplete(r.id), "Marked complete.", true)}>
+          Mark complete
+        </Button>
+      )}
 
       {/* Whoever asked */}
       {asker && r.status === "in_review" && note === null && (
-        <div className="grid grid-cols-2 gap-2">
-          <Button disabled={pending} onClick={() => run(() => approveRequest(r.id), "Approved.")}>
-            Approve
-          </Button>
-          <Button variant="outline" disabled={pending} onClick={() => setNote("")}>
-            Ask for changes
-          </Button>
-        </div>
+        <Button disabled={pending} onClick={() => run(() => approveRequest(r.id), "Approved.")}>
+          Approve
+        </Button>
+      )}
+      {asker && ["in_review", "approved", "done", "live"].includes(r.status) && note === null && (
+        <Button variant="outline" disabled={pending} onClick={() => setNote("")}>
+          {revisionLabel}
+        </Button>
       )}
       {asker && note !== null && (
         <div className="space-y-2">
@@ -507,17 +584,82 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
           </div>
         </div>
       )}
-      {asker && r.status === "approved" && (
+      {asker && (r.status === "approved" || r.status === "done") && note === null && (
         <Button disabled={pending} onClick={() => run(() => markRequestLive(r.id), "Marked live.", true)}>
           It&apos;s posted, mark live
         </Button>
       )}
-      {asker && isOpen(r) && note === null && (
+      {asker && (isOpen(r) || r.status === "done") && note === null && (
         <Button variant="ghost" className="text-danger hover:text-danger/80" disabled={pending} onClick={() => run(() => cancelRequest(r.id), "Cancelled.", true)}>
           Cancel this request
         </Button>
       )}
+
+      <RequestComments requestId={r.id} comments={shared.comments.filter((c) => c.request_id === r.id)} people={people} viewerId={shared.viewerId} />
     </div>
+  );
+}
+
+/** Comments under a request, with pasted screenshots and cells from a sheet. */
+function RequestComments({
+  requestId,
+  comments,
+  people,
+  viewerId,
+}: {
+  requestId: string;
+  comments: RequestComment[];
+  people: Map<string, PersonRef>;
+  viewerId: string;
+}) {
+  const [body, setBody] = useState("");
+  const [pending, start] = useTransition();
+  const pasted = usePastedImages();
+  const post = () =>
+    start(async () => {
+      const res = await addRequestComment(requestId, body, pasted.images);
+      if (!res.ok) return void toast.error(res.error);
+      setBody("");
+      pasted.clear();
+    });
+  return (
+    <section className="space-y-3 border-t border-line pt-4">
+      <p className="kicker">Comments</p>
+      {comments.length === 0 && <p className="text-sm text-ink-muted">No comments yet.</p>}
+      <ul className="space-y-3">
+        {comments.map((c) => (
+          <li key={c.id} className="flex gap-2.5">
+            <PersonAvatar person={people.get(c.author_id)} className="mt-0.5 h-6 w-6" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-medium">{personName(people.get(c.author_id))}</span>
+                <span className="text-ink-muted">{formatDate(c.created_at.slice(0, 10), "d MMM")}</span>
+                {c.author_id === viewerId && (
+                  <button
+                    type="button"
+                    className="ml-auto text-ink-muted hover:text-danger"
+                    onClick={() => start(async () => void (await deleteRequestComment(c.id)))}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+              {c.body && (
+                <div className="mt-0.5 whitespace-pre-wrap break-words text-sm">
+                  <PlainText text={c.body} />
+                </div>
+              )}
+              <CommentImages paths={c.image_paths} />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <Textarea rows={2} value={body} onChange={(e) => setBody(e.target.value)} onPaste={pasted.onPaste} placeholder="Write a comment, or paste a screenshot" />
+      <PendingImages state={pasted} />
+      <Button size="sm" disabled={pending || pasted.uploading || (!body.trim() && !pasted.images.length)} onClick={post}>
+        Comment
+      </Button>
+    </section>
   );
 }
 

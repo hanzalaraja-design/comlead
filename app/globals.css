@@ -150,6 +150,13 @@
     @apply overflow-x-auto rounded bg-muted p-2 text-xs;
   }
   /* Tables (pasted from Excel or made with the Table button): scroll sideways on phones. */
+  /* Pasted screenshots. */
+  .prose-content img {
+    @apply my-2 block h-auto max-w-full rounded-[10px] border border-line;
+  }
+  .prose-content img.ProseMirror-selectednode {
+    @apply ring-2 ring-brand-primary;
+  }
   .prose-content table {
     @apply block max-w-full overflow-x-auto border-collapse text-[13px];
   }
