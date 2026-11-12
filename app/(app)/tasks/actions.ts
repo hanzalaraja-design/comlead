@@ -10,9 +10,7 @@ import { syncLater } from "@/lib/calendar/schedule";
 import { syncTask } from "@/lib/calendar/sync";
 import { addDaysISO, parseISODate, todayPKT } from "@/lib/time";
 import { personName } from "@/lib/labels";
-import { emailSubtaskDone, emailSubtaskGiven } from "@/lib/tasks/subtasks";
 import { OPEN_SUBTASKS } from "@/lib/tasks/open-subtasks";
-import { emailCommentMentions } from "@/lib/tasks/mentions";
 import { isInlineImage } from "@/lib/inline-image";
 
 const uuid = z.string().uuid();
@@ -148,7 +146,6 @@ export async function createTask(formData: FormData): Promise<ActionResult<{ id:
         .select("id, title, due_date, owner_id");
       if (sErr) return { ok: false, error: `The task was created, but its subtasks weren't: ${friendlyError(sErr)}` };
       for (const s of made ?? []) {
-        if (s.owner_id) emailSubtaskGiven(s as { id: string; title: string; due_date: string | null; owner_id: string }, v.title, viewer.id);
         syncLater(() => syncTask(s.id as string));
       }
     }
@@ -211,7 +208,7 @@ export async function updateTask(taskId: string, formData: FormData): Promise<Ac
     if (e) return { ok: false, error: friendlyError(e) };
   }
 
-  if (v.status === "done") await afterDone(supabase, taskId, formData.get("subtasks"), viewer.id);
+  if (v.status === "done") await afterDone(supabase, taskId, formData.get("subtasks"));
   revalidateTaskViews(taskId);
   syncLater(() => syncTask(taskId));
   return { ok: true };
@@ -239,7 +236,7 @@ async function closingWithOpenSubtasks(
 }
 
 /** After a task is done: close its subtasks if asked; tell the main task's owner if it was a subtask. */
-async function afterDone(supabase: Awaited<ReturnType<typeof createClient>>, taskId: string, choice: unknown, viewerId: string) {
+async function afterDone(supabase: Awaited<ReturnType<typeof createClient>>, taskId: string, choice: unknown) {
   if (choice === "close") {
     const { data: closed } = await supabase
       .from("tasks")
@@ -249,8 +246,6 @@ async function afterDone(supabase: Awaited<ReturnType<typeof createClient>>, tas
       .select("id");
     for (const s of closed ?? []) syncLater(() => syncTask(s.id as string));
   }
-  const { data: t } = await supabase.from("tasks").select("title, parent_task_id").eq("id", taskId).maybeSingle();
-  if (t?.parent_task_id) emailSubtaskDone(t as { title: string; parent_task_id: string }, viewerId);
 }
 
 /** Subtask rows from the new task form (person and date optional). */
@@ -293,7 +288,6 @@ export async function addSubtask(
     .single();
   if (error || !data) return { ok: false, error: friendlyError(error) };
 
-  if (v.owner_id) emailSubtaskGiven({ id: data.id as string, title: v.title, due_date: v.due_date, owner_id: v.owner_id }, parent.title as string, viewer.id);
   revalidateTaskViews(v.parentId);
   syncLater(() => syncTask(data.id as string));
   return { ok: true, data: { id: data.id as string } };
@@ -399,7 +393,7 @@ export async function setTaskStatus(
   /** When it has open subtasks: close them too, or keep them open. */
   subtasks?: "close" | "keep",
 ): Promise<ActionResult> {
-  const viewer = await requireViewer();
+  await requireViewer();
   const parsed = statusSchema.safeParse({ taskId, status, blockedReason });
   if (!parsed.success) return { ok: false, error: "Invalid status" };
 
@@ -417,7 +411,7 @@ export async function setTaskStatus(
   if (error) return { ok: false, error: friendlyError(error) };
   if (!data?.length) return { ok: false, error: "You can only update tasks you own, collaborate on or created." };
 
-  if (parsed.data.status === "done") await afterDone(supabase, parsed.data.taskId, subtasks, viewer.id);
+  if (parsed.data.status === "done") await afterDone(supabase, parsed.data.taskId, subtasks);
   revalidateTaskViews(taskId);
   syncLater(() => syncTask(taskId));
   return { ok: true };
@@ -453,7 +447,6 @@ export async function addComment(taskId: string, body: string, mentionIds: strin
     // Tagged people become collaborators, so they can open the task, and get it in their inbox.
     const { error: mErr } = await supabase.rpc("add_comment_mentions", { p_comment_id: data.id, p_user_ids: mentions });
     if (mErr) return { ok: false, error: friendlyError(mErr) };
-    emailCommentMentions(taskId, mentions, viewer.id, text);
   }
   revalidatePath(`/tasks/${taskId}`);
   if (mentions.length) revalidatePath("/", "layout");

@@ -5,7 +5,6 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
-import { emailHtml, isEmailConfigured, placementsUrl, sendEmail } from "@/lib/notify";
 
 const team = z.string().uuid().nullable();
 
@@ -50,31 +49,4 @@ export async function saveSection(key: string, input: z.input<typeof sectionSche
   revalidatePath("/placements");
   revalidatePath("/admin/placements");
   return { ok: true };
-}
-
-/** Checks the Mail.Send permission by emailing the Admin who clicked. */
-export async function sendTestEmail(): Promise<ActionResult> {
-  const viewer = await requireAdmin();
-  if (!isEmailConfigured()) return { ok: false, error: "Outlook isn't set up in this deployment, so emails can't be sent." };
-  try {
-    await sendEmail(
-      [viewer.email],
-      "Test email from Highfy Tasks",
-      emailHtml({
-        intro: "This is a test. Placement emails to Commercial, Design and Tech will look like this.",
-        link: placementsUrl(),
-        linkLabel: "Open placements",
-      }),
-    );
-    return { ok: true };
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    if (/403|denied|Authorization_RequestDenied|ErrorAccessDenied/i.test(message))
-      return {
-        ok: false,
-        error:
-          "Microsoft refused to send. In Entra admin centre → App registrations → Highfy Tasks → API permissions, add Microsoft Graph → Application permissions → Mail.Send, then click Grant admin consent. It can take a few minutes to apply.",
-      };
-    return { ok: false, error: `Couldn't send: ${message.slice(0, 300)}` };
-  }
 }

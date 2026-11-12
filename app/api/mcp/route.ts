@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
+import { flushPush } from "@/lib/push";
 import { userForKey, type KeyUser } from "@/lib/mcp/keys";
 import { TOOLS, callTool } from "@/lib/mcp/tools";
 
@@ -57,6 +58,7 @@ async function handle(msg: RpcRequest, getUser: () => Promise<KeyUser | null>) {
       const name = typeof params?.name === "string" ? params.name : "";
       const args = (params?.arguments && typeof params.arguments === "object" ? params.arguments : {}) as Record<string, unknown>;
       const out = await callTool(user, name, args);
+      after(() => flushPush().catch((e) => console.error("[push]", e)));
       return result(id, { content: [{ type: "text", text: out.text }], isError: out.isError });
     }
     default:

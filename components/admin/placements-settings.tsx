@@ -2,12 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABELS, type PlacementRole, type Section } from "@/lib/placements";
-import { saveSection, saveTeams, sendTestEmail } from "@/app/(app)/admin/placements/actions";
+import { saveSection, saveTeams } from "@/app/(app)/admin/placements/actions";
 
 const ROLE_HINT: Record<PlacementRole, string> = {
   commercial: "Books brands into slots and gets reminders when bookings are ending.",
@@ -122,25 +121,5 @@ export function SectionRow({ section }: { section: Section }) {
         Save
       </Button>
     </form>
-  );
-}
-
-export function TestEmailButton() {
-  const [pending, start] = useTransition();
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      disabled={pending}
-      onClick={() =>
-        start(async () => {
-          const res = await sendTestEmail();
-          if (res.ok) toast.success("Sent. Check your inbox.");
-          else toast.error(res.error, { duration: 12000 });
-        })
-      }
-    >
-      <Mail className="h-4 w-4" /> {pending ? "Sending…" : "Send me a test email"}
-    </Button>
   );
 }

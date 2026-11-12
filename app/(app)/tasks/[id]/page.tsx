@@ -104,6 +104,8 @@ export default async function TaskPage({
       : Promise.resolve({ data: null }),
     // Opening the task counts as reading any mentions of you in it.
     supabase.from("task_mentions").update({ seen_at: new Date().toISOString() }).eq("task_id", id).eq("user_id", viewer.id).is("seen_at", null),
+    // Opening the task reads its notifications.
+    supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("task_id", id).eq("user_id", viewer.id).is("read_at", null),
   ]);
   const set = (setData ?? []) as { id: string; status: TaskStatus; owner_id: string | null; due_date: string | null }[];
   const canEdit =

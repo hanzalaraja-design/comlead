@@ -8,6 +8,14 @@
     {
       "path": "/api/cron/placements",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/tasks?run=morning",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/tasks?run=evening",
+      "schedule": "0 13 * * *"
     }
   ]
 }

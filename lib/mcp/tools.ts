@@ -5,13 +5,12 @@ import { syncTask } from "@/lib/calendar/sync";
 import { DOMAINS } from "@/lib/domains";
 import { personName } from "@/lib/labels";
 import { sanitizeRichText } from "@/lib/sanitize";
-import { emailSubtaskGiven } from "@/lib/tasks/subtasks";
 import { addDaysISO, formatDate, todayPKT } from "@/lib/time";
 import { domainHref } from "@/lib/domains";
 import { projectSlug } from "@/lib/projects";
 import { PLACEMENT_COLUMNS, slotName, surfacesText, type Placement, type Section, type Surface } from "@/lib/placements";
 import { CHANNELS, CHANNEL_LABELS, CREATIVE_COLUMNS, STATUS_LABELS, type Channel, type CreativeRequest } from "@/lib/creative";
-import { emailHtml, emailPersonLater, emailTeamLater, placementsUrl, requestUrl } from "@/lib/notify";
+import { notifyPersonLater, notifyTeamLater, placementsPath, placementsUrl, requestPath, requestUrl } from "@/lib/notify";
 import type { KeyUser } from "@/lib/mcp/keys";
 import type { ProjectKind } from "@/lib/types";
 
@@ -215,10 +214,6 @@ async function createTaskFrom(u: KeyUser, a: Args): Promise<{ id: string; text: 
   const { data, error } = await u.db.from("tasks").insert(row).select("id, title").single();
   if (error || !data) failed(error, "create the task");
   await setCollaborators(u, data!.id as string, strings(a, "collaborators"), []);
-  if (parentId && owner.id !== u.userId) {
-    const { data: parent } = await u.db.from("tasks").select("title").eq("id", parentId).maybeSingle();
-    emailSubtaskGiven({ id: data!.id as string, title, due_date: row.due_date, owner_id: owner.id }, (parent?.title as string) ?? "a task", u.userId);
-  }
   syncLater(() => syncTask(data!.id as string));
   return {
     id: data!.id as string,
@@ -608,11 +603,11 @@ const WORK_TOOLS: Tool[] = [
         }
       }
       if (made)
-        emailTeamLater(
-          "design",
-          `${made} daily deal banner${made === 1 ? "" : "s"} to design`,
-          emailHtml({ intro: `${u.name} added ${made} daily deal${made === 1 ? "" : "s"} for the homepage (via Claude).`, link: placementsUrl().replace("?tab=web", "?tab=design"), linkLabel: "Open the Design list" }),
-        );
+        notifyTeamLater("design", "design_new", {
+          title: `${u.name} added ${made} daily deal${made === 1 ? "" : "s"} (via Claude): they're in your Design list`,
+          href: "/placements?tab=design",
+          actorId: u.userId,
+        });
       return out.length ? out.join("\n") : "Nothing to change.";
     },
   },
@@ -674,11 +669,12 @@ const WORK_TOOLS: Tool[] = [
         .select("id")
         .single();
       if (error || !data) failed(error, "book that slot");
-      emailTeamLater(
-        "design",
-        `New banner to design: ${brand}, ${slotName(s, slot)}`,
-        emailHtml({ intro: `${u.name} booked a new placement (via Claude). It needs a banner.`, rows: [["Slot", slotName(s, slot)], ["From", start], ...(end ? [["Until", end] as [string, string]] : []), ...(text ? [["Text", text] as [string, string]] : [])], link: placementsUrl(data!.id as string), linkLabel: "Open in Highfy Tasks" }),
-      );
+      notifyTeamLater("design", "design_new", {
+        title: `${u.name} booked ${brand} in ${slotName(s, slot)} (via Claude): needs a banner`,
+        body: [`From ${start}${end ? ` to ${end}` : ""}`, text].filter(Boolean).join(" · "),
+        href: placementsPath(data!.id as string),
+        actorId: u.userId,
+      });
       return `Booked ${slotName(s, slot)} for ${brand} from ${formatDate(start, "d MMM")}${end ? ` to ${formatDate(end, "d MMM")}` : " (ongoing)"}. Design has been told. id ${data!.id} · ${placementsUrl(data!.id as string)}`;
     },
   },
@@ -794,11 +790,12 @@ const WORK_TOOLS: Tool[] = [
       };
       const { data, error } = await u.db.from("creative_requests").insert(row).select("id").single();
       if (error || !data) failed(error, "send that request");
-      emailTeamLater(
-        "design",
-        `New ${CHANNEL_LABELS[channel]} request: ${title}`,
-        emailHtml({ intro: `${u.name} needs this from Design (via Claude).`, rows: [["For", CHANNEL_LABELS[channel]], ...(row.formats ? [["Formats", row.formats] as [string, string]] : []), ...(row.needed_by ? [["Needed by", row.needed_by] as [string, string]] : []), ...(row.brief ? [["Brief", row.brief] as [string, string]] : [])], link: requestUrl(channel, data!.id as string), linkLabel: "Open the request" }),
-      );
+      notifyTeamLater("design", "design_new", {
+        title: `${u.name} needs ${title} (${CHANNEL_LABELS[channel]}, via Claude)`,
+        body: [row.formats, row.needed_by && `needed ${row.needed_by}`].filter(Boolean).join(" · "),
+        href: requestPath(channel, data!.id as string),
+        actorId: u.userId,
+      });
       return `Sent to Design: ${title} (${CHANNEL_LABELS[channel]}). id ${data!.id} · ${requestUrl(channel, data!.id as string)}`;
     },
   },
@@ -851,7 +848,7 @@ const WORK_TOOLS: Tool[] = [
       const { data: r } = await u.db.from("creative_requests").select("title, channel, requested_by, designer_id").eq("id", rid).maybeSingle();
       if (r)
         for (const who of new Set([r.requested_by, r.designer_id].filter((x): x is string => !!x && x !== u.userId)))
-          emailPersonLater(who, `${u.name} commented: ${r.title}`, emailHtml({ intro: `${u.name}: “${text}”`, link: requestUrl(r.channel as string, rid), linkLabel: "Reply" }));
+          notifyPersonLater(who, who === r.designer_id ? "revision" : "my_requests", { title: `${u.name} commented on ${r.title}`, body: text, href: requestPath(r.channel as string, rid), actorId: u.userId });
       return "Comment added.";
     },
   },
@@ -885,7 +882,7 @@ const WORK_TOOLS: Tool[] = [
         .select("title, channel, designer_id");
       if (error) failed(error, "send it back");
       if (!data?.length) throw new UserError("Only whoever asked can ask for a revision, after Design has sent it.");
-      emailPersonLater(data[0].designer_id as string | null, `Revision asked: ${data[0].title}`, emailHtml({ intro: `${u.name} asked for a revision: “${note}”`, link: requestUrl(data[0].channel as string, rid), linkLabel: "Open the request" }));
+      notifyPersonLater(data[0].designer_id as string | null, "revision", { title: `${u.name} asked for a revision on ${data[0].title}`, body: note, href: requestPath(data[0].channel as string, rid), actorId: u.userId });
       return "Sent back to Design.";
     },
   },

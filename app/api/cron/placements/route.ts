@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { emailHtml, escapeHtml, isEmailConfigured, placementsUrl, sendEmail, teamEmails } from "@/lib/notify";
+import { notify, placementsPath, teamMembers } from "@/lib/notify";
+import { flushPush } from "@/lib/push";
 import { ENDING_DAYS, PLACEMENT_COLUMNS, nextAfter, relativeDay, slotName, toPutLive, toTakeDown, type Placement, type Section } from "@/lib/placements";
 import { addDaysISO, todayPKT } from "@/lib/time";
-import { siteUrl } from "@/lib/calendar/sync";
 import { CHANNEL_LABELS, CREATIVE_COLUMNS, designGroups, type CreativeRequest } from "@/lib/creative";
 import { personName } from "@/lib/labels";
 
-// Morning reminders (see vercel.json): Commercial (and whoever booked) hear about bookings ending
+// Morning notifications (see vercel.json): Commercial (and whoever booked) hear about bookings ending
 // in 3 days and today with nothing after them; Tech about banners to put up
 // or take down today; the Design team about what's late, due or sent back. Vercel sends "Authorization: Bearer $CRON_SECRET".
 export const maxDuration = 60;
@@ -17,7 +17,6 @@ export async function GET(request: NextRequest) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  if (!isEmailConfigured()) return NextResponse.json({ skipped: "email not configured" });
 
   const db = createAdminClient();
   const [{ data: sectionData }, { data: placementData }] = await Promise.all([
@@ -31,36 +30,36 @@ export async function GET(request: NextRequest) {
     const s = sections.find((x) => x.key === p.section_key);
     return s ? slotName(s, p.position) : p.section_key;
   };
-  const list = (items: Placement[], line: (p: Placement) => string) =>
-    `<ul>${items.map((p) => `<li><b>${escapeHtml(p.brand)}</b>, ${escapeHtml(where(p))}: ${escapeHtml(line(p))}</li>`).join("")}</ul>`;
+  const list = (items: Placement[], line: (p: Placement) => string) => {
+    const parts = items.map((p) => `${p.brand}, ${where(p)}: ${line(p)}`);
+    return parts.slice(0, 4).join("; ") + (parts.length > 4 ? ` and ${parts.length - 4} more` : "");
+  };
   const sent: Record<string, number> = {};
 
   const ending = all.filter(
     (p) => p.stage === "live" && (p.ends_on === today || p.ends_on === addDaysISO(today, ENDING_DAYS)) && !nextAfter(all, p),
   );
   if (ending.length) {
-    const html = emailHtml({ intro: "These bookings end soon and nothing is booked after them:", link: placementsUrl(), linkLabel: "Book the next brands" }).replace(
-      "</p>",
-      `</p>${list(ending, (p) => `ends ${relativeDay(p.ends_on!, today)}`)}`,
-    );
     // Commercial, and whoever booked each one.
-    const bookers = [...new Set(ending.map((p) => p.created_by).filter((x): x is string => !!x))];
-    const { data: bookerRows } = bookers.length ? await db.from("profiles").select("email, status").in("id", bookers) : { data: [] };
-    const to = [...new Set([...(await teamEmails("commercial")), ...(bookerRows ?? []).filter((b) => b.status === "active").map((b) => b.email as string)])];
-    await sendEmail(to, `${ending.length} placement${ending.length === 1 ? "" : "s"} ending soon`, html);
+    const bookers = ending.map((p) => p.created_by);
+    await notify([...(await teamMembers("commercial")), ...bookers], "ending", {
+      title: `${ending.length} placement${ending.length === 1 ? "" : "s"} ending soon, nothing booked after`,
+      body: list(ending, (p) => `ends ${relativeDay(p.ends_on!, today)}`),
+      href: placementsPath(),
+    });
     sent.commercial = ending.length;
   }
 
   const goLive = toPutLive(all).filter((p) => p.starts_on <= today);
   const takeDown = toTakeDown(all, today);
   if (goLive.length || takeDown.length) {
-    const html = emailHtml({ intro: "On the homepage today:", link: placementsUrl(), linkLabel: "Open placements" }).replace(
-      "</p>",
-      `</p>${goLive.length ? `<p><b>Put live</b></p>${list(goLive, (p) => `from ${relativeDay(p.starts_on, today)}`)}` : ""}${
-        takeDown.length ? `<p><b>Take down</b></p>${list(takeDown, (p) => `ended ${relativeDay(p.ends_on!, today)}`)}` : ""
-      }`,
-    );
-    await sendEmail(await teamEmails("tech"), `Homepage today: ${goLive.length} to put live, ${takeDown.length} to take down`, html);
+    await notify(await teamMembers("tech"), "homepage_today", {
+      title: `Homepage today: ${goLive.length} to put live, ${takeDown.length} to take down`,
+      body: [goLive.length && `Put live: ${list(goLive, (p) => `from ${relativeDay(p.starts_on, today)}`)}`, takeDown.length && `Take down: ${list(takeDown, (p) => `ended ${relativeDay(p.ends_on!, today)}`)}`]
+        .filter(Boolean)
+        .join(" · "),
+      href: placementsPath(),
+    });
     sent.tech = goLive.length + takeDown.length;
   }
 
@@ -78,18 +77,16 @@ export async function GET(request: NextRequest) {
       return p ? personName(p as { full_name: string | null; email: string }) : "nobody on it yet";
     };
     const line = (r: CreativeRequest) =>
-      `<li><b>${escapeHtml(r.title)}</b> (${CHANNEL_LABELS[r.channel]}, ${escapeHtml(name(r.designer_id))})${
-        r.change_note ? `: revision asked, “${escapeHtml(r.change_note)}”` : r.needed_by ? `: due ${escapeHtml(relativeDay(r.needed_by, today))}` : ""
-      }</li>`;
-    const html = emailHtml({ intro: "Design today:", link: `${siteUrl()}/placements?tab=design`, linkLabel: "Open the Design list" }).replace(
-      "</p>",
-      `</p>${g.due.length ? `<p><b>Late or due today</b></p><ul>${g.due.map(line).join("")}</ul>` : ""}${
-        g.changes.length ? `<p><b>Revision asked</b></p><ul>${g.changes.map(line).join("")}</ul>` : ""
-      }`,
-    );
-    await sendEmail(await teamEmails("design"), `Design today: ${g.due.length + g.changes.length} to do`, html);
+      `${r.title} (${CHANNEL_LABELS[r.channel]}, ${name(r.designer_id)})${r.change_note ? `: revision asked` : r.needed_by ? `: due ${relativeDay(r.needed_by, today)}` : ""}`;
+    const items = [...g.changes, ...g.due].map(line);
+    await notify(await teamMembers("design"), "design_new", {
+      title: `Design today: ${g.due.length + g.changes.length} to do`,
+      body: items.slice(0, 4).join("; ") + (items.length > 4 ? ` and ${items.length - 4} more` : ""),
+      href: "/placements?tab=design",
+    });
     sent.design = g.due.length + g.changes.length;
   }
 
+  await flushPush();
   return NextResponse.json({ ok: true, sent });
 }
