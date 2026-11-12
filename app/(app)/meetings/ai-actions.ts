@@ -212,12 +212,11 @@ const suggestSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["title", "owner_id", "due_date", "priority", "reason"],
+        required: ["title", "owner_id", "due_date", "reason"],
         properties: {
           title: { type: "string" },
           owner_id: { type: ["string", "null"] },
           due_date: { type: ["string", "null"], description: "YYYY-MM-DD" },
-          priority: { type: "string", enum: ["urgent", "high", "medium", "low"] },
           reason: { type: "string" },
         },
       },
@@ -232,7 +231,7 @@ const suggestParser = z.object({
         title: z.string().trim().min(1).max(300),
         owner_id: z.string().nullable(),
         due_date: z.string().nullable(),
-        priority,
+        priority: priority.default("medium"),
         reason: z.string().trim().max(500),
       }),
     )
@@ -285,7 +284,6 @@ Rules:
 - title: a short instruction starting with a verb, under 80 characters, such as "Send revised quote to Packages Ltd".
 - owner_id: the id of the person the minutes say will do it, chosen only from the people list. Use null if the minutes do not make the owner clear. Never guess from job titles.
 - due_date: YYYY-MM-DD, only when the minutes give a date or a clear relative date ("by Friday", "next week" means the Friday of next week). Work relative dates out from the meeting date. Otherwise null.
-- priority: "urgent" only if the minutes say it is urgent or blocking; "high" if it has a near deadline or a customer waiting; "low" if it is explicitly a nice to have; otherwise "medium".
 - reason: one short sentence quoting or paraphrasing the part of the minutes this comes from.`,
       prompt: `Meeting: ${meetingLabel(ctx.meeting)} (meeting date ${ctx.meeting.meeting_date}, today is ${today})
 

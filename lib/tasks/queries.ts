@@ -38,7 +38,6 @@ export const isSchemaBehind = (e: { code?: string; message?: string } | null | u
 
 export type TaskListRow = TaskRow & { overdue: boolean };
 
-const PRIORITY_RANK = { urgent: 0, high: 1, medium: 2, low: 3 } as const;
 
 export const TASK_LIMIT = 500;
 
@@ -84,7 +83,6 @@ export async function fetchTasks(
     }
     // Subtasks show under their main task; they're listed on their own only when looking at someone's tasks.
     if (!filters.owner.length && !legacy) q = q.is("parent_task_id", null);
-    if (filters.priority.length) q = q.in("priority", filters.priority);
     if (filters.source.length) q = q.in("source", filters.source);
 
     // OR-groups are collected and applied once at the end (PostgREST takes a single "or").
@@ -133,10 +131,9 @@ export async function fetchTasks(
       case "due":
         q = q
           .order("due_date", { ascending: asc, nullsFirst: false })
-          .order("due_time", { ascending: asc, nullsFirst: false });
-        break;
-      case "priority":
-        q = q.order("priority", { ascending: asc }).order("due_date", { ascending: true, nullsFirst: false });
+          .order("due_time", { ascending: asc, nullsFirst: false })
+          // No deadline: the order they were added, oldest first.
+          .order("created_at", { ascending: true });
         break;
       case "status":
         q = q.order("status", { ascending: asc }).order("due_date", { ascending: true, nullsFirst: false });
@@ -180,8 +177,9 @@ export async function fetchTasks(
   return { tasks, truncated };
 }
 
-export function comparePriority(a: TaskListRow, b: TaskListRow) {
-  return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+/** Oldest first, by the day it was added (for tasks with no deadline). */
+export function compareCreated(a: TaskListRow, b: TaskListRow) {
+  return a.created_at.localeCompare(b.created_at);
 }
 
 /**

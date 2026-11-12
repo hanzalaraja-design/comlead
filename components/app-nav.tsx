@@ -12,7 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  MessageSquare,
+  Bell,
   NotebookPen,
   Settings,
   Sparkles,
@@ -31,8 +31,8 @@ const MAIN: NavItem[] = [
   { href: "/my", label: "Tasks", icon: CheckSquare },
   { href: "/tasks", label: "All teams", icon: LayoutList },
   { href: "/meetings", label: "Meetings", icon: NotebookPen },
-  // Comments you were tagged in.
-  { href: "/comments", label: "Comments", icon: MessageSquare },
+  // Tasks given to you, comments, mentions, finished work, reminders.
+  { href: "/notifications", label: "Notifications", icon: Bell },
 ];
 
 // Domains: each with its tag colour.
@@ -129,7 +129,7 @@ function NavLinks({
                   "min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5",
                   isActive(pathname, item.href) ? "bg-white/25 text-white" : "bg-brand-primary text-white",
                 )}
-                aria-label={item.href === "/placements" ? `${badges[item.href]} to do` : `${badges[item.href]} new mentions`}
+                aria-label={item.href === "/placements" ? `${badges[item.href]} to do` : `${badges[item.href]} unread`}
               >
                 {badges[item.href]}
               </span>

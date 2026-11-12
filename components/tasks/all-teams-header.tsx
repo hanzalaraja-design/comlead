@@ -15,12 +15,15 @@ export function AllTeamsHeader({
   options,
   count,
   month,
+  period,
 }: {
   view: TaskView;
   filters: TaskFilters;
   options: FilterOptions;
   count?: string;
   month?: string;
+  /** The time tab on the list, kept when filtering. */
+  period?: string;
 }) {
   const search = filtersToSearch(view === "board" ? { ...filters, status: [] } : filters);
   return (
@@ -42,8 +45,8 @@ export function AllTeamsHeader({
       <TaskFilterBar
         filters={filters}
         options={options}
-        hide={view === "board" ? ["status", "sort"] : view === "calendar" ? ["sort", "when"] : []}
-        preserve={month ? { month } : undefined}
+        hide={view === "board" ? ["status", "sort"] : view === "calendar" ? ["sort", "when"] : ["sort", "when"]}
+        preserve={month ? { month } : period && period !== "this_week" ? { period } : undefined}
       />
     </>
   );

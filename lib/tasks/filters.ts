@@ -1,7 +1,7 @@
-import { PRIORITIES, SOURCES, STATUSES } from "@/lib/labels";
+import { SOURCES, STATUSES } from "@/lib/labels";
 import { isISODate } from "@/lib/time";
 import { isWhen, type WhenKey } from "@/lib/tasks/when";
-import type { TaskPriority, TaskSource, TaskStatus } from "@/lib/types";
+import type { TaskSource, TaskStatus } from "@/lib/types";
 
 /**
  * Task list filters. Every filter lives in the URL so any combination can be
@@ -11,7 +11,6 @@ import type { TaskPriority, TaskSource, TaskStatus } from "@/lib/types";
 export type TaskFilters = {
   /** Empty = open tasks (To do / In progress / Blocked). "all" = every status. */
   status: TaskStatus[] | "all";
-  priority: TaskPriority[];
   source: TaskSource[];
   /** User ids, plus "me" and "none" (unassigned). */
   owner: string[];
@@ -37,7 +36,6 @@ export type TaskFilters = {
 
 export const SORTS = [
   { value: "due", label: "Due date" },
-  { value: "priority", label: "Priority" },
   { value: "status", label: "Status" },
   { value: "owner", label: "Owner" },
   { value: "department", label: "Department" },
@@ -80,7 +78,6 @@ export function parseFilters(raw: RawParams): TaskFilters {
     status: statusRaw.includes("all")
       ? "all"
       : (statusRaw.filter((s) => statusValues.includes(s)) as TaskStatus[]),
-    priority: list(raw, "priority").filter((p) => PRIORITIES.some((x) => x.value === p)) as TaskPriority[],
     source: list(raw, "source").filter((p) => SOURCES.some((x) => x.value === p)) as TaskSource[],
     owner: list(raw, "owner").filter((o) => o === "me" || o === "none" || UUID_RE.test(o)),
     dept: list(raw, "dept").filter((d) => /^[a-z0-9-]+$/.test(d)),
@@ -106,7 +103,6 @@ export function filtersToSearch(f: Partial<TaskFilters>): string {
   const p = new URLSearchParams();
   if (f.status === "all") p.set("status", "all");
   else if (f.status?.length) p.set("status", f.status.join(","));
-  if (f.priority?.length) p.set("priority", f.priority.join(","));
   if (f.source?.length) p.set("source", f.source.join(","));
   if (f.owner?.length) p.set("owner", f.owner.join(","));
   if (f.dept?.length) p.set("dept", f.dept.join(","));
@@ -127,7 +123,6 @@ export function filtersToSearch(f: Partial<TaskFilters>): string {
 export function countActiveFilters(f: TaskFilters): number {
   return (
     (f.status === "all" || f.status.length ? 1 : 0) +
-    (f.priority.length ? 1 : 0) +
     (f.source.length ? 1 : 0) +
     (f.owner.length ? 1 : 0) +
     (f.dept.length ? 1 : 0) +

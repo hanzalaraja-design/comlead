@@ -5,8 +5,9 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireViewer } from "@/lib/auth";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
-import { emailHtml, emailTeamLater, placementsUrl } from "@/lib/notify";
-import { PLACEMENT_COLUMNS, SURFACE_LABELS, datesText, slotName, surfacesText, type Placement, type Section, type Surface } from "@/lib/placements";
+import { notifyTeamLater, placementsPath } from "@/lib/notify";
+import { personName } from "@/lib/labels";
+import { PLACEMENT_COLUMNS, SURFACE_LABELS, datesText, slotName, type Placement, type Section, type Surface } from "@/lib/placements";
 import { todayPKT } from "@/lib/time";
 
 const uuid = z.string().uuid();
@@ -51,19 +52,6 @@ async function load(supabase: Awaited<ReturnType<typeof createClient>>, id: stri
   return { p: data as unknown as Placement, section: section as Section };
 }
 
-function details(p: Placement, section: Section): [string, string][] {
-  const rows: [string, string][] = [
-    ["Slot", slotName(section, p.position)],
-    ["Dates", datesText(p, todayPKT())],
-    ["Shows on", surfacesText(p.shows_on ?? ["web"])],
-  ];
-  if (p.comms) rows.push(["Comms", p.comms]);
-  if (p.products) rows.push(["Products", p.products]);
-  if (p.notes) rows.push(["Notes", p.notes]);
-  if (section.size_hint) rows.push(["Size", section.size_hint]);
-  return rows;
-}
-
 function check(input: BookingInput) {
   const parsed = bookingSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Some values aren't valid." } as const;
@@ -94,16 +82,12 @@ export async function bookPlacement(
 
   const loaded = await load(supabase, id);
   if (loaded) {
-    emailTeamLater(
-      "design",
-      `New banner to design: ${loaded.p.brand}, ${slotName(loaded.section, position)}`,
-      emailHtml({
-        intro: `${viewer.profile.full_name ?? "Commercial"} booked a new placement. It needs a banner.`,
-        rows: details(loaded.p, loaded.section),
-        link: placementsUrl(id),
-        linkLabel: "Open in Highfy Tasks",
-      }),
-    );
+    notifyTeamLater("design", "design_new", {
+      title: `${personName(viewer.profile)} booked ${loaded.p.brand} in ${slotName(loaded.section, position)}: needs a banner`,
+      body: [datesText(loaded.p, todayPKT()), loaded.p.comms].filter(Boolean).join(" · "),
+      href: placementsPath(id),
+      actorId: viewer.id,
+    });
   }
   revalidatePath("/placements");
   return { ok: true };
@@ -129,19 +113,12 @@ export async function updatePlacement(id: string, input: BookingInput): Promise<
 
   if (madeAlready && textChanged) {
     const after = (await load(supabase, id))!;
-    emailTeamLater(
-      "design",
-      `Banner change: ${after.p.brand}, ${slotName(after.section, after.p.position)}`,
-      emailHtml({
-        intro: `${viewer.profile.full_name ?? "Commercial"} changed a placement that already has a banner. It needs an update.`,
-        rows: [
-          ...details(after.p, after.section),
-          ...((p.comms !== after.p.comms ? [["Was", p.comms ?? "(no comms)"]] : []) as [string, string][]),
-        ],
-        link: placementsUrl(id),
-        linkLabel: "Open in Highfy Tasks",
-      }),
-    );
+    notifyTeamLater("design", "design_new", {
+      title: `${personName(viewer.profile)} changed ${after.p.brand} (${slotName(after.section, after.p.position)}): the banner needs an update`,
+      body: after.p.comms ? `Now: “${after.p.comms}”${p.comms && p.comms !== after.p.comms ? ` (was “${p.comms}”)` : ""}` : null,
+      href: placementsPath(id),
+      actorId: viewer.id,
+    });
   }
   revalidatePath("/placements");
   return { ok: true };
@@ -189,16 +166,11 @@ export async function markOnFigma(id: string): Promise<ActionResult> {
   if (!data?.length) return { ok: false, error: "Only Design can mark a banner done." };
 
   const update = before.p.stage === "live";
-  emailTeamLater(
-    "tech",
-    `${update ? "Updated banner" : "Banner"} on Figma: ${before.p.brand}, ${slotName(before.section, before.p.position)}`,
-    emailHtml({
-      intro: `${viewer.profile.full_name ?? "Design"} has put the ${update ? "updated " : ""}banner on Figma. Pick it from there and put it live.`,
-      rows: details(before.p, before.section),
-      link: placementsUrl(id),
-      linkLabel: "Open in Highfy Tasks",
-    }),
-  );
+  notifyTeamLater("tech", "design_new", {
+    title: `${update ? "Updated banner" : "Banner"} on Figma: ${before.p.brand}, ${slotName(before.section, before.p.position)}. Put it live`,
+    href: placementsPath(id),
+    actorId: viewer.id,
+  });
   revalidatePath("/placements");
   return { ok: true };
 }
@@ -219,16 +191,11 @@ export async function submitArtwork(id: string, path: string): Promise<ActionRes
   if (before.p.artwork_path && before.p.artwork_path !== path) await supabase.storage.from("placement-files").remove([before.p.artwork_path]);
 
   const after = (await load(supabase, id))!;
-  emailTeamLater(
-    "tech",
-    `${before.p.stage === "live" ? "Updated banner" : "Banner ready"} to put live: ${after.p.brand}, ${slotName(after.section, after.p.position)}`,
-    emailHtml({
-      intro: `${viewer.profile.full_name ?? "Design"} has finished the ${before.p.stage === "live" ? "updated " : ""}banner. It's on Figma, with a preview attached here, ready to go on the site.`,
-      rows: details(after.p, after.section),
-      link: placementsUrl(id),
-      linkLabel: "Open in Highfy Tasks",
-    }),
-  );
+  notifyTeamLater("tech", "design_new", {
+    title: `${before.p.stage === "live" ? "Updated banner" : "Banner ready"} to put live: ${after.p.brand}, ${slotName(after.section, after.p.position)}`,
+    href: placementsPath(id),
+    actorId: viewer.id,
+  });
   revalidatePath("/placements");
   return { ok: true };
 }
@@ -305,16 +272,12 @@ export async function bookMany(rows: BulkRow[]): Promise<ActionResult<{ saved: n
         const s = sections.find((x) => x.key === p.section_key)!;
         return `${p.brand} — ${slotName(s, p.position)} — ${datesText(p, today)}${p.comms ? ` — “${p.comms}”` : ""}`;
       });
-    emailTeamLater(
-      "design",
-      `${saved.length} new banner${saved.length === 1 ? "" : "s"} to design`,
-      emailHtml({
-        intro: `${viewer.profile.full_name ?? "Commercial"} booked ${saved.length} placement${saved.length === 1 ? "" : "s"}. They need banners.`,
-        rows: lines.map((l, i) => [String(i + 1), l] as [string, string]),
-        link: placementsUrl(),
-        linkLabel: "Open in Highfy Tasks",
-      }),
-    );
+    notifyTeamLater("design", "design_new", {
+      title: `${personName(viewer.profile)} booked ${saved.length} placement${saved.length === 1 ? "" : "s"}: they need banners`,
+      body: lines.slice(0, 3).join("; ") + (lines.length > 3 ? "…" : ""),
+      href: placementsPath(),
+      actorId: viewer.id,
+    });
     revalidatePath("/placements");
   }
   return { ok: true, data: { saved: saved.length, failed } };
@@ -411,15 +374,11 @@ export async function saveDailyDeals(rows: DealRow[]): Promise<ActionResult<{ sa
     }
   }
   if (saved)
-    emailTeamLater(
-      "design",
-      `${saved} daily deal banner${saved === 1 ? "" : "s"} to design`,
-      emailHtml({
-        intro: `${viewer.profile.full_name ?? "Someone"} added ${saved} daily deal${saved === 1 ? "" : "s"} for the homepage. They're in your Design list.`,
-        link: `${placementsUrl().replace("?tab=web", "?tab=design")}`,
-        linkLabel: "Open the Design list",
-      }),
-    );
+    notifyTeamLater("design", "design_new", {
+      title: `${personName(viewer.profile)} added ${saved} daily deal${saved === 1 ? "" : "s"}: they're in your Design list`,
+      href: "/placements?tab=design",
+      actorId: viewer.id,
+    });
   revalidatePath("/placements");
   revalidatePath("/daily-deals");
   return { ok: true, data: { saved, failed } };

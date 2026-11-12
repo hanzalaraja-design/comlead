@@ -7,7 +7,7 @@ import { requireViewer } from "@/lib/auth";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { CHANNEL_LABELS, CREATIVE_COLUMNS, isChannel, type CreativeRequest } from "@/lib/creative";
 import { personName } from "@/lib/labels";
-import { emailHtml, emailPersonLater, emailTeamLater, requestUrl } from "@/lib/notify";
+import { notifyPersonLater, notifyTeamLater, requestPath } from "@/lib/notify";
 import { formatDate } from "@/lib/time";
 import { isInlineImage } from "@/lib/inline-image";
 
@@ -53,13 +53,8 @@ async function load(supabase: Awaited<ReturnType<typeof createClient>>, id: stri
   return (data as unknown as CreativeRequest | null) ?? null;
 }
 
-function rows(r: CreativeRequest): [string, string][] {
-  const out: [string, string][] = [["For", CHANNEL_LABELS[r.channel]]];
-  if (r.formats) out.push(["Formats", r.formats]);
-  if (r.needed_by) out.push(["Needed by", formatDate(r.needed_by, "EEE d MMM")]);
-  if (r.live_from) out.push(["Goes live", formatDate(r.live_from, "EEE d MMM") + (r.live_to ? ` to ${formatDate(r.live_to, "EEE d MMM")}` : "")]);
-  if (r.brief) out.push(["Brief", r.brief.length > 600 ? `${r.brief.slice(0, 600)}…` : r.brief]);
-  return out;
+function summary(r: CreativeRequest): string {
+  return [r.formats, r.needed_by && `needed ${formatDate(r.needed_by, "EEE d MMM")}`].filter(Boolean).join(" · ");
 }
 
 const done = () => revalidatePath("/placements");
@@ -78,11 +73,12 @@ export async function createRequest(id: string, channel: string, input: RequestI
   if (error) return { ok: false, error: friendlyError(error) };
   const r = await load(supabase, id);
   if (r)
-    emailTeamLater(
-      "design",
-      `New ${CHANNEL_LABELS[r.channel]} request: ${r.title}`,
-      emailHtml({ intro: `${personName(viewer.profile)} needs this from Design.`, rows: rows(r), link: requestUrl(r.channel, id), linkLabel: "Open the request" }),
-    );
+    notifyTeamLater("design", "design_new", {
+      title: `${personName(viewer.profile)} needs ${r.title} (${CHANNEL_LABELS[r.channel]})`,
+      body: summary(r),
+      href: requestPath(r.channel, id),
+      actorId: viewer.id,
+    });
   done();
   return { ok: true };
 }
@@ -103,11 +99,12 @@ export async function takeRequest(id: string, designerId?: string): Promise<Acti
   if (who !== viewer.id) {
     const r = await load(supabase, id);
     if (r)
-      emailPersonLater(
-        who,
-        `${personName(viewer.profile)} gave you: ${r.title}`,
-        emailHtml({ intro: `This ${CHANNEL_LABELS[r.channel]} request is yours now.`, rows: rows(r), link: requestUrl(r.channel, id), linkLabel: "Open the request" }),
-      );
+      notifyPersonLater(who, "design_new", {
+        title: `${personName(viewer.profile)} gave you ${r.title} (${CHANNEL_LABELS[r.channel]})`,
+        body: summary(r),
+        href: requestPath(r.channel, id),
+        actorId: viewer.id,
+      });
   }
   done();
   return { ok: true };
@@ -151,11 +148,12 @@ export async function sendForReview(id: string): Promise<ActionResult> {
     .select("id");
   if (error) return { ok: false, error: friendlyError(error) };
   if (!data?.length) return { ok: false, error: "Only Design can send it for review." };
-  emailPersonLater(
-    r.requested_by,
-    `Ready for you to check: ${r.title}`,
-    emailHtml({ intro: `${personName(viewer.profile)} has sent this for your review. Approve it, or ask for changes.`, rows: rows(r), link: requestUrl(r.channel, id), linkLabel: "Review it" }),
-  );
+  notifyPersonLater(r.requested_by, "my_requests", {
+    title: `${personName(viewer.profile)} sent ${r.title} for your review`,
+    body: "Approve it, or ask for a revision.",
+    href: requestPath(r.channel, id),
+    actorId: viewer.id,
+  });
   done();
   return { ok: true };
 }
@@ -177,11 +175,12 @@ export async function askForChanges(id: string, note: string): Promise<ActionRes
     .select("id");
   if (error) return { ok: false, error: friendlyError(error) };
   if (!data?.length) return { ok: false, error: "Only whoever asked can ask for changes." };
-  emailPersonLater(
-    r.designer_id,
-    `Revision asked: ${r.title}`,
-    emailHtml({ intro: `${personName(viewer.profile)} asked for a revision: “${text}”`, rows: rows(r), link: requestUrl(r.channel, id), linkLabel: "Open the request" }),
-  );
+  notifyPersonLater(r.designer_id, "revision", {
+    title: `${personName(viewer.profile)} asked for a revision on ${r.title}`,
+    body: text,
+    href: requestPath(r.channel, id),
+    actorId: viewer.id,
+  });
   done();
   return { ok: true };
 }
@@ -232,16 +231,12 @@ export async function markRequestComplete(id: string): Promise<ActionResult> {
   if (error) return { ok: false, error: friendlyError(error) };
   if (!data?.length) return { ok: false, error: "Only Design can mark it complete." };
   if (r.requested_by !== viewer.id)
-    emailPersonLater(
-      r.requested_by,
-      `Done: ${r.title}`,
-      emailHtml({
-        intro: `${personName(viewer.profile)} marked this complete.${r.art_paths.length ? " The files are on the request." : ""} If something's still needed, ask for a revision there.`,
-        rows: rows(r),
-        link: requestUrl(r.channel, id),
-        linkLabel: "Open the request",
-      }),
-    );
+    notifyPersonLater(r.requested_by, "my_requests", {
+      title: `${personName(viewer.profile)} completed ${r.title}`,
+      body: r.art_paths.length ? "The files are on the request." : null,
+      href: requestPath(r.channel, id),
+      actorId: viewer.id,
+    });
   done();
   return { ok: true };
 }
@@ -259,11 +254,12 @@ export async function addRequestComment(id: string, body: string, images: string
   const r = await load(supabase, id);
   if (r)
     for (const who of new Set([r.requested_by, r.designer_id].filter((x): x is string => !!x && x !== viewer.id)))
-      emailPersonLater(
-        who,
-        `${personName(viewer.profile)} commented: ${r.title}`,
-        emailHtml({ intro: `${personName(viewer.profile)}: “${text || "(a screenshot)"}”`, rows: rows(r), link: requestUrl(r.channel, id), linkLabel: "Reply" }),
-      );
+      notifyPersonLater(who, who === r.designer_id ? "revision" : "my_requests", {
+        title: `${personName(viewer.profile)} commented on ${r.title}`,
+        body: text || "(a screenshot)",
+        href: requestPath(r.channel, id),
+        actorId: viewer.id,
+      });
   done();
   return { ok: true };
 }

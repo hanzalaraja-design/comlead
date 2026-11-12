@@ -7,7 +7,7 @@ import { MultiSelect, type Option } from "@/components/multi-select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PRIORITIES, SOURCES, STATUSES } from "@/lib/labels";
+import { SOURCES, STATUSES } from "@/lib/labels";
 import { SORTS, countActiveFilters, filtersToSearch, type SortKey, type TaskFilters } from "@/lib/tasks/filters";
 import { cn } from "@/lib/utils";
 import { WHEN, whenRanges, type WhenKey } from "@/lib/tasks/when";
@@ -18,7 +18,7 @@ const WHEN_PILLS: WhenKey[][] = [
   ["last_month", "this_month", "next_month"],
   ["all"],
 ];
-import type { TaskPriority, TaskSource, TaskStatus } from "@/lib/types";
+import type { TaskSource, TaskStatus } from "@/lib/types";
 
 export type FilterOptions = {
   departments: Option[]; // value = slug
@@ -214,12 +214,6 @@ export function TaskFilterBar({
             onChange={(v) => apply({ project: v })}
           />
         )}
-        <MultiSelect
-          label="Priority"
-          options={PRIORITIES.map((p) => ({ value: p.value, label: p.label }))}
-          value={filters.priority}
-          onChange={(v) => apply({ priority: v as TaskPriority[] })}
-        />
         <button
           type="button"
           onClick={() => setMore((m) => !m)}

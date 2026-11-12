@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { PlacementTeams, SectionRow, TestEmailButton } from "@/components/admin/placements-settings";
+import { PlacementTeams, SectionRow } from "@/components/admin/placements-settings";
 import { getDepartments, requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Section } from "@/lib/placements";
@@ -45,13 +45,6 @@ export default async function PlacementsAdminPage() {
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="kicker text-ink">Emails</h2>
-        <p className="text-sm text-ink-muted">
-          Emails come from the Highfy Tasks mailbox. Microsoft needs the Mail.Send permission for this. Send yourself a test to check.
-        </p>
-        <TestEmailButton />
-      </section>
     </div>
   );
 }

@@ -2,15 +2,15 @@
 
 import { createContext, useContext, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Check, ChevronDown } from "lucide-react";
+import { Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel } from "@/components/tasks/task-badges";
-import { PRIORITIES, PRIORITY_STYLES, fullName, personName } from "@/lib/labels";
+import { fullName, personName } from "@/lib/labels";
 import { addDaysISO, formatDate, todayPKT } from "@/lib/time";
 import { ON_TIME_STYLES, onTimeStatus, pktDay } from "@/lib/tasks/ontime";
 import { cn } from "@/lib/utils";
-import type { PersonRef, TaskPriority } from "@/lib/types";
+import type { PersonRef } from "@/lib/types";
 import { updateTaskInline } from "@/app/(app)/tasks/actions";
 
 /**
@@ -154,31 +154,6 @@ export function InlineDue({
         )}
       </PopoverContent>
     </Popover>
-  );
-}
-
-export function InlinePriority({ taskId, priority }: { taskId: string; priority: TaskPriority }) {
-  const { value, save, pending } = useSave<TaskPriority>(priority, (p) => ({ priority: p }), taskId);
-  return (
-    <span className={cn(ABOVE, "inline-flex")}>
-      <select
-        aria-label="Priority"
-        value={value}
-        disabled={pending}
-        onChange={(e) => save(e.target.value as TaskPriority)}
-        className={cn(
-          "h-6 cursor-pointer appearance-none rounded-full border-0 py-0 pl-2 pr-5 text-[11px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          PRIORITY_STYLES[value],
-        )}
-      >
-        {PRIORITIES.map((p) => (
-          <option key={p.value} value={p.value}>
-            {p.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none -ml-4 h-3 w-3 self-center opacity-60" />
-    </span>
   );
 }
 

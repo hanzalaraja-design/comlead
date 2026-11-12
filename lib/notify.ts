@@ -1,86 +1,93 @@
 import "server-only";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { calendarMailbox, graph, isCalendarConfigured, userPath } from "@/lib/calendar/graph";
 import { siteUrl } from "@/lib/calendar/sync";
 import type { PlacementRole } from "@/lib/placements";
+import { flushPush } from "@/lib/push";
 
 /**
- * Email from the Highfy Tasks mailbox (the same one that sends Outlook
- * invites). Needs the Mail.Send application permission as well as
- * Calendars.ReadWrite. Without Outlook set up, nothing is sent.
+ * Notifications: the Notifications page and push to phones and browsers.
+ * Task events are raised by the database; this is for everything else
+ * (placements, design requests, reminders). Each person's settings decide
+ * whether it shows and whether it pushes.
  */
 
-export const escapeHtml = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+export type NotifyKind =
+  | "assigned"
+  | "collaborator"
+  | "mention"
+  | "comment"
+  | "finished"
+  | "status"
+  | "due"
+  | "edits"
+  | "roundup"
+  | "due_tomorrow"
+  | "project_task"
+  | "project_added"
+  | "meeting"
+  | "design_new"
+  | "my_requests"
+  | "revision"
+  | "ending"
+  | "homepage_today";
 
-export const isEmailConfigured = isCalendarConfigured;
-
-export async function sendEmail(to: string[], subject: string, html: string): Promise<void> {
-  if (!to.length) return;
-  await graph("POST", `${userPath(calendarMailbox())}/sendMail`, {
-    message: {
-      subject,
-      body: { contentType: "HTML", content: html },
-      toRecipients: to.map((address) => ({ emailAddress: { address } })),
-    },
-    saveToSentItems: false,
-  });
-}
+export type NotifyMessage = { title: string; body?: string | null; href: string; actorId?: string | null; taskId?: string | null };
 
 /** Active members of the team that does this job. */
-export async function teamEmails(role: PlacementRole): Promise<string[]> {
+export async function teamMembers(role: PlacementRole): Promise<string[]> {
   const db = createAdminClient();
   const { data: settings } = await db.from("placement_settings").select("*").eq("id", 1).maybeSingle();
   const deptId = settings?.[`${role}_department_id`] as string | null | undefined;
   if (!deptId) return [];
-  const { data } = await db.from("department_members").select("profiles!inner(email, status)").eq("department_id", deptId);
-  return ((data ?? []) as unknown as { profiles: { email: string; status: string } }[])
-    .filter((r) => r.profiles.status === "active")
-    .map((r) => r.profiles.email);
+  const { data } = await db.from("department_members").select("user_id, profiles!inner(status)").eq("department_id", deptId);
+  return ((data ?? []) as unknown as { user_id: string; profiles: { status: string } }[]).filter((r) => r.profiles.status === "active").map((r) => r.user_id);
 }
 
-/** A short email in the house style: a line, some details, a button. */
-export function emailHtml({ intro, rows, link, linkLabel }: { intro: string; rows?: [string, string][]; link: string; linkLabel: string }) {
-  const table = rows?.length
-    ? `<table style="border-collapse:collapse;margin:12px 0">${rows
-        .map(
-          ([k, v]) =>
-            `<tr><td style="padding:4px 16px 4px 0;color:#6b6475;vertical-align:top">${escapeHtml(k)}</td><td style="padding:4px 0;color:#1f1a24">${escapeHtml(v)}</td></tr>`,
-        )
-        .join("")}</table>`
-    : "";
-  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;line-height:1.5;color:#1f1a24">
-<p>${escapeHtml(intro)}</p>${table}
-<p><a href="${link}" style="display:inline-block;background:#7e1a8f;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px">${escapeHtml(linkLabel)}</a></p>
-<p style="color:#6b6475;font-size:13px">Sent by Highfy Tasks.</p></div>`;
+/** Notify now (inside a cron or after()). */
+export async function notify(userIds: (string | null | undefined)[], kind: NotifyKind, m: NotifyMessage) {
+  const db = createAdminClient();
+  for (const id of new Set(userIds.filter((x): x is string => !!x))) {
+    const { error } = await db.rpc("notify", {
+      p_user: id,
+      p_kind: kind,
+      p_actor: m.actorId ?? null,
+      p_title: m.title,
+      p_body: m.body ?? null,
+      p_href: m.href,
+      p_task: m.taskId ?? null,
+    });
+    if (error) console.error("[notify]", error.message);
+  }
 }
 
-export const placementsUrl = (id?: string) => `${siteUrl()}/placements?tab=web${id ? `&open=${id}` : ""}`;
-
-/** Email a team after the response is sent; a failure is logged, never shown. */
-export function emailTeamLater(role: PlacementRole, subject: string, html: string) {
-  if (!isEmailConfigured()) return;
+/** Notify after the response is sent; a failure is logged, never shown. */
+export function notifyLater(userIds: (string | null | undefined)[], kind: NotifyKind, m: NotifyMessage) {
   after(async () => {
     try {
-      await sendEmail(await teamEmails(role), subject, html);
+      await notify(userIds, kind, m);
+      await flushPush();
     } catch (e) {
-      console.error(`[email:${role}]`, e);
+      console.error(`[notify:${kind}]`, e);
     }
   });
 }
 
-/** Email one person (by profile id) after the response is sent. */
-export function emailPersonLater(userId: string | null | undefined, subject: string, html: string) {
-  if (!userId || !isEmailConfigured()) return;
+export function notifyTeamLater(role: PlacementRole, kind: NotifyKind, m: NotifyMessage) {
   after(async () => {
     try {
-      const { data } = await createAdminClient().from("profiles").select("email, status").eq("id", userId).maybeSingle();
-      if (data?.status === "active") await sendEmail([data.email as string], subject, html);
+      await notify(await teamMembers(role), kind, m);
+      await flushPush();
     } catch (e) {
-      console.error("[email:person]", e);
+      console.error(`[notify:${role}]`, e);
     }
   });
 }
 
-export const requestUrl = (channel: string, id: string) => `${siteUrl()}/placements?tab=${channel}&open=${id}`;
+export const notifyPersonLater = (userId: string | null | undefined, kind: NotifyKind, m: NotifyMessage) => notifyLater([userId], kind, m);
+
+/** Paths inside the app; links in Claude's answers use the full URL. */
+export const placementsPath = (id?: string) => `/placements?tab=web${id ? `&open=${id}` : ""}`;
+export const requestPath = (channel: string, id: string) => `/placements?tab=${channel}&open=${id}`;
+export const placementsUrl = (id?: string) => `${siteUrl()}${placementsPath(id)}`;
+export const requestUrl = (channel: string, id: string) => `${siteUrl()}${requestPath(channel, id)}`;
