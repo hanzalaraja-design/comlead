@@ -147,8 +147,8 @@ export async function MyTeamHeader({
         </nav>
       )}
 
-      {/* Who has what this week. Tap a person to see only theirs. */}
-      <section aria-label="Workload this week" className="mb-4">
+      {/* Who has what this week. Tap a person to see only theirs. (The list has By person instead.) */}
+      {view !== "list" && <section aria-label="Workload this week" className="mb-4">
         <h2 className="kicker mb-2 text-ink">This week</h2>
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
           {load.map((x) => (
@@ -181,7 +181,7 @@ export async function MyTeamHeader({
             </Link>
           )}
         </div>
-      </section>
+      </section>}
 
       {isMemberOf(viewer, team.id) && view === "list" && (
         <div className="mb-4">
@@ -191,9 +191,9 @@ export async function MyTeamHeader({
       <TaskFilterBar
         filters={filters}
         options={options}
-        hide={view === "board" ? ["dept", "status", "sort"] : view === "calendar" ? ["dept", "sort", "when"] : ["dept"]}
+        hide={view === "board" ? ["dept", "status", "sort"] : ["dept", "sort", "when"]}
         preserve={{ ...keep, ...(month ? { month } : {}) }}
-        whenPills={view !== "calendar"}
+        whenPills={view === "board"}
       />
     </>
   );

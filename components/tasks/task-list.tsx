@@ -162,7 +162,11 @@ function TaskListItem({
             {onTime && <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>}
           </span>
         ) : (
-          <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
+          <span className="flex flex-col items-start gap-0.5">
+            <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
+            {/* No deadline: when it was added (these list oldest first). */}
+            {!t.due_date && <span className="pl-2 text-[11px] text-ink-muted">Added {formatPKT(t.created_at, "d MMM")}</span>}
+          </span>
         )}
       </div>
     </li>

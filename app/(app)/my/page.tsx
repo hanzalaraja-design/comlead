@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { CheckCircle2, ChevronDown, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
-import { TaskList } from "@/components/tasks/task-list";
 import { cookies } from "next/headers";
 import { RememberRole } from "@/components/tasks/remember-role";
 import { QuickAdd } from "@/components/tasks/quick-add";
@@ -14,31 +12,13 @@ import { countActiveFilters, filtersToSearch, parseFilters, type TaskFilters } f
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskTabs } from "@/components/tasks/task-tabs";
-import { compareCreated, fetchTasks, withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
-import { addDaysISO, formatDate, startOfDayPKT, todayPKT, weekEndPKT } from "@/lib/time";
+import { withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
+import { PeriodTabs, WhatsUp, loadPeriodTasks, readPeriod, type PeriodTasks } from "@/components/tasks/whats-up";
+import { formatDate, startOfDayPKT, todayPKT } from "@/lib/time";
 import { onTimeStatus } from "@/lib/tasks/ontime";
-import { clearedLine, emptyLine, todayLine } from "@/lib/voice";
+import { clearedLine } from "@/lib/voice";
 
 export const metadata = { title: "My tasks · Highfy Tasks" };
-
-const GROUPS = [
-  { key: "overdue", title: "Overdue" },
-  { key: "today", title: "Today" },
-  { key: "week", title: "This week" },
-  { key: "later", title: "Later" },
-  { key: "none", title: "No date" },
-] as const;
-
-type GroupKey = (typeof GROUPS)[number]["key"];
-
-function groupOf(t: TaskListRow, today: string, weekEnd: string): GroupKey {
-  if (t.overdue) return "overdue";
-  if (!t.due_date) return "none";
-  if (t.due_date <= today) return "today";
-  if (t.due_date <= weekEnd) return "week";
-  return "later";
-}
-
 
 export default async function MyTasksPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [id, supabase, raw] = await Promise.all([viewerId(), createClient(), searchParams]);
@@ -50,14 +30,15 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   const asked = raw.role === "own" || raw.role === "collab" || raw.role === "both" ? raw.role : (await cookies()).get("my_role")?.value;
   const role = asked === "collab" || asked === "both" ? asked : "own";
   const today = todayPKT();
-  const weekEnd = weekEndPKT();
+
+  const period = readPeriod(raw, "today");
 
   // Everything at once: no query here waits for another.
   const monthStart = `${today.slice(0, 7)}-01`;
-  const [viewer, departments, { tasks, error }, collabRes, done, options, monthDone] = await Promise.all([
+  const [viewer, departments, owned, collabRes, options, monthDone] = await Promise.all([
     requireViewer(),
     getDepartments(),
-    fetchTasks({ ...filters, sort: "due", dir: "asc" }, { viewerId: id }),
+    loadPeriodTasks(filters, period, id),
     // Open tasks I'm a collaborator on but don't own.
     withTaskSelect((select) =>
       supabase
@@ -67,15 +48,8 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
         .in("status", OPEN_STATUSES)
         .or(`owner_id.is.null,owner_id.neq.${id}`)
         .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(100),
-    ),
-    // Done: the dates picked in When, or the last 30 days. Newest first.
-    fetchTasks(
-      filters.when.length
-        ? { ...filters, status: ["done"], sort: "completed", dir: "desc" }
-        : { ...filters, status: ["done"], completed_from: addDaysISO(today, -29), sort: "completed", dir: "desc" },
-      { viewerId: id },
-      200,
+        .order("created_at", { ascending: true })
+        .limit(200),
     ),
     getFilterOptions(),
     // On time this month: your finished tasks that had a due date.
@@ -92,31 +66,19 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
   const onTimeCount = scored.filter((x) => x!.onTime).length;
 
   const collaborating = (collabRes.data ?? []) as unknown as TaskListRow[];
+  const byDue = (x: TaskListRow, y: TaskListRow) =>
+    (x.due_date ?? "9999").localeCompare(y.due_date ?? "9999") || (x.due_time ?? "").localeCompare(y.due_time ?? "") || x.created_at.localeCompare(y.created_at);
+  const data: PeriodTasks =
+    role === "own"
+      ? owned
+      : role === "collab"
+        ? { open: collaborating, done: [], truncated: false }
+        : { ...owned, open: [...owned.open, ...collaborating.filter((c) => !owned.open.some((o) => o.id === c.id))].sort(byDue) };
 
-  const grouped = new Map<GroupKey, TaskListRow[]>(GROUPS.map((g) => [g.key, []]));
-  for (const t of tasks) grouped.get(groupOf(t, today, weekEnd))!.push(t);
-  grouped.get("none")!.sort(compareCreated);
-
-  const overdue = grouped.get("overdue")!.length;
-  const dueToday = grouped.get("today")!.length;
-  const state = todayLine(today, overdue, dueToday);
+  const overdue = owned.open.filter((t) => t.overdue).length;
+  const dueToday = owned.open.filter((t) => t.due_date === today).length;
   // Teams you can add tasks to: your own, or every team for Admin.
   const myDepartments = departments.filter((d) => !d.archived && isMemberOf(viewer, d.id));
-
-  const collabSection = (
-    <section>
-      <h2 className="kicker mb-2 flex items-center gap-2 text-ink">
-        <span className="rounded-md border border-ink px-2 py-0.5 text-[11px] font-bold normal-case tracking-normal text-ink">Collaborating</span>
-        Tasks I help on
-        <span className="rounded-full bg-subtle px-2 py-0.5 text-xs text-ink">{collaborating.length}</span>
-      </h2>
-      {collaborating.length ? (
-        <TaskList tasks={collaborating} from="my" />
-      ) : (
-        <p className="surface px-4 py-6 text-center text-sm text-ink-muted">You’re not collaborating on anything open right now.</p>
-      )}
-    </section>
-  );
 
   // This month's on-time score.
   const onTimeChip = (className: string) =>
@@ -136,7 +98,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       <PageHeader
         breadcrumb={["Tasks", "My tasks"]}
         title="My tasks"
-        description={formatDate(today, "EEEE d MMMM")}
+        description={period.range || formatDate(today, "EEEE d MMMM")}
       />
       <TaskTabs scope="my" view="list" search={filtersToSearch({ ...filters, owner: [] })} />
       <RememberRole role={role} />
@@ -144,9 +106,9 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       <div className="sticky top-14 z-20 -mx-4 mb-4 flex flex-wrap items-center gap-2 border-b border-transparent bg-background/95 px-4 py-2 backdrop-blur md:top-0 md:-mx-12 md:px-12">
         {(
           [
-            ["own", "I own", tasks.length],
+            ["own", "I own", owned.open.length],
             ["collab", "Collaborating", collaborating.length],
-            ["both", "All", tasks.length + collaborating.length],
+            ["both", "All", owned.open.length + collaborating.length],
           ] as const
         ).map(([key, label, n]) => {
           const params = new URLSearchParams(filtersToSearch({ ...filters, owner: [] }).slice(1));
@@ -173,83 +135,21 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       {onTimeChip("mb-4 inline-flex md:hidden")}
       {!filtered && <CelebrateWhenCleared remaining={overdue + dueToday} line={clearedLine(today + viewer.id)} />}
 
-      {/* Today at a glance (only when nothing is filtered, so the counts are the whole picture) */}
-      {!filtered && <div
-        className={cn(
-          "mb-4 flex items-center gap-3 rounded-[20px] px-4 py-3 text-[15px] font-medium",
-          state.tone === "bad" ? "bg-danger-soft text-danger-ink" : "bg-success-soft text-success-ink",
-        )}
-      >
-        {state.tone === "bad" ? <TriangleAlert className="h-5 w-5 shrink-0" /> : <CheckCircle2 className="h-5 w-5 shrink-0" />}
-        <span className="flex-1">{state.text}</span>
-        <Link href="/my?status=done&sort=completed&dir=desc&when=all" className="shrink-0 text-sm font-medium underline-offset-2 hover:underline">
-          Completed
-        </Link>
-      </div>}
-
       <div className="mb-6">
         <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} mine />
       </div>
 
-      <TaskFilterBar filters={filters} options={options} hide={["owner", "sort"]} preserve={{ role }} whenPills />
-      {error && <p className="mb-3 text-sm text-danger">{error}</p>}
-
-      <div className="space-y-8">
-        {role === "collab" && collabSection}
-
-        {role !== "collab" && <section>
-          <h2 className="kicker mb-2 flex items-center gap-2 text-ink">
-            <span className="rounded-md bg-ink px-2 py-0.5 text-[11px] font-bold normal-case tracking-normal text-white">Owner</span> Tasks I own
-          </h2>
-          {tasks.length === 0 ? (
-            <p className="surface px-4 py-6 text-center text-sm text-ink-muted">{emptyLine(today + viewer.id)}</p>
-          ) : (
-            <div className="space-y-5">
-              {GROUPS.map((g) => {
-                const items = grouped.get(g.key)!;
-                if (!items.length) return null;
-                return (
-                  <div key={g.key}>
-                    <h3 className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-ink">
-                      {g.title}
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-xs",
-                          g.key === "overdue"
-                            ? "bg-danger-soft text-danger-ink"
-                            : g.key === "today"
-                              ? "bg-warning-soft text-warning-ink"
-                              : "bg-subtle text-ink",
-                        )}
-                      >
-                        {items.length}
-                      </span>
-                    </h3>
-                    <TaskList tasks={items} from="my" />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>}
-
-        {role !== "collab" && done.tasks.length > 0 && (
-          <details className="group">
-            <summary className="kicker mb-2 flex cursor-pointer list-none items-center gap-2 text-ink [&::-webkit-details-marker]:hidden">
-              <CheckCircle2 className="h-4 w-4 text-success" /> Completed
-              <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs text-success-ink">{done.tasks.length}</span>
-              <span className="text-xs font-normal normal-case tracking-normal text-ink-muted">{filters.when.length ? "in the dates you picked" : "last 30 days"}</span>
-              <ChevronDown className="ml-auto h-4 w-4 transition-transform group-open:rotate-180" />
-            </summary>
-            <TaskList tasks={done.tasks} showCompleted from="my" />
-            <Link href="/my?status=done&sort=completed&dir=desc&when=all" className="mt-2 inline-block text-sm font-medium text-brand-primary hover:underline">
-              See everything you&apos;ve completed
-            </Link>
-          </details>
-        )}
-
-        {role === "both" && collabSection}
-      </div>
+      <TaskFilterBar filters={filters} options={options} hide={["owner", "sort", "when"]} preserve={{ role, ...(period.key !== "today" ? { period: period.key } : {}) }} />
+      <PeriodTabs path="/my" raw={raw} period={period} fallback="today" />
+      <WhatsUp
+        data={data}
+        period={period}
+        path="/my"
+        raw={raw}
+        from="my"
+        showOwner={role !== "own"}
+        completedHref="/my?status=done&period=open"
+      />
     </>
   );
 }
