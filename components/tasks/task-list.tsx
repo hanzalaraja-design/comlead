@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { RowCheck } from "@/components/bulk-select";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import { CornerDownRight, ListChecks } from "lucide-react";
 import { MeetingTag, ProjectTag, StatusBadge } from "@/components/tasks/task-badges";
@@ -95,6 +96,7 @@ function TaskListItem({
 
       <div className="min-w-0">
         <div className="flex items-start gap-2.5">
+          <RowCheck id={t.id} label={t.title} className="mt-1" />
           {OPEN_STATUSES.includes(t.status) && (
             <CompleteButton
               taskId={t.id}

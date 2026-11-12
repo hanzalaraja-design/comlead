@@ -2,6 +2,8 @@ import Link from "next/link";
 import { EmptyState } from "@/components/page-header";
 import { PersonAvatar } from "@/components/person-avatar";
 import { TaskList } from "@/components/tasks/task-list";
+import { BulkProvider, SelectAll } from "@/components/bulk-select";
+import { BulkTasksBar } from "@/components/tasks/bulk-tasks";
 import { getPeople } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import type { TaskFilters } from "@/lib/tasks/filters";
@@ -310,6 +312,10 @@ export async function WhatsUp({
       {by === "person" ? (
         <People groups={groups} path={path} raw={raw} from={from} />
       ) : shown.length ? (
+        <BulkProvider ids={shown.flatMap((g) => g.tasks.map((t) => t.id))}>
+        <div className="mb-2 flex justify-end">
+          <SelectAll />
+        </div>
         <div className="space-y-6">
           {shown.map((g) => (
             <section key={g.key} id={g.key} className="scroll-mt-24">
@@ -322,6 +328,8 @@ export async function WhatsUp({
             </section>
           ))}
         </div>
+        <BulkTasksBar people={await getPeople()} />
+        </BulkProvider>
       ) : (
         <EmptyState>{period.when === "past" ? `Nothing was due ${period.words}.` : `Nothing ${period.words ? `for ${period.words}` : "open"}. Enjoy the quiet.`}</EmptyState>
       )}

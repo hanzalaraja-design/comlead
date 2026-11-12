@@ -9,7 +9,7 @@ import { isBlankHtml, sanitizeRichText } from "@/lib/sanitize";
 import { syncLater } from "@/lib/calendar/schedule";
 import { syncTask } from "@/lib/calendar/sync";
 import { addDaysISO, parseISODate, todayPKT } from "@/lib/time";
-import { personName } from "@/lib/labels";
+import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { OPEN_SUBTASKS } from "@/lib/tasks/open-subtasks";
 import { isInlineImage } from "@/lib/inline-image";
 
@@ -630,4 +630,40 @@ export async function setTaskCollaborators(taskId: string, userIds: string[]): P
   revalidateTaskViews(taskId);
   syncLater(() => syncTask(taskId));
   return { ok: true };
+}
+
+const bulkSchema = z.object({
+  ids: z.array(uuid).min(1).max(300),
+  op: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("done") }),
+    z.object({ kind: z.literal("due"), due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }),
+    z.object({ kind: z.literal("owner"), owner_id: uuid }),
+    z.object({ kind: z.literal("delete") }),
+  ]),
+});
+export type BulkTaskOp = z.input<typeof bulkSchema>["op"];
+
+/** The same change to many tasks at once. Each one goes through the usual permissions; ones you can't change are skipped. */
+export async function bulkTasks(ids: string[], op: BulkTaskOp): Promise<ActionResult<{ changed: number; skipped: number }>> {
+  await requireViewer();
+  const parsed = bulkSchema.safeParse({ ids, op });
+  if (!parsed.success) return { ok: false, error: "Pick some tasks first." };
+  const supabase = await createClient();
+  let changed = 0;
+  for (const id of [...new Set(parsed.data.ids)]) {
+    const o = parsed.data.op;
+    if (o.kind === "delete") {
+      const { error } = await supabase.rpc("delete_task", { p_task_id: id });
+      if (!error) changed++;
+    } else {
+      const patch = o.kind === "done" ? { status: "done" } : o.kind === "due" ? { due_date: o.due_date, ...(o.due_date ? {} : { due_time: null }) } : { owner_id: o.owner_id };
+      let q = supabase.from("tasks").update(patch).eq("id", id);
+      if (o.kind === "done") q = q.in("status", OPEN_STATUSES);
+      const { data } = await q.select("id");
+      if (data?.length) changed++;
+    }
+    syncLater(() => syncTask(id));
+  }
+  revalidatePath("/", "layout");
+  return { ok: true, data: { changed, skipped: parsed.data.ids.length - changed } };
 }
