@@ -47,7 +47,10 @@ export function HomepageMap({
       {sections.map((s) => (
         <section key={s.key} className="flex min-w-0 flex-col gap-1.5">
           <h3 className="flex items-baseline justify-between text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-            <span>{s.name}</span>
+            <span>
+              {s.name}
+              {s.optional && <span className="ml-1.5 font-medium normal-case tracking-normal">(optional)</span>}
+            </span>
             {s.slots > 1 && <span className="font-medium normal-case tracking-normal">{s.slots} slots</span>}
           </h3>
           <div className={WRAP[s.kind]}>
@@ -116,7 +119,7 @@ export function HomepageMap({
                     </span>
                   )}
                   {s.kind !== "icons" && (
-                    <span className="absolute bottom-1.5 right-1.5 rounded-full bg-white/90 px-1.5 text-[10px] font-semibold leading-[18px] text-ink">
+                    <span className="absolute right-1.5 top-[26px] rounded-full bg-white/90 px-1.5 text-[10px] font-semibold leading-[18px] text-ink">
                       {surfacesText(p.shows_on?.length ? p.shows_on : ["web"])}
                     </span>
                   )}

@@ -106,7 +106,9 @@ export function PlacementsBoard({
   for (const s of sections)
     for (let n = 1; n <= s.slots; n++) {
       const p = activeOn(placements, s.key, n, date);
-      if (!p) sum.empty++;
+      if (!p) {
+        if (!s.optional) sum.empty++;
+      }
       else {
         const k = statusOf(p, today);
         if (k === "live") sum.live++;

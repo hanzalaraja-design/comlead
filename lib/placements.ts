@@ -26,6 +26,8 @@ export type Section = {
   labels: string[];
   size_hint: string | null;
   sort: number;
+  /** Fine to leave empty (e.g. the Partnership strip): never flagged as empty. */
+  optional?: boolean;
 };
 
 export type Stage = "booked" | "ready" | "live" | "ended";
@@ -165,6 +167,7 @@ export function toTakeDown(all: Placement[], today: string): Placement[] {
 /** Empty slots on a day, per section. */
 export function emptySlots(sections: Section[], all: Placement[], date: string) {
   return sections
+    .filter((s) => !s.optional)
     .map((s) => ({
       section: s,
       positions: Array.from({ length: s.slots }, (_, i) => i + 1).filter((n) => !activeOn(all, s.key, n, date)),
