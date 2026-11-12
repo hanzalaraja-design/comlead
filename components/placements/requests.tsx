@@ -22,10 +22,9 @@ import {
   STATUS_LABELS,
   STATUS_STYLES,
   byNeeded,
-  designerGroups,
+  designGroups,
   fileVersion,
   isOpen,
-  upForGrabs,
   type Channel,
   type CreativeRequest,
   type RequestComment,
@@ -423,8 +422,8 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
   const [uploading, setUploading] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const asker = r.requested_by === shared.viewerId;
-  const mine = r.designer_id === shared.viewerId;
-  const canDesign = shared.isDesign && (mine || shared.canAssign || !r.designer_id);
+  // Anyone in Design can work on it; the team decides between them.
+  const canDesign = shared.isDesign;
   // Files are grouped by the version they were made for, newest first.
   const versions = [...new Set(r.art_paths.map(fileVersion))].sort((a, b) => b - a);
 
@@ -510,21 +509,16 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
       ))}
 
       {/* Design */}
-      {shared.isDesign && r.status === "requested" && (
-        <Button disabled={pending} onClick={() => run(() => takeRequest(r.id), "It's yours. It's in your list under Design.")}>
-          I&apos;ll take it
-        </Button>
-      )}
-      {shared.canAssign && isOpen(r) && r.status !== "approved" && (
+      {shared.isDesign && isOpen(r) && r.status !== "approved" && (
         <label className="flex items-center gap-2 text-sm">
-          <span className="text-ink-muted">Give it to</span>
+          <span className="text-ink-muted">Who&apos;s on it</span>
           <select
             value={r.designer_id ?? ""}
             disabled={pending}
-            onChange={(e) => e.target.value && run(() => takeRequest(r.id, e.target.value), "Assigned. They've been told.")}
+            onChange={(e) => e.target.value && run(() => takeRequest(r.id, e.target.value), e.target.value === shared.viewerId ? "Noted, you're on it." : "Noted. They've been told.")}
             className="h-9 flex-1 field px-2 text-sm"
           >
-            <option value="">Pick a designer</option>
+            <option value="">Not decided</option>
             {shared.designers.map((d) => (
               <option key={d.id} value={d.id}>
                 {personName(d)}
@@ -533,7 +527,7 @@ function RequestDetails({ r, onClose, ...shared }: Shared & { r: CreativeRequest
           </select>
         </label>
       )}
-      {canDesign && r.status === "in_design" && (
+      {canDesign && (r.status === "in_design" || r.status === "requested") && (
         <>
           <input
             ref={file}
@@ -675,12 +669,14 @@ export function DesignRequests({
   openId,
   ...shared
 }: Shared & { requests: CreativeRequest[]; web: WebItem[]; openId: string | null }) {
-  const [view, setView] = useState<"mine" | "team">("mine");
+  // Everything comes to the whole team; the team decides who does what.
+  const [onlyMine, setOnlyMine] = useState(false);
   const [open, setOpen] = useOpenRequest(requests, openId);
   const people = new Map(shared.people.map((p) => [p.id, p]));
   const current = requests.find((r) => r.id === open);
-  const grabs = upForGrabs(requests);
+  const g = designGroups(requests, shared.today, onlyMine ? shared.viewerId : undefined);
 
+  const who = (r: CreativeRequest) => (r.designer_id ? personName(people.get(r.designer_id)) : "nobody on it yet");
   const item = (r: CreativeRequest, hint: React.ReactNode, cta: string, late = false) => (
     <li key={r.id}>
       <button
@@ -695,7 +691,7 @@ export function DesignRequests({
         <span className="min-w-0">
           <span className="block font-semibold text-ink">{r.title}</span>
           <span className="text-xs text-ink-muted">
-            For {personName(people.get(r.requested_by))} · {hint}
+            For {personName(people.get(r.requested_by))} · {hint} · <span className={r.designer_id ? "text-ink" : ""}>{who(r)}</span>
           </span>
         </span>
         <span className="col-span-2 justify-self-start rounded-[10px] border border-line px-2.5 py-1 text-xs font-semibold text-ink sm:col-span-1">{cta}</span>
@@ -705,7 +701,7 @@ export function DesignRequests({
 
   const group = (title: string, items: React.ReactNode[], tone?: "late") =>
     items.length > 0 && (
-      <section>
+      <section key={title}>
         <h2 className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
           {title}
           <span className={cn("rounded-full px-2 text-xs", tone === "late" ? "bg-danger-soft text-danger-ink" : "bg-subtle text-ink-muted")}>{items.length}</span>
@@ -717,86 +713,51 @@ export function DesignRequests({
   const due = (r: CreativeRequest) =>
     !r.needed_by ? "no deadline" : r.needed_by === shared.today ? "due today" : `${r.needed_by < shared.today ? "was due" : "due"} ${day(r.needed_by)}`;
 
-  function listFor(designerId: string, withWeb: boolean) {
-    const g = designerGroups(requests, designerId, shared.today);
-    const lateWeb = withWeb ? web.filter((w) => w.late) : [];
-    const restWeb = withWeb ? web.filter((w) => !w.late) : [];
-    const webItem = (w: WebItem) => (
-      <li key={w.id}>
-        <Link
-          href={`/placements?tab=web&open=${w.id}`}
-          className={cn(
-            "relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 hover:bg-subtle/60 sm:grid-cols-[auto_minmax(0,1fr)_auto]",
-            w.late && "before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-danger",
-          )}
-        >
-          <ChannelTag channel="web" />
-          <span className="min-w-0">
-            <span className="block font-semibold text-ink">{w.title}</span>
-            <span className="text-xs text-ink-muted">{w.sub}</span>
-          </span>
-          <span className="col-span-2 justify-self-start rounded-[10px] border border-line px-2.5 py-1 text-xs font-semibold text-ink sm:col-span-1">Upload banner</span>
-        </Link>
-      </li>
-    );
-    const sections = [
-      group("Late or due today", [...g.due.map((r) => item(r, due(r), "Upload & send for review", !!r.needed_by && r.needed_by < shared.today)), ...lateWeb.map(webItem)], "late"),
-      group("Changes asked", g.changes.map((r) => item(r, `“${r.change_note}”`, "Upload new version"))),
-      group("Coming up", [...g.upcoming.map((r) => item(r, due(r), "Open")), ...restWeb.map(webItem)]),
-      group("Waiting on others", g.waiting.map((r) => item(r, r.status === "approved" ? "approved, waiting to go live" : "sent for review", "Nothing to do"))),
-    ].filter(Boolean);
-    return sections;
-  }
-
-  const mine = listFor(shared.viewerId, true);
+  // Homepage banners still to make sit in the same list.
+  const lateWeb = onlyMine ? [] : web.filter((w) => w.late);
+  const restWeb = onlyMine ? [] : web.filter((w) => !w.late);
+  const webItem = (w: WebItem) => (
+    <li key={w.id}>
+      <Link
+        href={`/placements?tab=web&open=${w.id}`}
+        className={cn(
+          "relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 hover:bg-subtle/60 sm:grid-cols-[auto_minmax(0,1fr)_auto]",
+          w.late && "before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-danger",
+        )}
+      >
+        <ChannelTag channel="web" />
+        <span className="min-w-0">
+          <span className="block font-semibold text-ink">{w.title}</span>
+          <span className="text-xs text-ink-muted">{w.sub}</span>
+        </span>
+        <span className="col-span-2 justify-self-start rounded-[10px] border border-line px-2.5 py-1 text-xs font-semibold text-ink sm:col-span-1">Upload banner</span>
+      </Link>
+    </li>
+  );
+  const sections = [
+    group("Late or due today", [...g.due.map((r) => item(r, due(r), "Upload & send for review", !!r.needed_by && r.needed_by < shared.today)), ...lateWeb.map(webItem)], "late"),
+    group("Revision asked", g.changes.map((r) => item(r, `“${r.change_note}”`, "Upload new version"))),
+    group("Coming up", [...g.upcoming.map((r) => item(r, due(r), "Open")), ...restWeb.map(webItem)]),
+    group("Waiting on others", g.waiting.map((r) => item(r, r.status === "approved" ? "approved, waiting to go live" : "sent for review", "Nothing to do"))),
+  ].filter(Boolean);
 
   return (
     <>
-      {shared.canAssign && (
-        <div className="mb-4 inline-flex rounded-[12px] bg-subtle p-0.5 text-sm">
-          {(["mine", "team"] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              aria-pressed={view === k}
-              onClick={() => setView(k)}
-              className={cn("rounded-[10px] px-3 py-1 font-semibold", view === k ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink")}
-            >
-              {k === "mine" ? "Mine" : "Whole team"}
-            </button>
-          ))}
-        </div>
-      )}
-
+      <div className="mb-4 inline-flex rounded-[12px] bg-subtle p-0.5 text-sm">
+        {([false, true] as const).map((k) => (
+          <button
+            key={String(k)}
+            type="button"
+            aria-pressed={onlyMine === k}
+            onClick={() => setOnlyMine(k)}
+            className={cn("rounded-[10px] px-3 py-1 font-semibold", onlyMine === k ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink")}
+          >
+            {k ? "Only mine" : "Whole team"}
+          </button>
+        ))}
+      </div>
       <div className="space-y-6">
-        {view === "mine" ? (
-          mine.length ? mine : <p className="surface px-4 py-8 text-center text-sm text-ink-muted">Nothing assigned to you. Take something from Up for grabs.</p>
-        ) : (
-          shared.designers.map((d) => {
-            const g = designerGroups(requests, d.id, shared.today);
-            const all = [...g.due, ...g.changes, ...g.upcoming, ...g.waiting];
-            return (
-              <section key={d.id}>
-                <h2 className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
-                  <PersonAvatar person={d} className="h-6 w-6" /> {personName(d)}
-                  <span className="rounded-full bg-subtle px-2 text-xs text-ink-muted">{all.length}</span>
-                </h2>
-                {all.length ? (
-                  <ul className="divide-y divide-line overflow-hidden surface">
-                    {all.map((r) => item(r, r.change_note ? "changes asked" : r.status === "in_review" ? "in review" : due(r), STATUS_LABELS[r.status], !!r.needed_by && r.needed_by < shared.today && r.status === "in_design"))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-ink-muted">Free.</p>
-                )}
-              </section>
-            );
-          })
-        )}
-
-        {group(
-          "Up for grabs",
-          grabs.map((r) => item(r, due(r), "I'll take it", !!r.needed_by && r.needed_by < shared.today)),
-        )}
+        {sections.length ? sections : <p className="surface px-4 py-8 text-center text-sm text-ink-muted">{onlyMine ? "Nothing you're on right now." : "Nothing waiting on Design."}</p>}
       </div>
       <RequestSheet r={current} onClose={() => setOpen(null)} {...shared} />
     </>

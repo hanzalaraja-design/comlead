@@ -116,7 +116,7 @@ export function HomepageMap({
                     </span>
                   )}
                   {s.kind !== "icons" && (
-                    <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-1.5 text-[10px] font-semibold leading-[18px] text-ink">
+                    <span className="absolute bottom-1.5 right-1.5 rounded-full bg-white/90 px-1.5 text-[10px] font-semibold leading-[18px] text-ink">
                       {surfacesText(p.shows_on?.length ? p.shows_on : ["web"])}
                     </span>
                   )}

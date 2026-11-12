@@ -160,9 +160,10 @@ const blank = (from: string): Row => ({ slot: "", brand: "", from, until: "", wo
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
-/** Understands 2026-11-01, 1/11/2026, 1-11-26, 1 Nov, Nov 1, 1 November 2026. Blank or "ongoing" → "". */
-function parseDate(text: string, today: string): string | null {
-  const t = text.trim().toLowerCase();
+/** Understands 2026-11-01, 1/11/2026, 1-11-26, 1 Nov, 1-Nov, Nov 1, Sat 1 November 2026. Blank or "ongoing" → "". */
+export function parseDate(text: string, today: string): string | null {
+  // A leading weekday ("Saturday, 1 Nov") doesn't matter.
+  const t = text.trim().toLowerCase().replace(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+/, "");
   if (!t || /^(ongoing|open|none|-)$/.test(t)) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   const year = (y?: string) => (!y ? Number(today.slice(0, 4)) : y.length === 2 ? 2000 + Number(y) : Number(y));
@@ -170,9 +171,9 @@ function parseDate(text: string, today: string): string | null {
   if (m) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
   m = t.match(/^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?$/); // day first, as in Pakistan
   if (m) return `${year(m[3])}-${pad(+m[2])}-${pad(+m[1])}`;
-  m = t.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3})[a-z]*\.?,?\s*(\d{2,4})?$/);
+  m = t.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s-]+([a-z]{3})[a-z]*\.?,?[\s-]*(\d{2,4})?$/);
   if (m && MONTHS.includes(m[2])) return `${year(m[3])}-${pad(MONTHS.indexOf(m[2]) + 1)}-${pad(+m[1])}`;
-  m = t.match(/^([a-z]{3})[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{2,4})?$/);
+  m = t.match(/^([a-z]{3})[a-z]*\.?[\s-]+(\d{1,2})(?:st|nd|rd|th)?,?[\s-]*(\d{2,4})?$/);
   if (m && MONTHS.includes(m[1])) return `${year(m[3])}-${pad(MONTHS.indexOf(m[1]) + 1)}-${pad(+m[2])}`;
   return null;
 }

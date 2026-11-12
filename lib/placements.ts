@@ -134,6 +134,7 @@ export function statusText(k: StatusKey, p: Placement, today: string): string {
 export function datesText(p: Pick<Placement, "starts_on" | "ends_on">, today: string): string {
   const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
   if (p.ends_on === null) return p.starts_on < addDaysISO(today, -1) ? `Ongoing since ${formatDate(p.starts_on, "d MMM")}` : `${cap(relativeDay(p.starts_on, today))} onwards`;
+  if (p.ends_on === p.starts_on) return cap(relativeDay(p.starts_on, today));
   return `${cap(relativeDay(p.starts_on, today))} – ${relativeDay(p.ends_on, today)}`;
 }
 
