@@ -81,7 +81,12 @@ export function PlacementsBoard({
   const [role, setRole] = useState<PlacementRole>(defaultRole);
   const [tab, setTab] = useState<"map" | "list" | "schedule">("map");
   const [bulk, setBulk] = useState(false);
-  const [date, setDate] = useState(startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : today);
+  // A given day, else the day a booking opened from a link starts (if it's still to come), else today.
+  const [date, setDate] = useState(() => {
+    if (startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) return startDate;
+    const opened = openId ? placements.find((p) => p.id === openId) : undefined;
+    return opened && opened.starts_on > today ? opened.starts_on : today;
+  });
   const [mode, setMode] = useState<PanelMode | null>(() => (openId && placements.some((p) => p.id === openId) ? { kind: "view", id: openId } : null));
   const upload = useArtworkUpload();
   const [pending, start] = useTransition();

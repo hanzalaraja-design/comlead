@@ -31,6 +31,15 @@ const SLOTS: { key: DealSlot; label: string }[] = [
 /** The month as a sheet: one row per day, a cell per banner. */
 export function DealsMonth({ days, today, month }: { days: DealDay[]; today: string; month: string }) {
   const [pasting, setPasting] = useState(false);
+  // Campaign days have no daily deals: back-to-back days of the same campaign become one row.
+  const groups: ({ kind: "day"; day: DealDay } | { kind: "campaign"; days: DealDay[] })[] = [];
+  const keyOf = (d: DealDay) => d.campaigns.map((c) => c.id).sort().join(",");
+  for (const d of days) {
+    const last = groups[groups.length - 1];
+    if (!d.campaigns.length) groups.push({ kind: "day", day: d });
+    else if (last?.kind === "campaign" && keyOf(last.days[0]) === keyOf(d)) last.days.push(d);
+    else groups.push({ kind: "campaign", days: [d] });
+  }
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -40,11 +49,10 @@ export function DealsMonth({ days, today, month }: { days: DealDay[]; today: str
         </Button>
       </div>
       <div className="overflow-x-auto surface">
-        <table className="w-full min-w-[860px] border-collapse text-sm">
+        <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead>
             <tr className="bg-subtle text-left text-[13px] font-bold text-ink">
-              <th className="w-36 px-3 py-2.5">Date</th>
-              <th className="w-48 px-3 py-2.5">Campaign</th>
+              <th className="w-48 px-3 py-2.5">Date</th>
               {SLOTS.map((s) => (
                 <th key={s.key} className="px-3 py-2.5">
                   {s.label}
@@ -53,41 +61,13 @@ export function DealsMonth({ days, today, month }: { days: DealDay[]; today: str
             </tr>
           </thead>
           <tbody>
-            {days.map((d) => {
-              const isToday = d.date === today;
-              const past = d.date < today;
-              return (
-                <tr key={d.date} className={cn("border-t border-line align-top", isToday && "bg-brand-bg/50", past && "text-ink-muted")}>
-                  <td className="px-3 py-2">
-                    <span className="font-semibold text-ink">{formatDate(d.date, "EEE d MMM")}</span>
-                    {isToday && <span className="ml-1.5 rounded-full bg-brand-primary px-1.5 text-[11px] font-semibold text-white">Today</span>}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-col gap-1">
-                      {d.campaigns.map((c) => (
-                        <span key={c.id} className="flex flex-wrap items-center gap-1">
-                          <Link href={c.href} className="inline-flex items-center gap-1 rounded-md bg-[#fdeedd] px-1.5 py-px text-[12px] font-semibold text-[#c25b00] hover:underline">
-                            {c.name} <ExternalLink className="h-3 w-3" />
-                          </Link>
-                          <Link
-                            href={`/placements?tab=web&date=${d.date}`}
-                            title="The homepage on this day"
-                            className="inline-flex items-center gap-1 rounded-md bg-subtle px-1.5 py-px text-[12px] font-semibold text-ink hover:underline"
-                          >
-                            <Images className="h-3 w-3" /> Placements
-                          </Link>
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  {SLOTS.map((s) => (
-                    <td key={s.key} className="px-1.5 py-1">
-                      <DealCell day={d.date} slot={s.key} booking={d[s.key]} today={today} label={s.label} />
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
+            {groups.map((g) =>
+              g.kind === "day" ? (
+                <DayRow key={g.day.date} d={g.day} today={today} />
+              ) : (
+                <CampaignRow key={g.days[0].date} days={g.days} today={today} />
+              ),
+            )}
           </tbody>
         </table>
       </div>
@@ -101,6 +81,73 @@ export function DealsMonth({ days, today, month }: { days: DealDay[]; today: str
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+function DayRow({ d, today }: { d: DealDay; today: string }) {
+  const isToday = d.date === today;
+  return (
+    <tr className={cn("border-t border-line align-top", isToday && "bg-brand-bg/50", d.date < today && "text-ink-muted")}>
+      <td className="px-3 py-2">
+        <span className="font-semibold text-ink">{formatDate(d.date, "EEE d MMM")}</span>
+        {isToday && <span className="ml-1.5 rounded-full bg-brand-primary px-1.5 text-[11px] font-semibold text-white">Today</span>}
+      </td>
+      {SLOTS.map((s) => (
+        <td key={s.key} className="px-1.5 py-1">
+          <DealCell day={d.date} slot={s.key} booking={d[s.key]} today={today} label={s.label} />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+/** Days a campaign runs: one row across the banner columns, with the way to its folder and its homepage. */
+function CampaignRow({ days, today }: { days: DealDay[]; today: string }) {
+  const first = days[0].date;
+  const last = days[days.length - 1].date;
+  const running = today >= first && today <= last;
+  // The homepage on today if it's running, else on its first day here.
+  const homepageDay = running ? today : first;
+  const booked = days.flatMap((d) => SLOTS.map((s) => d[s.key]).filter((b): b is Placement => !!b));
+  const bookedCount = new Set(booked.map((b) => b.id)).size;
+  return (
+    <tr className="border-t border-line align-top">
+      <td className="px-3 py-3">
+        <span className="block font-semibold text-ink">
+          {days.length === 1 ? formatDate(first, "EEE d MMM") : `${formatDate(first, "EEE d")} – ${formatDate(last, "EEE d MMM")}`}
+        </span>
+        <span className="text-xs text-ink-muted">
+          {days.length} day{days.length === 1 ? "" : "s"}
+          {running && <span className="ml-1.5 rounded-full bg-brand-primary px-1.5 text-[11px] font-semibold text-white">Today</span>}
+        </span>
+      </td>
+      <td colSpan={SLOTS.length} className="px-1.5 py-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[#f6d2b0] bg-[#fdf3e8] px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-[#c25b00]">{days[0].campaigns.length > 1 ? "Campaigns" : "Campaign"}</p>
+            <p className="text-base font-semibold text-ink">{days[0].campaigns.map((c) => c.name).join(" + ")}</p>
+            <p className="text-xs text-ink-muted">
+              No daily deals these days.
+              {bookedCount > 0 && ` ${bookedCount} homepage banner${bookedCount === 1 ? "" : "s"} booked.`}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {days[0].campaigns.map((c) => (
+              <Button key={c.id} asChild size="sm">
+                <Link href={c.href}>
+                  Open {c.name} <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            ))}
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/placements?tab=web&date=${homepageDay}`}>
+                <Images className="h-3.5 w-3.5" /> Homepage placements
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </td>
+    </tr>
   );
 }
 
