@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/multi-select";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import { PRIORITIES, STATUSES, personName } from "@/lib/labels";
+import { STATUSES, personName } from "@/lib/labels";
 import type { Department, PersonRef, ProjectKind, Task, TaskStatus } from "@/lib/types";
 import { DOMAINS } from "@/lib/domains";
 import { createTask, updateTask } from "@/app/(app)/tasks/actions";
@@ -183,16 +183,6 @@ export function TaskForm(props: TaskFormProps) {
               Already done on {formatDate(dueDate, "EEE d MMM")}
             </label>
           )}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="priority">Priority</Label>
-          <select id="priority" name="priority" className={selectClass} defaultValue={task?.priority ?? "medium"}>
-            {PRIORITIES.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
         </div>
 
         {pickDepartment && (

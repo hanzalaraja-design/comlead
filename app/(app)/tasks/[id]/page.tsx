@@ -3,12 +3,12 @@ import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
 import { CornerDownRight, FolderKanban, NotebookPen } from "lucide-react";
 import { CollaboratorsField, InlineNotes, InlineTitle, LinkTags, PickTeam, TaskLockSwitch, TeamsField } from "@/components/tasks/task-inline";
-import { DoneOn, InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
+import { DoneOn, InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
 import { getProjects, getTeamNames } from "@/lib/projects";
 import { SubtaskSection } from "@/components/tasks/subtasks";
 import { DOMAINS, domainHref } from "@/lib/domains";
 import { PersonAvatar } from "@/components/person-avatar";
-import { DueLabel, PriorityBadge, StatusBadge } from "@/components/tasks/task-badges";
+import { DueLabel, StatusBadge } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
@@ -182,7 +182,6 @@ export default async function TaskPage({
           <div className="card-outlined space-y-4 p-4 md:p-6">
             <div className="flex flex-wrap items-center gap-2">
               <StatusSelect taskId={id} status={task.status} disabled={!canEdit} />
-              {canEdit ? <InlinePriority taskId={id} priority={task.priority} /> : <PriorityBadge priority={task.priority} />}
               {canEdit ? (
                 <InlineDue taskId={id} date={task.due_date} time={task.due_time} overdue={task.overdue} />
               ) : (

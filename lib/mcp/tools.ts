@@ -33,12 +33,11 @@ class UserError extends Error {}
 
 const OPEN = ["todo", "in_progress", "blocked"];
 const STATUSES = ["todo", "in_progress", "blocked", "done", "cancelled"];
-const PRIORITIES = ["urgent", "high", "medium", "low"];
 const STATUS_LABEL: Record<string, string> = { todo: "To do", in_progress: "In progress", blocked: "Blocked", done: "Done", cancelled: "Cancelled" };
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const SELECT = `id, title, status, priority, due_date, completed_at, overdue, owner_id, department_id, project_id, meeting_id, parent_task_id,
+const SELECT = `id, title, status, due_date, completed_at, overdue, owner_id, department_id, project_id, meeting_id, parent_task_id,
   owner:profiles!tasks_owner_id_fkey(email, full_name),
   department:departments!tasks_department_id_fkey(name),
   project:projects(name, kind),
@@ -48,7 +47,6 @@ type Row = {
   id: string;
   title: string;
   status: string;
-  priority: string;
   due_date: string | null;
   completed_at: string | null;
   overdue: boolean;
@@ -64,7 +62,6 @@ function line(t: Row): string {
   const bits = [
     STATUS_LABEL[t.status] ?? t.status,
     t.overdue ? "OVERDUE" : null,
-    `${t.priority} priority`,
     t.owner ? `owner ${personName(t.owner)} <${t.owner.email}>` : "unassigned",
     t.due_date ? `due ${formatDate(t.due_date, "EEE d MMM yyyy")}` : "no due date",
     t.department?.name ?? null,
@@ -202,7 +199,6 @@ async function createTaskFrom(u: KeyUser, a: Args): Promise<{ id: string; text: 
     description: description ? richText(description) : null,
     owner_id: owner.id,
     due_date: date(a, "due_date") ?? null,
-    priority: oneOf(a, "priority", PRIORITIES) ?? "medium",
     // A subtask stays outside teams and projects; it follows its main task.
     department_id: parentId ? null : departmentId,
     project_id: parentId ? null : project?.id ?? null,
@@ -380,7 +376,7 @@ const WORK_TOOLS: Tool[] = [
   {
     name: "duplicate_campaign",
     description:
-      "Make a new campaign (or project/partnership) from an existing one: same owners, teams, members, brief and type, plus copies of the tasks you pick (task_ids from search_tasks with project=...; leave out to copy all), with their subtasks. Copies start as To do, keep their owners and priority, and their due dates move by the gap between the two start dates.",
+      "Make a new campaign (or project/partnership) from an existing one: same owners, teams, members, brief and type, plus copies of the tasks you pick (task_ids from search_tasks with project=...; leave out to copy all), with their subtasks. Copies start as To do, keep their owners, and their due dates move by the gap between the two start dates.",
     inputSchema: {
       type: "object",
       properties: {
@@ -414,10 +410,10 @@ const WORK_TOOLS: Tool[] = [
       const pt = (teams ?? []) as { department_id: string }[];
       if (pt.length) await u.db.from("project_teams").insert(pt.map((t) => ({ project_id: p.id, department_id: t.department_id })));
 
-      let q = u.db.from("tasks").select("id, title, description, priority, owner_id, department_id, due_date, due_time").eq("project_id", src.id).is("parent_task_id", null).is("deleted_at", null).neq("status", "cancelled");
+      let q = u.db.from("tasks").select("id, title, description, owner_id, department_id, due_date, due_time").eq("project_id", src.id).is("parent_task_id", null).is("deleted_at", null).neq("status", "cancelled");
       if (Array.isArray(a.task_ids)) q = q.in("id", idsOf(a, "task_ids", 300));
       const { data: mains } = await q.limit(300);
-      type T = { id: string; title: string; description: string | null; priority: string; owner_id: string | null; department_id: string | null; due_date: string | null; due_time: string | null };
+      type T = { id: string; title: string; description: string | null; owner_id: string | null; department_id: string | null; due_date: string | null; due_time: string | null };
       const move = (d: string | null) => (d ? addDaysISO(d, shift) : null);
       let copied = 0;
       let subs = 0;
@@ -425,7 +421,7 @@ const WORK_TOOLS: Tool[] = [
       for (const t of (mains ?? []) as T[]) {
         const { data: made, error } = await u.db
           .from("tasks")
-          .insert({ title: t.title, description: t.description, priority: t.priority, owner_id: t.owner_id, department_id: t.department_id, project_id: p.id, due_date: move(t.due_date), due_time: t.due_time, created_by: u.userId })
+          .insert({ title: t.title, description: t.description, owner_id: t.owner_id, department_id: t.department_id, project_id: p.id, due_date: move(t.due_date), due_time: t.due_time, created_by: u.userId })
           .select("id")
           .single();
         if (error || !made) {
@@ -433,9 +429,9 @@ const WORK_TOOLS: Tool[] = [
           continue;
         }
         copied++;
-        const { data: children } = await u.db.from("tasks").select("title, description, priority, owner_id, due_date, due_time").eq("parent_task_id", t.id).is("deleted_at", null).neq("status", "cancelled");
+        const { data: children } = await u.db.from("tasks").select("title, description, owner_id, due_date, due_time").eq("parent_task_id", t.id).is("deleted_at", null).neq("status", "cancelled");
         for (const c of (children ?? []) as Omit<T, "id" | "department_id">[]) {
-          const { error: ce } = await u.db.from("tasks").insert({ title: c.title, description: c.description, priority: c.priority, owner_id: c.owner_id, parent_task_id: made.id, due_date: move(c.due_date), due_time: c.due_time, created_by: u.userId });
+          const { error: ce } = await u.db.from("tasks").insert({ title: c.title, description: c.description, owner_id: c.owner_id, parent_task_id: made.id, due_date: move(c.due_date), due_time: c.due_time, created_by: u.userId });
           if (ce) missed.push(`${c.title} (${ce.message})`);
           else subs++;
         }
@@ -458,7 +454,6 @@ const WORK_TOOLS: Tool[] = [
               description: { type: "string" },
               owner: { type: "string" },
               due_date: { type: "string" },
-              priority: { type: "string", enum: PRIORITIES },
               team: { type: "string" },
               project: { type: "string" },
               collaborators: { type: "array", items: { type: "string" } },
@@ -926,14 +921,14 @@ const WORK_TOOLS: Tool[] = [
   },
   {
     name: "add_action_items",
-    description: "Add action items (tasks) to a meeting, each with an owner, due date and priority. They go in the meeting's team.",
+    description: "Add action items (tasks) to a meeting, each with an owner and due date. They go in the meeting's team.",
     inputSchema: {
       type: "object",
       properties: {
         meeting_id: { type: "string" },
         items: {
           type: "array",
-          items: { type: "object", properties: { title: { type: "string" }, owner: { type: "string" }, due_date: { type: "string" }, priority: { type: "string", enum: PRIORITIES } }, required: ["title"] },
+          items: { type: "object", properties: { title: { type: "string" }, owner: { type: "string" }, due_date: { type: "string" } }, required: ["title"] },
         },
       },
       required: ["meeting_id", "items"],
@@ -1081,7 +1076,6 @@ export const TOOLS: Tool[] = [
         description: { type: "string", description: "Notes. Plain text is fine." },
         owner: { type: "string", description: "Email or name, or 'me'. Default: me." },
         due_date: { type: "string", description: "YYYY-MM-DD" },
-        priority: { type: "string", enum: PRIORITIES, description: "Default medium." },
         team: { type: "string", description: "Team name, e.g. Marketing." },
         project: { type: "string", description: "Project, campaign or partnership name." },
         collaborators: { type: "array", items: { type: "string" }, description: "Emails or names." },
@@ -1098,7 +1092,7 @@ export const TOOLS: Tool[] = [
   {
     name: "update_task",
     description:
-      "Change a task: title, notes, status, priority, due date (null clears it), owner, project/campaign/partnership (empty text unlinks), or collaborators. Only send what changes. Locked tasks can only be changed by their owner.",
+      "Change a task: title, notes, status, due date (null clears it), owner, project/campaign/partnership (empty text unlinks), or collaborators. Only send what changes. Locked tasks can only be changed by their owner.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1107,7 +1101,6 @@ export const TOOLS: Tool[] = [
         description: { type: "string", description: "Replaces the notes." },
         status: { type: "string", enum: STATUSES },
         blocked_reason: { type: "string", description: "Why it's blocked (with status blocked)." },
-        priority: { type: "string", enum: PRIORITIES },
         due_date: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear." },
         owner: { type: "string", description: "Email or name, or 'me'." },
         project: { type: "string", description: "Project, campaign or partnership name; empty text to unlink." },
@@ -1128,8 +1121,6 @@ export const TOOLS: Tool[] = [
         patch.status = status;
         if (status === "blocked") patch.blocked_reason = str(a, "blocked_reason", 1000) ?? null;
       }
-      const priority = oneOf(a, "priority", PRIORITIES);
-      if (priority) patch.priority = priority;
       const due = date(a, "due_date");
       if (due !== undefined) {
         patch.due_date = due;

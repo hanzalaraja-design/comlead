@@ -14,7 +14,7 @@ import { countActiveFilters, filtersToSearch, parseFilters, type TaskFilters } f
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskTabs } from "@/components/tasks/task-tabs";
-import { comparePriority, fetchTasks, withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
+import { compareCreated, fetchTasks, withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
 import { addDaysISO, formatDate, startOfDayPKT, todayPKT, weekEndPKT } from "@/lib/time";
 import { onTimeStatus } from "@/lib/tasks/ontime";
 import { clearedLine, emptyLine, todayLine } from "@/lib/voice";
@@ -95,7 +95,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
 
   const grouped = new Map<GroupKey, TaskListRow[]>(GROUPS.map((g) => [g.key, []]));
   for (const t of tasks) grouped.get(groupOf(t, today, weekEnd))!.push(t);
-  grouped.get("none")!.sort(comparePriority);
+  grouped.get("none")!.sort(compareCreated);
 
   const overdue = grouped.get("overdue")!.length;
   const dueToday = grouped.get("today")!.length;

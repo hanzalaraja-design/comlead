@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import { CornerDownRight, ListChecks } from "lucide-react";
 import { MeetingTag, ProjectTag, StatusBadge } from "@/components/tasks/task-badges";
-import { CollaboratorsChip, InlineDue, InlineOwner, InlinePriority, PeopleProvider } from "@/components/tasks/inline-edit";
+import { CollaboratorsChip, InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
 import { getPeople } from "@/lib/auth";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
@@ -14,7 +14,7 @@ import type { TaskListRow } from "@/lib/tasks/queries";
 
 /**
  * One list that works on phones and desktop: on phones each task is a card;
- * from md up it lines up as table columns. Owner, due date, priority and
+ * from md up it lines up as table columns. Owner, due date and
  * status change right in the row.
  */
 export async function TaskList({
@@ -39,7 +39,7 @@ export async function TaskList({
   const names = new Map(people.map((p) => [p.id, personName(p)]));
   // Who handed it over, when that wasn't the owner themselves.
   const byName = (t: TaskListRow) => (t.assigned_by && t.assigned_by !== t.owner_id ? names.get(t.assigned_by) : undefined);
-  const cols = showOwner ? "md:grid-cols-[7.5rem_minmax(0,1fr)_11rem_8rem_9rem]" : "md:grid-cols-[7.5rem_minmax(0,1fr)_8rem_9rem]";
+  const cols = showOwner ? "md:grid-cols-[7.5rem_minmax(0,1fr)_11rem_9rem]" : "md:grid-cols-[7.5rem_minmax(0,1fr)_9rem]";
   return (
     <PeopleProvider people={people}>
     <div className="overflow-hidden surface">
@@ -47,7 +47,6 @@ export async function TaskList({
         <span>Status</span>
         <span>Task</span>
         {showOwner && <span>Owner</span>}
-        <span>Priority</span>
         <span>{showCompleted ? "Completed" : "Due"}</span>
       </div>
       <ul className="divide-y divide-line">
@@ -136,7 +135,6 @@ function TaskListItem({
       {/* Phone: one compact row. Tick to finish; status shows only when it's not To do. */}
       <div className={cn("mt-2 flex flex-wrap items-center gap-2 md:hidden", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
         {t.status !== "todo" && <StatusBadge status={t.status} />}
-        <InlinePriority taskId={t.id} priority={t.priority} />
         {onTime ? (
           <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>
         ) : (
@@ -157,9 +155,6 @@ function TaskListItem({
           <CollaboratorsChip ids={(t.collaborators ?? []).map((c) => c.user_id)} />
         </div>
       )}
-      <div className="hidden md:block">
-        <InlinePriority taskId={t.id} priority={t.priority} />
-      </div>
       <div className="hidden md:block">
         {showCompleted || t.status === "done" ? (
           <span className="flex flex-col items-start gap-1">

@@ -4,7 +4,6 @@ import { createHash } from "node:crypto";
 import { addDays, addMinutes, format } from "date-fns";
 import { nextOnOrAfter, type Frequency } from "@/lib/series";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { priorityLabel } from "@/lib/labels";
 import { nowPKT, parseISODate, todayPKT, WEEKDAYS } from "@/lib/time";
 import { GraphError, calendarMailbox, graph, isCalendarConfigured, userPath } from "./graph";
 
@@ -309,7 +308,7 @@ export function syncTask(taskId: string) {
       body: {
         contentType: "HTML",
         content:
-          `<p>${escapeHtml(t.department?.name ?? "")} · ${priorityLabel(t.priority as never)} priority</p>` +
+          `<p>${escapeHtml(t.department?.name ?? "")}</p>` +
           `<p><a href="${url}">Open the task in Highfy Tasks</a></p>`,
       },
       start: { dateTime: format(start, "yyyy-MM-dd'T'HH:mm:ss"), timeZone: TZ },

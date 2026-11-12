@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/multi-select";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import { PRIORITIES, personName } from "@/lib/labels";
+import { personName } from "@/lib/labels";
 import type { Meeting, PersonRef, TaskPriority, TaskStatus } from "@/lib/types";
 import { deleteMeeting, saveMeeting } from "@/app/(app)/meetings/actions";
 import { StatusBadge } from "@/components/tasks/task-badges";
@@ -233,16 +233,6 @@ export function MeetingEditor({
       className="h-10 w-full min-w-0 justify-between rounded-[12px] text-sm"
     />
   );
-  const prioritySelect = (value: TaskPriority, onChange: (v: TaskPriority) => void) => (
-    <select aria-label="Priority" value={value} onChange={(e) => onChange(e.target.value as TaskPriority)} className={fieldClass}>
-      {PRIORITIES.map((p) => (
-        <option key={p.value} value={p.value}>
-          {p.label}
-        </option>
-      ))}
-    </select>
-  );
-
   function save() {
     startTransition(async () => {
       const res = await saveMeeting(meeting.id, {
@@ -407,7 +397,7 @@ export function MeetingEditor({
             <ul className="space-y-2">
               {suggestions.map((item) => (
                 <li key={item.key} className="space-y-2 rounded-[12px] border border-line bg-white p-2">
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem_7rem] sm:items-center">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem] sm:items-center">
                     <Input
                       aria-label="Suggested task"
                       value={item.title}
@@ -420,7 +410,6 @@ export function MeetingEditor({
                       value={item.due_date ?? ""}
                       onChange={(e) => editSuggestion(item.key, { due_date: e.target.value || null })}
                     />
-                    {prioritySelect(item.priority, (v) => editSuggestion(item.key, { priority: v }))}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <input
@@ -463,7 +452,7 @@ export function MeetingEditor({
         )}
         <ul className="space-y-2">
           {existing.map((item) => (
-            <li key={item.id} className="grid gap-2 rounded-md border p-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem_7rem_6rem] sm:items-center">
+            <li key={item.id} className="grid gap-2 rounded-md border p-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem_6rem] sm:items-center">
               <Input
                 value={item.title}
                 onChange={(e) => setExisting((xs) => xs.map((x) => (x.id === item.id ? { ...x, title: e.target.value } : x)))}
@@ -476,14 +465,13 @@ export function MeetingEditor({
                   setExisting((xs) => xs.map((x) => (x.id === item.id ? { ...x, due_date: e.target.value || null } : x)))
                 }
               />
-              {prioritySelect(item.priority, (v) => setExisting((xs) => xs.map((x) => (x.id === item.id ? { ...x, priority: v } : x))))}
               <StatusBadge status={item.status} className="justify-self-start" />
             </li>
           ))}
           {drafts.map((item) => (
             <li
               key={item.key}
-              className="grid gap-2 rounded-md border border-dashed p-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem_7rem_6rem] sm:items-center"
+              className="grid gap-2 rounded-md border border-dashed p-2 sm:grid-cols-[minmax(0,1fr)_10rem_9rem_6rem] sm:items-center"
             >
               <Input
                 autoFocus
@@ -499,7 +487,6 @@ export function MeetingEditor({
                   setDrafts((xs) => xs.map((x) => (x.key === item.key ? { ...x, due_date: e.target.value || null } : x)))
                 }
               />
-              {prioritySelect(item.priority, (v) => setDrafts((xs) => xs.map((x) => (x.key === item.key ? { ...x, priority: v } : x))))}
               <Button
                 type="button"
                 variant="ghost"
