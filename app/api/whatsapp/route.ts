@@ -25,7 +25,12 @@ type WaMessage = { id: string; from: string; type: string; text?: { body: string
 
 export async function POST(request: NextRequest) {
   const raw = await request.text();
-  if (!isWhatsAppConfigured() || !validSignature(raw, request.headers.get("x-hub-signature-256"))) {
+  if (!isWhatsAppConfigured()) {
+    console.error("[whatsapp] a message arrived but the WHATSAPP_* settings aren't all set on this deployment");
+    return new NextResponse("forbidden", { status: 403 });
+  }
+  if (!validSignature(raw, request.headers.get("x-hub-signature-256"))) {
+    console.error("[whatsapp] signature didn't match: WHATSAPP_APP_SECRET isn't this Meta app's App secret");
     return new NextResponse("forbidden", { status: 403 });
   }
   let body: { entry?: { changes?: { value?: { messages?: WaMessage[] } }[] }[] };
@@ -35,6 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
   const messages = (body.entry ?? []).flatMap((e) => (e.changes ?? []).flatMap((c) => c.value?.messages ?? []));
+  if (messages.length) console.info(`[whatsapp] ${messages.length} message(s) received`);
   if (messages.length) after(() => Promise.all(messages.map(handle)).catch((e) => console.error("[whatsapp]", e)));
   // Status updates (sent, delivered, read) need nothing.
   return NextResponse.json({ ok: true });
@@ -56,7 +62,8 @@ async function handle(m: WaMessage) {
   const { error: dup } = await db
     .from("whatsapp_messages")
     .insert({ wa_id: m.id, phone, user_id: userId, direction: "in", kind, body: m.text?.body?.slice(0, 4000) ?? null });
-  if (dup) return; // already handled
+  if (dup?.code === "23505") return; // already handled
+  if (dup) console.error("[whatsapp] couldn't record the message (has the WhatsApp SQL been run?):", dup.message);
   await markRead(m.id);
 
   // "link 123456": connect this number to the person who made the code in My settings.
