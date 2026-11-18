@@ -4,7 +4,7 @@ import { userById } from "@/lib/mcp/keys";
 import { flushPush } from "@/lib/push";
 import { isAiConfigured } from "@/lib/ai/claude";
 import { isTranscribeConfigured, transcribe } from "@/lib/transcribe";
-import { downloadMedia, isWhatsAppConfigured, markRead, normalisePhone, sendText, validSignature } from "@/lib/whatsapp";
+import { downloadMedia, isWhatsAppConfigured, markRead, normalisePhone, sendText, validSignature, verifyTokenMatches } from "@/lib/whatsapp";
 import { handleWhatsAppMessage, type ChatTurn } from "@/lib/whatsapp-agent";
 import { siteUrl } from "@/lib/calendar/sync";
 
@@ -15,7 +15,7 @@ export const maxDuration = 120;
 /** Meta checks the address once, with the verify token you chose. */
 export function GET(request: NextRequest) {
   const p = request.nextUrl.searchParams;
-  if (p.get("hub.mode") === "subscribe" && process.env.WHATSAPP_VERIFY_TOKEN && p.get("hub.verify_token") === process.env.WHATSAPP_VERIFY_TOKEN) {
+  if (p.get("hub.mode") === "subscribe" && verifyTokenMatches(p.get("hub.verify_token"))) {
     return new NextResponse(p.get("hub.challenge") ?? "", { status: 200 });
   }
   return new NextResponse("forbidden", { status: 403 });
