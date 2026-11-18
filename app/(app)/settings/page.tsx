@@ -1,6 +1,8 @@
 import { PageHeader } from "@/components/page-header";
 import { ClaudeConnector, type ClaudeKey } from "@/components/settings/claude-connector";
 import { OutlookTasksToggle } from "@/components/settings/outlook-toggle";
+import { WhatsAppLink } from "@/components/settings/whatsapp-link";
+import { isWhatsAppConfigured } from "@/lib/whatsapp";
 import { NotificationSettings, type NotificationSettingsValue } from "@/components/settings/notification-settings";
 import { PUSH_OFF_DEFAULT } from "@/lib/notification-kinds";
 import { requireViewer } from "@/lib/auth";
@@ -20,9 +22,11 @@ export default async function SettingsPage() {
     .is("revoked_at", null)
     .order("created_at", { ascending: false })
     .then((r) => (r.error ? { data: [] } : r));
-  const [{ data: ns }, { count: devices }] = await Promise.all([
+  const [{ data: ns }, { count: devices }, { data: wa }] = await Promise.all([
     supabase.from("notification_settings").select("feed_off, push_off, quiet_from, quiet_to, quiet_days, paused_until").eq("user_id", viewer.id).maybeSingle(),
     supabase.from("push_subscriptions").select("id", { count: "exact", head: true }).eq("user_id", viewer.id),
+    // Until the WhatsApp table exists this simply shows "not linked".
+    supabase.from("whatsapp_links").select("phone").eq("user_id", viewer.id).maybeSingle().then((r) => (r.error ? { data: null } : r)),
   ]);
   const notifications: NotificationSettingsValue = (ns as NotificationSettingsValue | null) ?? {
     feed_off: [],
@@ -50,6 +54,10 @@ export default async function SettingsPage() {
           </p>
         </div>
         <NotificationSettings initial={notifications} vapidKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} devices={devices ?? 0} />
+      </section>
+      <section id="whatsapp" className="surface mt-4 scroll-mt-6 space-y-3 p-4 md:p-6">
+        <h2 className="kicker">WhatsApp</h2>
+        <WhatsAppLink linkedPhone={(wa?.phone as string | undefined) ?? null} botNumber={process.env.WHATSAPP_DISPLAY_NUMBER ?? null} available={isWhatsAppConfigured()} />
       </section>
       <section className="surface mt-4 space-y-6 p-4 md:p-6">
         <h2 className="kicker">Outlook calendar</h2>

@@ -1,0 +1,95 @@
+import "server-only";
+import Anthropic from "@anthropic-ai/sdk";
+import { TOOLS, callTool } from "@/lib/mcp/tools";
+import type { KeyUser } from "@/lib/mcp/keys";
+import { siteUrl } from "@/lib/calendar/sync";
+import { formatDate, nowTimePKT, todayPKT } from "@/lib/time";
+
+/**
+ * Reads a WhatsApp message (or a voice note's words) and does what it asks in
+ * Highfy Tasks, as the person who sent it, with the same tools the Claude
+ * connector uses: create and update tasks, look people and tasks up, comment.
+ * Nothing can be deleted. Returns the WhatsApp reply.
+ */
+
+const MODEL = "claude-opus-5-5";
+const MAX_STEPS = 8;
+
+let client: Anthropic | null = null;
+const anthropic = () => (client ??= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY?.trim(), maxRetries: 2, timeout: 90_000 }));
+
+export type ChatTurn = { role: "user" | "assistant"; text: string };
+
+function system(u: KeyUser) {
+  const today = todayPKT();
+  return `You are Highfy Tasks on WhatsApp, the task app of Highfy (a beauty e-commerce company in Pakistan). You are talking to ${u.name} <${u.email}>, who is signed in. Everything you do in the app is done as them, with their permissions.
+
+Today is ${formatDate(today, "EEEE d MMMM yyyy")} (${today}), ${nowTimePKT().slice(0, 5)} Pakistan time.
+
+What to do:
+- Messages are usually instructions, typed or spoken (voice notes are transcribed and may mix English and Urdu, with transcription slips). Work out the tasks and create them. Several instructions in one message means several tasks.
+- Owner: whoever the message says should do it ("ask Bilal to…" means Bilal owns it). No one named means it's for the sender. Look people up with list_people when unsure; if two people match, ask which one.
+- Due date: turn "Friday", "tomorrow", "end of week", "by the 20th" into a date. No date given means no date.
+- Team, project or campaign: use the one the message names (list_projects if unsure). If the tool asks which team, pick the obvious one from the sender's teams, or ask.
+- Corrections ("make it Monday", "give it to Sana", "actually 2 tasks") apply to what you just did; find the task in the conversation or with search_tasks and update it.
+- Questions ("what's due today?", "what does Bilal have?") are answered with the read tools.
+- If it isn't clear what they want, ask one short question instead of guessing.
+- You cannot delete or cancel anything. Say so if asked, and point them to the app.
+
+Replies go to WhatsApp: short, plain, friendly, no markdown headings or tables. One line per task, like
+✅ Send BF banner sizes · Bilal · due Fri 20 Nov
+and the link to the task from the tool's answer. App: ${siteUrl()}`;
+}
+
+/** The recent conversation plus this message, as alternating turns starting with the person. */
+function history(turns: ChatTurn[], text: string): Anthropic.MessageParam[] {
+  const all = [...turns, { role: "user" as const, text }];
+  const out: Anthropic.MessageParam[] = [];
+  for (const t of all) {
+    const last = out.at(-1);
+    if (last && last.role === t.role) last.content = `${last.content as string}\n${t.text}`;
+    else out.push({ role: t.role, content: t.text });
+  }
+  while (out.length && out[0].role !== "user") out.shift();
+  return out;
+}
+
+const tools: Anthropic.Tool[] = TOOLS.map((t) => ({
+  name: t.name,
+  description: t.description,
+  input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
+}));
+
+export async function handleWhatsAppMessage(u: KeyUser, text: string, recent: ChatTurn[]): Promise<string> {
+  const messages = history(recent, text);
+  for (let step = 0; step < MAX_STEPS; step++) {
+    const res = await anthropic().messages.create({
+      model: MODEL,
+      max_tokens: 8000,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "medium" },
+      system: system(u),
+      tools,
+      messages,
+    });
+    if (res.stop_reason === "refusal") return "Sorry, I can't help with that one. Try the app instead.";
+    if (res.stop_reason !== "tool_use") {
+      const reply = res.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("\n")
+        .trim();
+      return reply || "Done.";
+    }
+    // Run the tools it asked for (as this person), then let it carry on.
+    messages.push({ role: "assistant", content: res.content });
+    const results: Anthropic.ToolResultBlockParam[] = [];
+    for (const block of res.content) {
+      if (block.type !== "tool_use") continue;
+      const out = await callTool(u, block.name, (block.input ?? {}) as Record<string, unknown>);
+      results.push({ type: "tool_result", tool_use_id: block.id, content: out.text.slice(0, 20000), is_error: out.isError || undefined });
+    }
+    messages.push({ role: "user", content: results });
+  }
+  return "That took more steps than I can do in one go. Check the app to see what got done.";
+}

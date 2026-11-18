@@ -39,3 +39,27 @@ export async function revokeClaudeKey(id: string): Promise<ActionResult> {
   revalidatePath("/settings");
   return { ok: true };
 }
+
+/** A 6-digit code to send from your WhatsApp ("link 123456"); valid 15 minutes. */
+export async function makeWhatsAppCode(): Promise<ActionResult<{ code: string }>> {
+  const viewer = await requireViewer();
+  const supabase = await createClient();
+  for (let i = 0; i < 5; i++) {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const { error } = await supabase
+      .from("whatsapp_link_codes")
+      .upsert({ user_id: viewer.id, code, expires_at: new Date(Date.now() + 15 * 60_000).toISOString() }, { onConflict: "user_id" });
+    if (!error) return { ok: true, data: { code } };
+    if (error.code !== "23505") return { ok: false, error: friendlyError(error) };
+  }
+  return { ok: false, error: "Try again." };
+}
+
+export async function unlinkWhatsApp(): Promise<ActionResult> {
+  const viewer = await requireViewer();
+  const supabase = await createClient();
+  const { error } = await supabase.from("whatsapp_links").delete().eq("user_id", viewer.id);
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/settings");
+  return { ok: true };
+}

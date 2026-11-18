@@ -49,19 +49,31 @@ export async function userForKey(key: string | null): Promise<KeyUser | null> {
     await admin.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", row.id);
   }
 
-  let session = sessions.get(hash);
+  return asUser(row.user_id as string, profile, hash);
+}
+
+/** A database client acting as this person (their permissions apply). `cacheKey` reuses the session while it lasts. */
+async function asUser(userId: string, profile: { email: string; full_name: string | null }, cacheKey: string): Promise<KeyUser> {
+  const admin = createAdminClient();
+  let session = sessions.get(cacheKey);
   if (!session || session.expires < Date.now() + 60_000) {
     // Sign in as them without sending anything: make a one-time link and use it straight away.
     const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email: profile.email });
-    if (error || !link.properties?.hashed_token) throw new Error("Couldn't start a session for this key.");
+    if (error || !link.properties?.hashed_token) throw new Error("Couldn't start a session.");
     const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: verified, error: vErr } = await anon.auth.verifyOtp({ type: "magiclink", token_hash: link.properties.hashed_token });
-    if (vErr || !verified.session) throw new Error("Couldn't start a session for this key.");
+    if (vErr || !verified.session) throw new Error("Couldn't start a session.");
     session = { token: verified.session.access_token, expires: (verified.session.expires_at ?? 0) * 1000 };
-    sessions.set(hash, session);
+    sessions.set(cacheKey, session);
   }
+  return { userId, email: profile.email, name: profile.full_name || profile.email.split("@")[0], db: userClient(session.token) };
+}
 
-  return { userId: row.user_id as string, email: profile.email, name: profile.full_name || profile.email.split("@")[0], db: userClient(session.token) };
+/** The active Highfy person with this id, acting as them; null if they're not active. Used by WhatsApp. */
+export async function userById(userId: string): Promise<KeyUser | null> {
+  const { data: profile } = await createAdminClient().from("profiles").select("email, full_name, status").eq("id", userId).maybeSingle();
+  if (!profile || profile.status !== "active" || !String(profile.email).toLowerCase().endsWith("@highfy.pk")) return null;
+  return asUser(userId, profile as { email: string; full_name: string | null }, `user:${userId}`);
 }
