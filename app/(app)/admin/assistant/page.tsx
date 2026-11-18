@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { requireAdmin } from "@/lib/auth";
 import { aiEnvReport } from "@/lib/ai/claude";
+import { whatsappEnvReport } from "@/lib/whatsapp";
 import { TestAssistantButton } from "./test-button";
 
 export const metadata = { title: "Meeting assistant · Highfy Tasks" };
@@ -20,6 +21,7 @@ function Row({ label, ok, children }: { label: string; ok: boolean; children: Re
 export default async function AssistantStatusPage() {
   await requireAdmin();
   const env = aiEnvReport();
+  const wa = whatsappEnvReport();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -50,6 +52,7 @@ export default async function AssistantStatusPage() {
             {env.environment}
             {env.host && ` · ${env.host}`}
             {env.commit && ` · commit ${env.commit}`}
+            {wa.deployment && ` · ${wa.deployment}`}
           </Row>
         </ul>
       </section>
@@ -68,6 +71,23 @@ export default async function AssistantStatusPage() {
           </ol>
         </section>
       )}
+      <section className="card-outlined p-4 md:p-6">
+        <h2 className="kicker mb-1">WhatsApp</h2>
+        <p className="text-sm text-ink-muted">What this deployment can see. Lengths only; values are never shown.</p>
+        <ul className="divide-y divide-line">
+          {wa.vars.map((v) => (
+            <Row key={v.name} label={v.name} ok={v.set && !v.hadWhitespace}>
+              {v.set ? `Set, ${v.length} characters.` : "Not set on this deployment."}
+              {v.hadWhitespace && " Has spaces or a line break around it (ignored, but worth re-pasting)."}
+            </Row>
+          ))}
+          {wa.similarNames.length > 0 && (
+            <Row label="Similar names found" ok={false}>
+              Found {wa.similarNames.map((n) => `"${n}"`).join(", ")}. Names must match exactly, in capitals.
+            </Row>
+          )}
+        </ul>
+      </section>
     </div>
   );
 }
