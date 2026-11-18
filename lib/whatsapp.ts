@@ -54,7 +54,7 @@ export async function sendText(to: string, body: string): Promise<void> {
     headers: { ...auth(), "content-type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { preview_url: false, body: body.slice(0, 4000) } }),
   });
-  if (!res.ok) console.error("[whatsapp:send]", res.status, (await res.text()).slice(0, 300));
+  if (!res.ok) console.error("[whatsapp:send] Meta refused the reply:", res.status, (await res.text()).slice(0, 300));
 }
 
 /** Show the person their message was read (the blue ticks). */
