@@ -72,7 +72,7 @@ export function teamsText(names: string[]): string {
   return names.length <= 3 ? names.join(" + ") : `${names.slice(0, 2).join(" + ")} + ${names.length - 2} more`;
 }
 
-export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; view: TaskView; month?: string }) {
+export async function ProjectHeader({ loaded, view, month, journeys = false }: { loaded: Loaded; view: TaskView; month?: string; journeys?: boolean }) {
   const { project, filters, base, teams, members, owners, isOwner, canManage, viewer, isMember } = loaded;
   const d = DOMAINS[project.kind];
   const supabase = await createClient();
@@ -198,18 +198,23 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
       {project.kind === "partnership" && view === "list" && (
         <TermsPanel projectId={project.id} terms={(termsRes.data ?? []) as Term[]} canEdit={isMember || canManage} today={todayPKT()} />
       )}
-      <TaskTabs scope="projects" view={view} search={search} base={base} />
-      {view === "list" && !project.archived && (
-        <div className="mb-4">
-          <QuickAdd departments={[]} defaultDepartmentId={quickDept} projectId={project.id} />
-        </div>
+      {/* A project in journeys has its own tabs (Journeys, Other tasks) below. */}
+      {!journeys && (
+        <>
+          <TaskTabs scope="projects" view={view} search={search} base={base} />
+          {view === "list" && !project.archived && (
+            <div className="mb-4">
+              <QuickAdd departments={[]} defaultDepartmentId={quickDept} projectId={project.id} />
+            </div>
+          )}
+          <TaskFilterBar
+            filters={filters}
+            options={options}
+            hide={view === "board" ? ["project", "status", "sort"] : view === "calendar" ? ["project", "sort", "when"] : ["project"]}
+            preserve={month ? { month } : undefined}
+          />
+        </>
       )}
-      <TaskFilterBar
-        filters={filters}
-        options={options}
-        hide={view === "board" ? ["project", "status", "sort"] : view === "calendar" ? ["project", "sort", "when"] : ["project"]}
-        preserve={month ? { month } : undefined}
-      />
     </>
   );
 }
