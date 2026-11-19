@@ -44,6 +44,10 @@ export const NOTIFY_GROUPS: { title: string; kinds: NotifyKindInfo[] }[] = [
       { key: "homepage_today", label: "What goes live or comes down today", hint: "For Tech" },
     ],
   },
+  {
+    title: "Brand collabs",
+    kinds: [{ key: "collab", label: "Brand collab requests", hint: "New requests, plans, approvals, pieces going live and reports" }],
+  },
 ];
 
 /** Off by default for push (they still show on the Notifications page). Matches the database default. */
