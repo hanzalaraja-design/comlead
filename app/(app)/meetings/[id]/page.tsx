@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
 import { TaskList } from "@/components/tasks/task-list";
+import { SelectableTasks } from "@/components/tasks/selectable-tasks";
 import { MeetingEditor } from "@/components/meetings/meeting-editor";
 import { canLead, getDepartmentMembers, getDepartments, getPeople, requireViewer } from "@/lib/auth";
 import { personName } from "@/lib/labels";
@@ -245,7 +246,9 @@ export default async function MeetingPage({
         <h2 className="kicker mb-2 text-ink">Action items</h2>
         {items.length ? (
           // Finished ones stay in view, after what's still open.
-          <TaskList tasks={[...items].sort((a, b) => Number(a.status === "done") - Number(b.status === "done"))} showDepartment={false} />
+          <SelectableTasks ids={items.map((t) => t.id)}>
+            <TaskList tasks={items} selectable showDepartment={false} />
+          </SelectableTasks>
         ) : (
           <p className="text-sm text-muted-foreground">No action items.</p>
         )}
