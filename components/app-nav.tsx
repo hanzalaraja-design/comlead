@@ -57,6 +57,8 @@ const ADMIN: NavItem[] = [
 
 // Only for the teams that book, design and put up homepage banners.
 const PLACEMENTS: NavItem = { href: "/placements", label: "Placements", icon: Images, dot: "#C2417A" };
+// Commercial asks Content for brand content; Content plans, delivers and reports.
+const COLLABS: NavItem = { href: "/collabs", label: "Brand collabs", icon: Images, dot: "#0F6E6E" };
 
 // Bottom bar on phones: the four things people open most.
 const MOBILE: NavItem[] = [
@@ -144,6 +146,7 @@ function NavLinks({
 function NavBody({
   isAdmin,
   placements,
+  collabs = false,
   name,
   email,
   pathname,
@@ -152,6 +155,7 @@ function NavBody({
 }: {
   isAdmin: boolean;
   placements: boolean;
+  collabs?: boolean;
   name: string;
   email: string;
   pathname: string;
@@ -164,7 +168,7 @@ function NavBody({
         <NavLinks items={MAIN} pathname={pathname} onNavigate={onNavigate} badges={badges} />
         <div>
           <p className="mb-1 px-3 text-xs font-medium text-ink-muted">Domains</p>
-          <NavLinks items={placements ? [...DOMAIN_ITEMS, PLACEMENTS] : DOMAIN_ITEMS} pathname={pathname} onNavigate={onNavigate} badges={badges} />
+          <NavLinks items={[...DOMAIN_ITEMS, ...(placements ? [PLACEMENTS] : []), ...(collabs ? [COLLABS] : [])]} pathname={pathname} onNavigate={onNavigate} badges={badges} />
         </div>
         <div className="border-t border-line pt-4">
           <NavLinks items={FOOT} pathname={pathname} onNavigate={onNavigate} badges={badges} />
@@ -204,12 +208,14 @@ function NavBody({
 export function AppNav({
   isAdmin,
   placements = false,
+  collabs = false,
   name,
   email,
   badges,
 }: {
   isAdmin: boolean;
   placements?: boolean;
+  collabs?: boolean;
   name: string;
   email: string;
   badges?: Badges;
@@ -225,7 +231,7 @@ export function AppNav({
           <HighfyLogo className="w-24" />
           <span className="pb-1 text-sm font-semibold text-ink-muted">Tasks</span>
         </Link>
-        <NavBody isAdmin={isAdmin} placements={placements} name={name} email={email} pathname={pathname} badges={badges} />
+        <NavBody isAdmin={isAdmin} placements={placements} collabs={collabs} name={name} email={email} pathname={pathname} badges={badges} />
       </aside>
 
       {/* Phone top bar */}
@@ -248,7 +254,7 @@ export function AppNav({
           <SheetHeader className="p-0 pb-2">
             <SheetTitle className="text-ink">Menu</SheetTitle>
           </SheetHeader>
-          <NavBody isAdmin={isAdmin} placements={placements} name={name} email={email} pathname={pathname} onNavigate={() => setOpen(false)} badges={badges} />
+          <NavBody isAdmin={isAdmin} placements={placements} collabs={collabs} name={name} email={email} pathname={pathname} onNavigate={() => setOpen(false)} badges={badges} />
         </SheetContent>
       </Sheet>
 

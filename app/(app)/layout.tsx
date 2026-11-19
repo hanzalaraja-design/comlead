@@ -7,12 +7,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [id, supabase] = await Promise.all([viewerId(), createClient()]);
-  const [viewer, { count: unread }, { count: overdue }, { data: canPlace }, { data: placementTodo }] = await Promise.all([
+  const [viewer, { count: unread }, { count: overdue }, { data: canPlace }, { data: placementTodo }, { data: canCollab }] = await Promise.all([
     requireViewer(),
     supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", id).eq("in_feed", true).is("read_at", null),
     supabase.from("tasks").select("id", { count: "exact", head: true }).eq("owner_id", id).eq("overdue", true),
     supabase.rpc("can_use_placements"),
     supabase.rpc("placement_todo_count"),
+    // Until the Brand collabs SQL is run this is simply false.
+    supabase.rpc("can_use_collabs").then((r) => (r.error ? { data: false } : r)),
   ]);
 
   return (
@@ -20,6 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <AppNav
         isAdmin={viewer.isAdmin}
         placements={!!canPlace}
+        collabs={!!canCollab}
         name={personName(viewer.profile)}
         email={viewer.email}
         badges={{ "/notifications": unread ?? 0, "/overdue": overdue ?? 0, "/placements": (placementTodo as number | null) ?? 0 }}

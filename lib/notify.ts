@@ -30,7 +30,8 @@ export type NotifyKind =
   | "my_requests"
   | "revision"
   | "ending"
-  | "homepage_today";
+  | "homepage_today"
+  | "collab";
 
 export type NotifyMessage = { title: string; body?: string | null; href: string; actorId?: string | null; taskId?: string | null };
 

@@ -8,7 +8,10 @@ import { Label } from "@/components/ui/label";
 import { ROLE_LABELS, type PlacementRole, type Section } from "@/lib/placements";
 import { saveSection, saveTeams } from "@/app/(app)/admin/placements/actions";
 
-const ROLE_HINT: Record<PlacementRole, string> = {
+type TeamKey = PlacementRole | "content";
+const TEAM_LABELS: Record<TeamKey, string> = { ...ROLE_LABELS, content: "Content" };
+const ROLE_HINT: Record<TeamKey, string> = {
+  content: "Plans, makes and reports on Brand collab content.",
   commercial: "Books brands into slots and gets reminders when bookings are ending.",
   design: "Gets told when a banner needs making or changing.",
   tech: "Gets told when a banner is ready to go live or needs taking down.",
@@ -19,7 +22,7 @@ export function PlacementTeams({
   initial,
 }: {
   departments: { id: string; name: string }[];
-  initial: Record<PlacementRole, string | null>;
+  initial: Record<TeamKey, string | null>;
 }) {
   const [teams, setTeams] = useState(initial);
   const [pending, start] = useTransition();
@@ -35,9 +38,9 @@ export function PlacementTeams({
         });
       }}
     >
-      {(["commercial", "design", "tech"] as const).map((r) => (
+      {(["commercial", "design", "tech", "content"] as const).map((r) => (
         <div key={r} className="grid gap-1.5 sm:grid-cols-[140px_1fr] sm:items-center">
-          <Label htmlFor={`team-${r}`}>{ROLE_LABELS[r]}</Label>
+          <Label htmlFor={`team-${r}`}>{TEAM_LABELS[r]}</Label>
           <div className="space-y-1">
             <select
               id={`team-${r}`}

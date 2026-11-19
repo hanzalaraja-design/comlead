@@ -8,9 +8,9 @@ import { friendlyError, type ActionResult } from "@/lib/action-result";
 
 const team = z.string().uuid().nullable();
 
-export async function saveTeams(input: { commercial: string | null; design: string | null; tech: string | null }): Promise<ActionResult> {
+export async function saveTeams(input: { commercial: string | null; design: string | null; tech: string | null; content: string | null }): Promise<ActionResult> {
   await requireAdmin();
-  const parsed = z.object({ commercial: team, design: team, tech: team }).safeParse(input);
+  const parsed = z.object({ commercial: team, design: team, tech: team, content: team }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "Pick a team from the list." };
   const supabase = await createClient();
   const { error } = await supabase
@@ -19,6 +19,7 @@ export async function saveTeams(input: { commercial: string | null; design: stri
       commercial_department_id: parsed.data.commercial,
       design_department_id: parsed.data.design,
       tech_department_id: parsed.data.tech,
+      content_department_id: parsed.data.content,
       updated_at: new Date().toISOString(),
     })
     .eq("id", 1);

@@ -31,6 +31,7 @@ export default async function PlacementsAdminPage() {
             commercial: settings?.commercial_department_id ?? null,
             design: settings?.design_department_id ?? null,
             tech: settings?.tech_department_id ?? null,
+            content: (settings as { content_department_id?: string | null } | null)?.content_department_id ?? null,
           }}
         />
       </section>
