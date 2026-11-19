@@ -64,6 +64,22 @@ export function describeActivity(e: ActivityEntry, { person }: Lookup): string {
       return `removed ${label}`;
     case "membership.role_changed":
       return `changed ${label} to ${s(n.role) === "lead" ? "Dept admin" : "Member"}`;
+    case "placement.booked":
+      return `booked “${label}”`;
+    case "placement.cancelled":
+      return `cancelled the booking for “${label}”`;
+    case "placement.stage_changed":
+      return s(n.stage) === "ready" ? "put the banner on Figma" : s(n.stage) === "live" ? "made it live" : s(n.stage) === "ended" ? "took it down" : `moved it to ${s(n.stage)}`;
+    case "placement.live_on":
+      return `made it live on ${(Array.isArray(n.live_on) ? (n.live_on as string[]) : []).map((x) => (x === "app" ? "the app" : "the website")).join(" and ")}`;
+    case "placement.dates_changed":
+      return `changed the dates to ${s(n.starts_on)}${s(n.ends_on) ? ` – ${s(n.ends_on)}` : " onwards"}`;
+    case "placement.artwork":
+      return "uploaded the banner";
+    case "placement.edited":
+      return "changed the booking details";
+    case "placement.commented":
+      return `commented: “${s(n.body)}”`;
     default:
       return `${e.action} ${label}`;
   }

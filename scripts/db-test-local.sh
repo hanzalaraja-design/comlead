@@ -22,6 +22,11 @@ for f in supabase/migrations/*.sql; do
 done
 run supabase/seed.sql
 run supabase/seed.sql   # seed must be re-runnable
+for t in supabase/tests/*_test.sql; do
+  [ "$t" = supabase/tests/rls_test.sql ] && continue
+  echo "running $t"
+  psql "$TESTURL" -qX -v ON_ERROR_STOP=1 -o /dev/null -f "$t" 2>&1 | sed "s/^psql:[^ ]* NOTICE:  //"
+done
 echo "running supabase/tests/rls_test.sql"
 psql "$TESTURL" -qX -v ON_ERROR_STOP=1 -o /dev/null -f supabase/tests/rls_test.sql 2>&1 | sed "s/^psql:[^ ]* NOTICE:  //"
 echo "ALL RLS TESTS PASSED"

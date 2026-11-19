@@ -1,11 +1,11 @@
 import { TERMS } from "@/lib/collabs";
 
-/** Brand collab terms, as agreed between Commercial and Content. */
+/** Paid social terms, as agreed between Commercial and Content. */
 export function CollabTerms() {
   return (
     <div className="surface max-w-3xl space-y-4 p-4 md:p-6">
       <div>
-        <h2 className="text-base font-bold text-ink">Brand collab terms</h2>
+        <h2 className="text-base font-bold text-ink">Paid social terms</h2>
         <p className="text-sm text-ink-muted">Sending a request means you agree to these.</p>
       </div>
       {TERMS.map((t, i) => (

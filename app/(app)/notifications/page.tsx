@@ -17,7 +17,7 @@ const SHOW = [
   { key: "unread", label: "Unread" },
   { key: "mentions", label: "Mentions" },
   { key: "tasks", label: "Tasks" },
-  { key: "design", label: "Placements, design and collabs" },
+  { key: "design", label: "Placements, design and paid social" },
 ] as const;
 const TASK_KINDS = ["assigned", "collaborator", "comment", "finished", "status", "due", "edits", "roundup", "due_tomorrow", "project_task", "project_added", "meeting"];
 const DESIGN_KINDS = ["design_new", "my_requests", "revision", "ending", "homepage_today", "collab"];

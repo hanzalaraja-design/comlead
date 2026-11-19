@@ -3,7 +3,7 @@ import { cache } from "react";
 import { requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-/** Who the viewer is in Brand collabs: Commercial asks and approves, Content plans and delivers. */
+/** Who the viewer is in Paid social: Commercial asks and approves, Content plans and delivers. */
 export const collabAccess = cache(async () => {
   const [viewer, supabase] = await Promise.all([requireViewer(), createClient()]);
   const [{ data: commercial }, { data: content }, { data: settings }] = await Promise.all([
