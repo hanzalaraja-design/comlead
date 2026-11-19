@@ -1,7 +1,7 @@
-import { DomainIndexPage } from "@/components/projects/domain-pages";
+import { PartnershipIndexPage } from "@/components/partnerships/partnership-index";
 
-export const metadata = { title: "Partnerships · Highfy Tasks" };
+export const metadata = { title: "Brand partnerships · Highfy Tasks" };
 
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  return <DomainIndexPage kind="partnership" raw={await searchParams} />;
+  return <PartnershipIndexPage raw={await searchParams} />;
 }
