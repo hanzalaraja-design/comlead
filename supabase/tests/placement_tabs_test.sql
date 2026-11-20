@@ -176,7 +176,8 @@ select pg_temp.ok(public.my_placement_tabs() = array['web', 'social', 'ads', 'cr
 select pg_temp.ok(public.can_use_collabs(), 'Brand sees Paid social');
 select pg_temp.ok(public.can_edit_placement_layout(), 'Brand can edit the homepage layout');
 select pg_temp.ok(public.is_collab_asker(), 'Brand asks for Paid social like Commercial');
-select pg_temp.ok(public.collab_save_request(null, '{"brand":"Zong","promote":"Sale","goals":["awareness"],"go_live":"2026-12-01","budget":"Rs 50k","audience":"Women 18-30","key_message":"Save more"}'::jsonb) is not null, 'Brand can send a Paid social request');
+select pg_temp.ok(public.collab_save_request(null, '{"brand":"Zong","promote":"Sale","goals":["awareness"],"go_live":"2026-12-01","budget":"Rs 50k","audience":"Women 18-30","key_message":"Save more","wants":[{"rate_id":"00000000-0000-4000-e700-000000000001","name":"Static post","qty":2}],"wants_other":"A giveaway"}'::jsonb) is not null, 'Brand can send a Paid social request');
+select pg_temp.ok((select wants -> 0 ->> 'qty' = '2' and wants_other = 'A giveaway' from public.collab_requests where brand = 'Zong'), 'with what they picked from the media kit and something else');
 select pg_temp.ok((select count(*) from public.collab_requests where brand = 'Zong') = 1, 'and sees it');
 select pg_temp.denied($$select public.collab_send_plan((select id from public.collab_requests where brand = 'Zong'), '[]'::jsonb, null)$$, 'but planning stays with Content');
 reset role;
