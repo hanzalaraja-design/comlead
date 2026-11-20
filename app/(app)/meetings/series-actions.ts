@@ -21,6 +21,8 @@ const seriesSchema = z.object({
   department_ids: z.array(uuid).max(50),
   user_ids: z.array(uuid).max(300),
   external_emails: z.array(z.string().trim().toLowerCase().email("One of the email addresses isn't valid.")).max(100),
+  // What it's about; left out = leave the links as they are.
+  project_ids: z.array(uuid).max(20).optional(),
 });
 
 export type SeriesInput = z.input<typeof seriesSchema>;
@@ -31,7 +33,7 @@ export async function saveSeries(id: string | null, input: SeriesInput): Promise
   if (id && !uuid.safeParse(id).success) return { ok: false, error: "Meeting not found." };
   const parsed = seriesSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Some values aren't valid." };
-  const { department_ids, user_ids, ...fields } = parsed.data;
+  const { department_ids, user_ids, project_ids, ...fields } = parsed.data;
   const row = { ...fields, external_emails: fields.kind === "external" ? [...new Set(fields.external_emails)] : [] };
   const supabase = await createClient();
 
@@ -72,6 +74,12 @@ export async function saveSeries(id: string | null, input: SeriesInput): Promise
   for (const step of steps) {
     const { error } = await (step as PromiseLike<{ error: { message?: string; code?: string } | null }>);
     if (error) return { ok: false, error: friendlyError(error) };
+  }
+
+  // Linked projects, campaigns and partnerships (skipped before the database can do it).
+  if (project_ids) {
+    const { error } = await supabase.rpc("set_series_projects", { p_series: seriesId, p_projects: project_ids });
+    if (error && !/set_series_projects/.test(error.message ?? "")) return { ok: false, error: friendlyError(error) };
   }
 
   revalidatePath("/meetings");

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { FolderKanban, Lock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/page-header";
-import { TagChip, TagPicker, type Tag } from "@/components/partnerships/tags";
+import { CATEGORY_STYLE, LabelPicker, TagChip, type Tag } from "@/components/partnerships/tags";
 import { requireViewer } from "@/lib/auth";
 import { CATEGORIES, CATEGORY_LABELS, DOMAINS, isCategory } from "@/lib/domains";
 import { createClient } from "@/lib/supabase/server";
@@ -10,13 +10,11 @@ import type { PartnerCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Raw = Record<string, string | string[] | undefined>;
-type Row = { id: string; name: string; slug: string; category: PartnerCategory | null; archived: boolean; locked: boolean; owner: string | null; can_open: boolean };
+type Row = { id: string; name: string; slug: string; category: PartnerCategory | null; categories?: PartnerCategory[]; archived: boolean; locked: boolean; owner: string | null; can_open: boolean };
 
-const CAT_STYLE: Record<PartnerCategory, string> = {
-  associations: "bg-[#E0F4F2] text-[#0F6B63]",
-  referral: "bg-[#F6E7F8] text-[#6A0F78]",
-  fintech: "bg-[#E8F0FE] text-[#1F4FB8]",
-};
+/** Its categories (several once the database has them; else the one). */
+const catsOf = (r: Row): PartnerCategory[] => (r.categories?.length ? r.categories : r.category ? [r.category] : []);
+
 
 /**
  * Brand partnerships: every partnership, for everyone (name, category, tags,
@@ -40,12 +38,12 @@ export async function PartnershipIndexPage({ raw }: { raw: Raw }) {
 
   const cat = typeof raw.cat === "string" && (isCategory(raw.cat) || raw.cat === "none") ? raw.cat : "all";
   const tagId = typeof raw.tag === "string" && tagById.has(raw.tag) ? raw.tag : null;
-  const inCat = (r: Row) => cat === "all" || (cat === "none" ? !r.category : r.category === cat);
+  const inCat = (r: Row) => cat === "all" || (cat === "none" ? !catsOf(r).length : catsOf(r).includes(cat as PartnerCategory));
   const shown = rows.filter((r) => inCat(r) && (!tagId || (tagsOf.get(r.id) ?? []).includes(tagId)));
-  const noCategory = rows.filter((r) => !r.category).length;
+  const noCategory = rows.filter((r) => !catsOf(r).length).length;
   const tabs = [
     { key: "all", label: "All", n: rows.length },
-    ...CATEGORIES.map((c) => ({ key: c as string, label: CATEGORY_LABELS[c], n: rows.filter((r) => r.category === c).length })),
+    ...CATEGORIES.map((c) => ({ key: c as string, label: CATEGORY_LABELS[c], n: rows.filter((r) => catsOf(r).includes(c)).length })),
     ...(noCategory ? [{ key: "none", label: "No category yet", n: noCategory }] : []),
   ];
   const href = (c: string, t?: string | null) => {
@@ -60,18 +58,21 @@ export async function PartnershipIndexPage({ raw }: { raw: Raw }) {
     const mine = (tagsOf.get(r.id) ?? []).map((id) => tagById.get(id)).filter((t): t is Tag => !!t);
     return (
       <li key={r.id} className="relative flex flex-col gap-3 surface p-4 transition-shadow hover:shadow-md">
-        <div className="flex items-start justify-between gap-2">
-          <Link href={`${d.path}/${r.slug}`} className="flex min-w-0 items-center gap-1.5 text-[17px] font-semibold leading-snug text-ink after:absolute after:inset-0">
-            {!r.can_open && <Lock className="h-4 w-4 shrink-0 text-ink-muted" aria-label="No access" />}
-            <span className="truncate">{r.name}</span>
-          </Link>
-          {r.category && <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold", CAT_STYLE[r.category])}>{CATEGORY_LABELS[r.category]}</span>}
-        </div>
+        <Link href={`${d.path}/${r.slug}`} className="flex min-w-0 items-center gap-1.5 text-[17px] font-semibold leading-snug text-ink after:absolute after:inset-0">
+          {!r.can_open && <Lock className="h-4 w-4 shrink-0 text-ink-muted" aria-label="No access" />}
+          <span className="truncate">{r.name}</span>
+        </Link>
+        {/* Categories, then tags, on one line. */}
         <div className="flex flex-wrap items-center gap-1.5">
+          {catsOf(r).map((c) => (
+            <span key={c} className={cn("inline-flex h-6 items-center rounded-full px-2.5 text-xs font-semibold", CATEGORY_STYLE[c])}>
+              {CATEGORY_LABELS[c]}
+            </span>
+          ))}
           {mine.map((t) => (
             <TagChip key={t.id} tag={t} />
           ))}
-          {r.can_open && <TagPicker projectId={r.id} category={r.category} tags={tags.filter((t) => t.category === r.category)} selected={mine.map((t) => t.id)} />}
+          {r.can_open && <LabelPicker projectId={r.id} categories={CATEGORIES} tags={tags} selectedCategories={catsOf(r)} selectedTags={mine.map((t) => t.id)} />}
         </div>
         <p className="mt-auto text-[13px] text-ink-muted">
           {r.owner ?? "No owner"}
