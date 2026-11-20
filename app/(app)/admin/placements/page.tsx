@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { PlacementTeams, SectionRow, TabAccessRow, type TabAccess } from "@/components/admin/placements-settings";
+import { ExtraTeams, PlacementTeams, SectionRow, TabAccessRow, type TabAccess } from "@/components/admin/placements-settings";
 import { getDepartments, getPeople, requireAdmin } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
@@ -59,7 +59,7 @@ export default async function PlacementsAdminPage() {
         <section className="space-y-3">
           <h2 className="kicker text-ink">Who sees each tab</h2>
           <p className="text-sm text-ink-muted">
-            The Design and Tech teams and Admins see every tab; the Design list is only for Design. Everyone else sees the tabs of their teams and
+            The Design team and Admins see every tab, and Tech sees every tab except the Design list. Everyone else sees the tabs of their teams and
             their own requests. Anyone can ask for access, and the lead picked here (or an Admin) decides.
           </p>
           <div className="surface">
@@ -67,6 +67,17 @@ export default async function PlacementsAdminPage() {
               <TabAccessRow key={t.key} tab={t} departments={teamOptions} />
             ))}
           </div>
+        </section>
+      )}
+
+      {settings && "layout_team_ids" in settings && (
+        <section className="space-y-3">
+          <h2 className="kicker text-ink">More access</h2>
+          <ExtraTeams
+            departments={teamOptions}
+            paidSocial={((settings as { paid_social_team_ids?: string[] }).paid_social_team_ids ?? [])}
+            layout={((settings as { layout_team_ids?: string[] }).layout_team_ids ?? [])}
+          />
         </section>
       )}
 

@@ -44,13 +44,15 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
   const placements = (placementData ?? []) as unknown as Placement[];
 
   const isDesign = roles.includes("design");
-  const canSee = new Set<Tab>(tabsRes.error ? PLACEMENT_TABS : ((tabsRes.data ?? []) as Tab[]));
+  const canSee = new Set<Tab>(tabsRes.error ? PLACEMENT_TABS.filter((t) => t !== "design" || isDesign) : ((tabsRes.data ?? []) as Tab[]));
+  // Design's list: the Design team, and any team an Admin let in.
+  const seesDesign = isDesign || canSee.has("design");
   const canEditLayout = !layoutRes.error && layoutRes.data === true;
   const designDept = settings?.design_department_id ?? null;
   const canAssign = viewer.isAdmin || (!!designDept && viewer.leadDeptIds.includes(designDept));
   // Designers open on their list; everyone else on App / Website.
   const firstOpen: Tab = (["web", "social", "ads", "crm", "partnerships"] as Tab[]).find((t) => canSee.has(t)) ?? "web";
-  const tab: Tab = isChannel(sp.tab) ? sp.tab : sp.tab === "web" ? "web" : isDesign && (sp.tab === "design" || !viewer.isAdmin) ? "design" : firstOpen;
+  const tab: Tab = isChannel(sp.tab) ? sp.tab : sp.tab === "web" ? "web" : seesDesign && sp.tab === "design" ? "design" : isDesign && !viewer.isAdmin ? "design" : firstOpen;
   const locked = !canSee.has(tab);
   const openId = sp.open && /^[0-9a-f-]{36}$/.test(sp.open) ? sp.open : null;
 
@@ -61,7 +63,7 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
   const tabs: { key: Tab; label: string; n: number }[] = [
     { key: "web", label: "App / Website", n: 0 },
     ...CHANNELS.map((c) => ({ key: c.key as Tab, label: c.label, n: openIn(c.key) })),
-    ...(isDesign ? [{ key: "design" as const, label: "Design", n: designCount }] : []),
+    ...(seesDesign ? [{ key: "design" as const, label: "Design", n: isDesign ? designCount : 0 }] : []),
   ];
 
   const nav = (
