@@ -562,3 +562,15 @@ export async function hideSection(key: string, hidden: boolean): Promise<ActionR
   revalidatePath("/admin/placements");
   return { ok: true };
 }
+
+/** One more slot at the end of a section, or one fewer (only an empty last slot). */
+export async function setSectionSlots(key: string, slots: number): Promise<ActionResult> {
+  await requireViewer();
+  if (!sectionKey.safeParse(key).success || !Number.isInteger(slots) || slots < 1 || slots > 30) return { ok: false, error: "That isn't a valid number of slots." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_placement_section_slots", { p_key: key, p_slots: slots });
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/placements");
+  revalidatePath("/admin/placements");
+  return { ok: true };
+}

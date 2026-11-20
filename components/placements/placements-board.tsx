@@ -32,7 +32,7 @@ import {
   type Surface,
   type ProjectLink,
 } from "@/lib/placements";
-import { hideSection, makeLiveOn, markOnFigma, markTakenDown, orderSections } from "@/app/(app)/placements/actions";
+import { hideSection, makeLiveOn, markOnFigma, markTakenDown, orderSections, setSectionSlots } from "@/app/(app)/placements/actions";
 import { HomepageMap, type LayoutEdit } from "./homepage-map";
 import { AddSectionForm } from "./section-editor";
 import { PlacementPanel, useArtworkUpload, type PanelMode } from "./placement-panel";
@@ -149,6 +149,12 @@ export function PlacementsBoard({
           });
         },
         onAdd: () => setAdding(true),
+        onSlots: (sec, n) =>
+          start(async () => {
+            const res = await setSectionSlots(sec.key, n);
+            if (!res.ok) return void toast.error(res.error);
+            router.refresh();
+          }),
       }
     : undefined;
 
