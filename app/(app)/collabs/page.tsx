@@ -6,7 +6,7 @@ import { RateCard } from "@/components/collabs/rate-card";
 import { CollabTerms } from "@/components/collabs/terms";
 import { getPeople } from "@/lib/auth";
 import { collabAccess } from "@/lib/collabs-server";
-import { COLUMNS, REQUEST_COLUMNS, totalText, type CollabItem, type CollabRate, type CollabRequest } from "@/lib/collabs";
+import { COLUMNS, REQUEST_COLUMNS, teamList, totalText, type CollabItem, type CollabRate, type CollabRequest } from "@/lib/collabs";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { addDaysISO, formatDate, startOfDayPKT, todayPKT } from "@/lib/time";
@@ -20,7 +20,7 @@ const TABS = [
   { key: "terms", label: "Terms" },
 ] as const;
 
-/** Paid social: Commercial asks, Content plans and delivers, Commercial approves and gets the report. */
+/** Paid social: Commercial (and any team picked to ask) asks, Content plans and delivers, the askers approve and get the report. */
 export default async function CollabsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const [{ tab: raw }, access] = await Promise.all([searchParams, collabAccess()]);
   const tab = TABS.some((t) => t.key === raw) ? raw! : "requests";
@@ -28,7 +28,7 @@ export default async function CollabsPage({ searchParams }: { searchParams: Prom
     <PageHeader
       breadcrumb={["Paid social"]}
       title="Paid social"
-      description="Commercial asks for content, Content plans it from the media kit, Commercial approves, Content delivers and reports."
+      description={`${teamList(access.askers)} ${access.askers.length > 1 ? "ask" : "asks"} for content, Content plans it from the media kit, ${teamList(access.askers, "or")} approves, Content delivers and reports.`}
       actions={
         access.commercial && (
           <Button asChild size="sm">
@@ -44,7 +44,7 @@ export default async function CollabsPage({ searchParams }: { searchParams: Prom
     return (
       <>
         {header}
-        <EmptyState>Paid social is for the Commercial and Content teams. Ask an Admin if you need it.</EmptyState>
+        <EmptyState>Paid social is for {teamList([...access.askers, "Content"])}. Ask an Admin if you need it.</EmptyState>
       </>
     );
 
@@ -72,7 +72,7 @@ export default async function CollabsPage({ searchParams }: { searchParams: Prom
       case "changes":
         return { text: "Changes asked: Content to update the plan", tone: "text-danger-ink" };
       case "planned":
-        return { text: `${totalText(r)} · waiting for Commercial to approve`, tone: "text-warning-ink" };
+        return { text: `${totalText(r)} · waiting for ${teamList(access.askers, "or")} to approve`, tone: "text-warning-ink" };
       case "approved":
         return { text: `${mine.filter((i) => i.live_url).length} of ${mine.length} live`, tone: "text-ink" };
       case "live":
@@ -153,7 +153,7 @@ export default async function CollabsPage({ searchParams }: { searchParams: Prom
               )
             }
           >
-            No requests yet. Commercial starts one with what to promote, and Content comes back with a plan.
+            No requests yet. {teamList(access.askers, "or")} starts one with what to promote, and Content comes back with a plan.
           </EmptyState>
         ))}
     </>
