@@ -8,7 +8,8 @@ import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { isBlankHtml, sanitizeRichText } from "@/lib/sanitize";
 import { syncLater } from "@/lib/calendar/schedule";
 import { syncTask } from "@/lib/calendar/sync";
-import { addDaysISO, parseISODate, todayPKT } from "@/lib/time";
+import { addDaysISO, formatDate, formatPKT, parseISODate, todayPKT } from "@/lib/time";
+import { isPushedLater } from "@/lib/tasks/due-moves";
 import { personName } from "@/lib/labels";
 import { OPEN_SUBTASKS } from "@/lib/tasks/open-subtasks";
 import { isInlineImage } from "@/lib/inline-image";
@@ -684,4 +685,46 @@ export async function bulkTasks(ids: string[], op: BulkTaskOp): Promise<ActionRe
   }
   revalidatePath("/", "layout");
   return { ok: true, data: { changed, skipped: unique.length - changed } };
+}
+
+/**
+ * Move a task's deadline, from the small clock-arrow next to its due date.
+ * The change is recorded in its activity like any due date change (and whoever
+ * gave the task is told); a reason, if given, goes on the task as a comment.
+ */
+export async function extendDeadline(taskId: string, date: string, reason = ""): Promise<ActionResult> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "Pick a date." };
+  const supabase = await createClient();
+  const { data: before } = await supabase.from("tasks").select("due_date").eq("id", taskId).maybeSingle();
+  const res = await updateTaskInline(taskId, { due_date: date });
+  if (!res.ok) return res;
+  const why = reason.trim().slice(0, 500);
+  if (why) {
+    const from = before?.due_date ? formatDate(before.due_date as string, "EEE d MMM") : "no date";
+    await addComment(taskId, `Moved the deadline from ${from} to ${formatDate(date, "EEE d MMM")}. Why: ${why}`);
+  }
+  return { ok: true };
+}
+
+export type DueMove = { from: string | null; to: string; who: string; when: string };
+
+/** Every time a task's deadline was pushed later, newest first (from its activity). */
+export async function getDueHistory(taskId: string): Promise<ActionResult<DueMove[]>> {
+  await requireViewer();
+  if (!uuid.safeParse(taskId).success) return { ok: false, error: "Task not found." };
+  const supabase = await createClient();
+  const [{ data }, { data: people }] = await Promise.all([
+    supabase.from("activity_log").select("actor_id, created_at, old_value, new_value").eq("task_id", taskId).eq("action", "task.due_changed").order("created_at", { ascending: false }).limit(50),
+    supabase.from("profiles").select("id, full_name, email"),
+  ]);
+  const byId = new Map(((people ?? []) as { id: string; full_name: string | null; email: string }[]).map((p) => [p.id, p]));
+  const moves = ((data ?? []) as { actor_id: string | null; created_at: string; old_value: { due_date?: string | null } | null; new_value: { due_date?: string | null } | null }[])
+    .filter((e) => isPushedLater(e.old_value?.due_date, e.new_value?.due_date))
+    .map((e) => ({
+      from: e.old_value?.due_date ? formatDate(e.old_value.due_date, "EEE d MMM") : null,
+      to: formatDate(e.new_value!.due_date!, "EEE d MMM"),
+      who: e.actor_id && byId.get(e.actor_id) ? personName(byId.get(e.actor_id)!) : "Someone",
+      when: formatPKT(e.created_at, "d MMM"),
+    }));
+  return { ok: true, data: moves };
 }

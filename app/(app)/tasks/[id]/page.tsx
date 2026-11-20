@@ -4,6 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { CornerDownRight, FolderKanban, NotebookPen } from "lucide-react";
 import { CollaboratorsField, InlineNotes, InlineTitle, LinkTags, PickTeam, TaskLockSwitch, TeamsField } from "@/components/tasks/task-inline";
 import { DoneOn, InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
+import { DueExtend, MovedMark } from "@/components/tasks/due-extend";
+import { isPushedLater } from "@/lib/tasks/due-moves";
 import { getProjects, getTeamNames } from "@/lib/projects";
 import { SubtaskSection } from "@/components/tasks/subtasks";
 import { DOMAINS, domainHref } from "@/lib/domains";
@@ -201,6 +203,17 @@ export default async function TaskPage({
               ) : (
                 <DueLabel date={task.due_date} time={task.due_time} overdue={task.overdue} className="text-sm" />
               )}
+              {canEdit && task.status !== "done" && task.status !== "cancelled" && (
+                <DueExtend taskId={id} title={task.title} date={task.due_date} className="md:opacity-100" />
+              )}
+              <MovedMark
+                taskId={id}
+                count={
+                  ((historyRes.data ?? []) as ActivityEntry[]).filter(
+                    (e) => e.action === "task.due_changed" && isPushedLater(e.old_value?.due_date as string | undefined, e.new_value?.due_date as string | undefined),
+                  ).length
+                }
+              />
               {task.status === "done" && task.completed_at && (
                 <DoneOn taskId={id} completedAt={task.completed_at} dueDate={task.due_date} editable={isOwner || viewer.isAdmin} />
               )}

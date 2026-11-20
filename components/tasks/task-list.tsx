@@ -4,6 +4,9 @@ import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import { CornerDownRight, ListChecks } from "lucide-react";
 import { MeetingTag, ProjectTag } from "@/components/tasks/task-badges";
 import { CollaboratorsChip, InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
+import { DueExtend, MovedMark } from "@/components/tasks/due-extend";
+import { createClient } from "@/lib/supabase/server";
+import { isPushedLater } from "@/lib/tasks/due-moves";
 import { getPeople } from "@/lib/auth";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { personName } from "@/lib/labels";
@@ -40,7 +43,7 @@ export async function TaskList({
   /** Off on My tasks, where every task is yours. */
   showOwner?: boolean;
 }) {
-  const people = await getPeople();
+  const [people, moved] = await Promise.all([getPeople(), dueMoves(tasks.map((t) => t.id))]);
   const names = new Map(people.map((p) => [p.id, personName(p)]));
   // Who handed it over, when that wasn't the owner themselves.
   const byName = (t: TaskListRow) => (t.assigned_by && t.assigned_by !== t.owner_id ? names.get(t.assigned_by) : undefined);
@@ -56,7 +59,7 @@ export async function TaskList({
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskListItem key={t.id} task={t} selectable={selectable} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} showProject={showProject} assignedBy={byName(t)} />
+          <TaskListItem key={t.id} task={t} selectable={selectable} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} showProject={showProject} assignedBy={byName(t)} moves={moved.get(t.id) ?? 0} />
         ))}
       </ul>
     </div>
@@ -74,7 +77,10 @@ function TaskListItem({
   from,
   showProject,
   assignedBy,
+  moves,
 }: {
+  /** How often its deadline was pushed later. */
+  moves: number;
   task: TaskListRow;
   selectable: boolean;
   showProject: boolean;
@@ -90,7 +96,7 @@ function TaskListItem({
   return (
     <li
       className={cn(
-        "relative px-4 py-3 hover:bg-subtle/60 md:grid md:items-center md:gap-3 md:py-2",
+        "group/row relative px-4 py-3 hover:bg-subtle/60 md:grid md:items-center md:gap-3 md:py-2",
         cols,
         t.overdue && "before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-danger",
       )}
@@ -136,8 +142,12 @@ function TaskListItem({
         {onTime ? (
           <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>
         ) : (
-          <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
+          <>
+            <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
+            {t.status !== "cancelled" && <DueExtend taskId={t.id} title={t.title} date={t.due_date} />}
+          </>
         )}
+        <MovedMark taskId={t.id} count={moves} />
         {assignedBy && <span className="text-xs text-muted-foreground">from {assignedBy}</span>}
         {showOwner && (
           <span className="ml-auto flex items-center gap-1.5">
@@ -158,10 +168,17 @@ function TaskListItem({
           <span className="flex flex-col items-start gap-1">
             <span className="text-xs text-muted-foreground">{showCompleted ? formatPKT(t.completed_at, "d MMM, h:mm a") : `Done ${formatPKT(t.completed_at, "d MMM")}`}</span>
             {onTime && <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>}
+            <MovedMark taskId={t.id} count={moves} />
           </span>
         ) : (
           <span className="flex flex-col items-start gap-0.5">
-            <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
+            <span className="flex items-center gap-1.5">
+              <InlineDue taskId={t.id} date={t.due_date} time={t.due_time} overdue={t.overdue} />
+              {t.status !== "cancelled" && <DueExtend taskId={t.id} title={t.title} date={t.due_date} />}
+            </span>
+            <span className="pl-2">
+              <MovedMark taskId={t.id} count={moves} />
+            </span>
             {/* No deadline: when it was added (these list oldest first). */}
             {!t.due_date && <span className="pl-2 text-[11px] text-ink-muted">Added {formatPKT(t.created_at, "d MMM")}</span>}
           </span>
@@ -169,4 +186,26 @@ function TaskListItem({
       </div>
     </li>
   );
+}
+
+/**
+ * How often each task's deadline was pushed later, from the activity log
+ * (empty for tasks whose history you can't read).
+ */
+async function dueMoves(ids: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!ids.length) return out;
+  const supabase = await createClient();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await supabase
+      .from("activity_log")
+      .select("task_id, old_value, new_value")
+      .eq("action", "task.due_changed")
+      .in("task_id", ids.slice(i, i + 200))
+      .limit(5000);
+    for (const e of (data ?? []) as { task_id: string; old_value: { due_date?: string | null } | null; new_value: { due_date?: string | null } | null }[]) {
+      if (isPushedLater(e.old_value?.due_date, e.new_value?.due_date)) out.set(e.task_id, (out.get(e.task_id) ?? 0) + 1);
+    }
+  }
+  return out;
 }

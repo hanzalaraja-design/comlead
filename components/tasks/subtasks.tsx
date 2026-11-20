@@ -11,6 +11,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { BulkProvider, RowCheck, SelectAll } from "@/components/bulk-select";
 import { BulkTasksBar } from "@/components/tasks/bulk-tasks";
 import { StatusSelect } from "@/components/tasks/status-select";
+import { DueExtend } from "@/components/tasks/due-extend";
 import { InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { ON_TIME_STYLES, onTimeStatus } from "@/lib/tasks/ontime";
@@ -264,7 +265,7 @@ export function SubtaskSection({
             {subtasks.map((s) => {
               const late = !!parentDue && !!s.due_date && s.due_date > parentDue && OPEN_STATUSES.includes(s.status);
               return (
-                <li key={s.id} className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
+                <li key={s.id} className="group/row relative flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
                   <RowCheck id={s.id} label={s.title} />
                   <Link href={`/tasks/${s.id}`} className="min-w-0 flex-1 basis-40 font-medium text-ink hover:underline">
                     {s.title}
@@ -276,7 +277,10 @@ export function SubtaskSection({
                       {onTimeStatus(s.due_date, s.completed_at)!.label}
                     </span>
                   ) : (
-                    <InlineDue taskId={s.id} date={s.due_date} time={s.due_time} overdue={s.overdue} />
+                    <>
+                      <InlineDue taskId={s.id} date={s.due_date} time={s.due_time} overdue={s.overdue} />
+                      {s.status !== "cancelled" && <DueExtend taskId={s.id} title={s.title} date={s.due_date} />}
+                    </>
                   )}
                   {late && (
                     <span className="inline-flex basis-full items-center gap-1 pl-8 text-xs font-medium text-warning-ink">
