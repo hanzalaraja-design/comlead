@@ -15,7 +15,7 @@ import { formatPKT } from "@/lib/time";
 import type { PersonRef } from "@/lib/types";
 import { addCollabComment, approveCollab, askCollabChanges, deleteCollabComment, markCollabLive, shareCollabReport } from "@/app/(app)/collabs/actions";
 
-/** Commercial: approve the plan, or send it back with a note. */
+/** Whoever asks (Commercial, or a team picked to ask): approve the plan, or send it back with a note. */
 export function DecidePlan({ requestId }: { requestId: string }) {
   const router = useRouter();
   const [asking, setAsking] = useState(false);
@@ -84,7 +84,7 @@ export function MarkLive({ itemId, requestId }: { itemId: string; requestId: str
         start(async () => {
           const res = await markCollabLive(itemId, url, requestId);
           if (!res.ok) return void toast.error(res.error);
-          toast.success("Marked live. Commercial has been told.");
+          toast.success("Marked live. The team that asked has been told.");
           setUrl("");
           router.refresh();
         });
@@ -157,7 +157,7 @@ export function ReportForm({
           start(async () => {
             const res = await shareCollabReport(requestId, summary, pics.images.length ? pics.images : initial?.images ?? [], nums);
             if (!res.ok) return void toast.error(res.error);
-            toast.success("Report shared with Commercial.");
+            toast.success("Report shared with the team that asked.");
             router.refresh();
           })
         }

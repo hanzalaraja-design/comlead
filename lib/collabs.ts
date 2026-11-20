@@ -1,5 +1,5 @@
 /**
- * Paid social: Commercial asks Content for social content for a brand,
+ * Paid social: Commercial (and any team picked to ask, like Brand) asks Content for social content for a brand,
  * Content plans it from the media kit, Commercial approves, Content delivers
  * and reports. Shared by the pages, actions and forms.
  */
@@ -141,3 +141,9 @@ export const TERMS: { title: string; points: string[] }[] = [
     ],
   },
 ];
+
+/** "Commercial", "Commercial and Brand", "Commercial, Brand and Ops" (or with "or"). */
+export function teamList(names: string[], word: "and" | "or" = "and"): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} ${word} ${names[names.length - 1]}`;
+}
