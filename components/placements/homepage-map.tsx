@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import { HighfyLogo } from "@/components/brand";
 import { cn } from "@/lib/utils";
 import {
@@ -24,8 +24,10 @@ export type LayoutEdit = {
   onDrop: (key: string, beforeKey: string) => void;
   onHide: (s: Section) => void;
   onAdd: () => void;
-  /** One more slot at the end, or one fewer (only an empty last slot). */
-  onSlots: (s: Section, slots: number) => void;
+  /** One more slot at the end. */
+  onAddSlot: (s: Section) => void;
+  /** Take a slot out; the ones after it move up (only when nothing is booked in it). */
+  onRemoveSlot: (s: Section, position: number) => void;
 };
 
 /** "slide", "tile", "icon": what one slot of a section is called. */
@@ -61,6 +63,31 @@ export function HomepageMap({
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  // Edit mode: a small cross on each slot of a carousel, tile grid or icon row,
+  // unless it's the only one or something is booked in it now or later.
+  const withRemove = (s: Section, n: number, node: React.ReactNode) => {
+    if (!edit || s.slots < 2 || !(s.kind === "carousel" || s.kind === "tiles" || s.kind === "icons")) return node;
+    const booked = placements.some((p) => p.section_key === s.key && p.position === n);
+    const label = slotLabel(s, n);
+    return (
+      <span key={n} className={cn(SLOT[s.kind], "relative block [&>button:first-child]:h-full [&>button:first-child]:w-full")}>
+        {node}
+        <button
+          type="button"
+          disabled={edit.busy || booked}
+          onClick={() => edit.onRemoveSlot(s, n)}
+          aria-label={`Remove ${label}`}
+          title={booked ? `${label} has a booking, so it can't be removed` : `Remove ${label}`}
+          className={cn(
+            "absolute z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-line bg-white text-ink shadow-sm hover:bg-danger-soft hover:text-danger-ink disabled:cursor-not-allowed disabled:opacity-40",
+            s.kind === "icons" ? "-right-1 -top-1" : "bottom-1.5 right-1.5",
+          )}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </span>
+    );
+  };
   return (
     <div className="surface flex flex-col gap-4 overflow-hidden p-3">
       <div className="flex min-h-8 items-center justify-between gap-2 px-0.5">
@@ -126,7 +153,7 @@ export function HomepageMap({
           </h3>
           )}
           <div className={WRAP[s.kind]} data-scroll-row={s.key}>
-            {Array.from({ length: s.slots }, (_, i) => i + 1).map((n) => {
+            {Array.from({ length: s.slots }, (_, i) => i + 1).map((n) => withRemove(s, n, (() => {
               const p = activeOn(placements, s.key, n, date);
               const label = slotLabel(s, n);
               if (!p) {
@@ -221,10 +248,8 @@ export function HomepageMap({
                   )}
                 </button>
               );
-            })}
+            })()))}
             {edit && (s.kind === "carousel" || s.kind === "tiles" || s.kind === "icons") && (() => {
-              // The last slot can go only if nothing is booked in it.
-              const lastBooked = placements.some((p) => p.section_key === s.key && p.position === s.slots);
               return (
                 <span
                   className={cn(
@@ -235,22 +260,11 @@ export function HomepageMap({
                   <button
                     type="button"
                     disabled={edit.busy || s.slots >= 30}
-                    onClick={() => edit.onSlots(s, s.slots + 1)}
+                    onClick={() => edit.onAddSlot(s)}
                     className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-brand-primary hover:bg-brand-bg disabled:opacity-40"
                   >
                     <Plus className="h-3.5 w-3.5" /> {s.kind === "icons" ? "Add" : `Add ${slotWord(s)}`}
                   </button>
-                  {s.slots > 1 && (
-                    <button
-                      type="button"
-                      disabled={edit.busy || lastBooked}
-                      title={lastBooked ? `${slotLabel(s, s.slots)} has a booking, so it can't be removed` : `Remove ${slotLabel(s, s.slots)}`}
-                      onClick={() => edit.onSlots(s, s.slots - 1)}
-                      className="rounded-full px-2 py-0.5 text-[11px] text-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {s.kind === "icons" ? "Remove" : `Remove ${slotLabel(s, s.slots).toLowerCase()}`}
-                    </button>
-                  )}
                 </span>
               );
             })()}

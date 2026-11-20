@@ -563,12 +563,24 @@ export async function hideSection(key: string, hidden: boolean): Promise<ActionR
   return { ok: true };
 }
 
-/** One more slot at the end of a section, or one fewer (only an empty last slot). */
-export async function setSectionSlots(key: string, slots: number): Promise<ActionResult> {
+/** One more slot at the end of a section. */
+export async function addSectionSlot(key: string): Promise<ActionResult> {
   await requireViewer();
-  if (!sectionKey.safeParse(key).success || !Number.isInteger(slots) || slots < 1 || slots > 30) return { ok: false, error: "That isn't a valid number of slots." };
+  if (!sectionKey.safeParse(key).success) return { ok: false, error: "Section not found." };
   const supabase = await createClient();
-  const { error } = await supabase.rpc("set_placement_section_slots", { p_key: key, p_slots: slots });
+  const { error } = await supabase.rpc("add_placement_slot", { p_key: key });
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/placements");
+  revalidatePath("/admin/placements");
+  return { ok: true };
+}
+
+/** Take a slot out of a section; the ones after it move up, with their bookings. */
+export async function removeSectionSlot(key: string, position: number): Promise<ActionResult> {
+  await requireViewer();
+  if (!sectionKey.safeParse(key).success || !Number.isInteger(position) || position < 1) return { ok: false, error: "Slot not found." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("remove_placement_slot", { p_key: key, p_position: position });
   if (error) return { ok: false, error: friendlyError(error) };
   revalidatePath("/placements");
   revalidatePath("/admin/placements");
