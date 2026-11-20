@@ -52,6 +52,34 @@ export async function GET(request: NextRequest) {
       });
     }
   }
+  if (!evening) await renewalReminders(today);
   await flushPush();
   return NextResponse.json({ ok: true, people: byOwner.size });
+}
+
+/**
+ * Brand partnership terms that end in 30 days with no renewal started: the
+ * partnership's owners get a heads-up. Quietly skipped before the database
+ * has terms.
+ */
+async function renewalReminders(today: string) {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("project_parts")
+    .select("id, name, project_id, project:projects!inner(name, slug, kind, created_by)")
+    .eq("kind", "term")
+    .eq("stage", "live")
+    .eq("ends_on", addDaysISO(today, 30));
+  if (error || !data?.length) return;
+  for (const t of data as unknown as { id: string; name: string; project_id: string; project: { name: string; slug: string; kind: string; created_by: string | null } }[]) {
+    const { count } = await db.from("project_parts").select("id", { count: "exact", head: true }).eq("renewed_from", t.id);
+    if (count) continue;
+    const { data: leads } = await db.from("project_members").select("user_id").eq("project_id", t.project_id).eq("role", "lead");
+    const owners = [...((leads ?? []) as { user_id: string }[]).map((l) => l.user_id), t.project.created_by];
+    await notify(owners, "renewal", {
+      title: `${t.project.name}: ${t.name} ends in 30 days`,
+      body: "Start the renewal when you're ready.",
+      href: `/${t.project.kind}s/${t.project.slug}`,
+    });
+  }
 }

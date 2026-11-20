@@ -14,12 +14,16 @@ import { LockButton } from "@/components/projects/lock-button";
 import { ProjectMenu } from "@/components/projects/project-menu";
 import { MeetingTag } from "@/components/tasks/task-badges";
 import { RichTextView } from "@/components/rich-text-view";
+import { ActivityButton } from "@/components/activity/activity-button";
+import { TermsPanel, type Term } from "@/components/projects/terms-panel";
+import { describeActivity } from "@/lib/activity";
+import type { ActivityEntry } from "@/lib/types";
 import type { ProjectKind } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
 import { filtersToSearch, parseFilters, type TaskFilters } from "@/lib/tasks/filters";
 import type { TaskView } from "@/lib/tasks/scope";
-import { todayPKT } from "@/lib/time";
+import { formatPKT, todayPKT } from "@/lib/time";
 
 type Raw = Record<string, string | string[] | undefined>;
 
@@ -54,6 +58,7 @@ export async function loadProject(slug: string, raw: Raw, kind?: ProjectKind, re
     members: people.filter((p) => memberIds.includes(p.id)),
     owners: people.filter((p) => ownerIds.includes(p.id)),
     ownerIds,
+    isMember,
     isOwner: isProjectOwner(viewer, project, named),
     canManage: canManageProject(viewer, project, named, isMember),
   };
@@ -68,10 +73,10 @@ export function teamsText(names: string[]): string {
 }
 
 export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; view: TaskView; month?: string }) {
-  const { project, filters, base, teams, members, owners, isOwner, canManage, viewer } = loaded;
+  const { project, filters, base, teams, members, owners, isOwner, canManage, viewer, isMember } = loaded;
   const d = DOMAINS[project.kind];
   const supabase = await createClient();
-  const [options, meetingsRes, { count: taskCount }] = await Promise.all([
+  const [options, meetingsRes, { count: taskCount }, termsRes, activity, people] = await Promise.all([
     getFilterOptions(),
     // Meetings about it (empty if the database hasn't got links yet).
     supabase
@@ -83,7 +88,22 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
     isOwner
       ? supabase.from("tasks").select("id", { count: "exact", head: true }).eq("project_id", project.id)
       : Promise.resolve({ count: 0 }),
+    // A brand partnership's terms (none if the database hasn't got them yet).
+    project.kind === "partnership" && view === "list"
+      ? supabase
+          .from("project_parts")
+          .select("id, name, stage, starts_on, ends_on, description, fields, renewed_from")
+          .eq("project_id", project.id)
+          .eq("kind", "term")
+          .order("sort")
+          .order("created_at")
+          .then((r) => (r.error ? { data: [] } : r))
+      : Promise.resolve({ data: [] }),
+    projectActivity(project.id),
+    getPeople(),
   ]);
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const person = (id: unknown) => (typeof id === "string" ? byId.get(id) ?? null : null);
   const meetings = ((meetingsRes.data ?? []) as unknown as { meeting: { id: string; title: string | null; meeting_date: string } | null }[])
     .map((r) => r.meeting)
     .filter((m): m is { id: string; title: string | null; meeting_date: string } => !!m)
@@ -116,6 +136,15 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
         }
         actions={
           <>
+            <ActivityButton
+              about={`this ${d.label.toLowerCase()} and its tasks`}
+              lines={activity.map((e) => ({
+                id: e.id,
+                who: e.actor_id ? personName(person(e.actor_id)) : "System",
+                text: describeActivity(e, { person }),
+                when: formatPKT(e.created_at),
+              }))}
+            />
             <LockButton projectId={project.id} locked={project.locked} canToggle={isOwner} />
             {canManage && (
               <Button asChild variant="outline" size="sm">
@@ -166,6 +195,9 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
           )}
         </section>
       )}
+      {project.kind === "partnership" && view === "list" && (
+        <TermsPanel projectId={project.id} terms={(termsRes.data ?? []) as Term[]} canEdit={isMember || canManage} today={todayPKT()} />
+      )}
       <TaskTabs scope="projects" view={view} search={search} base={base} />
       {view === "list" && !project.archived && (
         <div className="mb-4">
@@ -180,4 +212,20 @@ export async function ProjectHeader({ loaded, view, month }: { loaded: Loaded; v
       />
     </>
   );
+}
+
+/** What happened in it: its terms or journeys, comments, and its tasks. Newest first. */
+async function projectActivity(projectId: string): Promise<ActivityEntry[]> {
+  const supabase = await createClient();
+  const { data: tasks } = await supabase.from("tasks").select("id").eq("project_id", projectId).limit(400);
+  const ids = ((tasks ?? []) as { id: string }[]).map((t) => t.id);
+  const [own, ofTasks] = await Promise.all([
+    supabase.from("activity_log").select("*").contains("new_value", { project_id: projectId }).order("created_at", { ascending: false }).limit(60),
+    ids.length
+      ? supabase.from("activity_log").select("*").in("task_id", ids).neq("entity_type", "meeting").order("created_at", { ascending: false }).limit(60)
+      : Promise.resolve({ data: [] }),
+  ]);
+  return [...((own.data ?? []) as ActivityEntry[]), ...((ofTasks.data ?? []) as ActivityEntry[])]
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 80);
 }

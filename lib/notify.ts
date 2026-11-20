@@ -32,7 +32,8 @@ export type NotifyKind =
   | "ending"
   | "homepage_today"
   | "collab"
-  | "access";
+  | "access"
+  | "renewal";
 
 export type NotifyMessage = { title: string; body?: string | null; href: string; actorId?: string | null; taskId?: string | null };
 

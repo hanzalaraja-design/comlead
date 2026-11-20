@@ -293,7 +293,7 @@ const WORK_TOOLS: Tool[] = [
   {
     name: "create_project",
     description:
-      "Create a project, campaign or partnership (you become an owner). Owners can lock it; teams decide whose lists it shows in; members are the people working on it. Partnerships are 'strategic' or 'beauty'. Dates are YYYY-MM-DD.",
+      "Create a project, campaign or partnership (you become an owner). Owners can lock it; teams decide whose lists it shows in; members are the people working on it. Brand partnerships can have a category: associations, referral or fintech. Dates are YYYY-MM-DD.",
     inputSchema: {
       type: "object",
       properties: {
@@ -302,7 +302,7 @@ const WORK_TOOLS: Tool[] = [
         start_date: { type: "string" },
         end_date: { type: "string" },
         description: { type: "string", description: "The brief. Plain text is fine." },
-        category: { type: "string", enum: ["strategic", "beauty"], description: "Partnerships only." },
+        category: { type: "string", enum: ["associations", "referral", "fintech"], description: "Brand partnerships only." },
         owners: { type: "array", items: { type: "string" }, description: "Emails or names besides you." },
         members: { type: "array", items: { type: "string" } },
         teams: { type: "array", items: { type: "string" } },
@@ -314,7 +314,7 @@ const WORK_TOOLS: Tool[] = [
       const kind = oneOf(a, "kind", KINDS) as ProjectKind;
       const name = str(a, "name", 120);
       if (!name) throw new UserError("Give it a name.");
-      const category = kind === "partnership" ? (oneOf(a, "category", ["strategic", "beauty"]) ?? "strategic") : null;
+      const category = kind === "partnership" ? (oneOf(a, "category", ["associations", "referral", "fintech"]) ?? null) : null;
       const start = date(a, "start_date") ?? null;
       const end = date(a, "end_date") ?? null;
       if (start && end && end < start) throw new UserError("The end date is before the start.");
@@ -322,7 +322,7 @@ const WORK_TOOLS: Tool[] = [
       const p = await insertProject(u, {
         name,
         kind,
-        category: category === "beauty" ? "beauty" : category ? "non_beauty" : null,
+        category,
         start_date: start,
         end_date: end,
         description: description ? richText(description) : null,
@@ -343,7 +343,7 @@ const WORK_TOOLS: Tool[] = [
         start_date: { type: ["string", "null"] },
         end_date: { type: ["string", "null"] },
         description: { type: "string", description: "Replaces the brief." },
-        category: { type: "string", enum: ["strategic", "beauty"] },
+        category: { type: "string", enum: ["associations", "referral", "fintech"] },
         add_owners: { type: "array", items: { type: "string" } },
         add_members: { type: "array", items: { type: "string" } },
         add_teams: { type: "array", items: { type: "string" } },
@@ -361,8 +361,8 @@ const WORK_TOOLS: Tool[] = [
       const end = date(a, "end_date");
       if (end !== undefined) patch.end_date = end;
       if (typeof a.description === "string") patch.description = a.description.trim() ? richText(a.description.slice(0, 50000)) : null;
-      const category = oneOf(a, "category", ["strategic", "beauty"]);
-      if (category && found.kind === "partnership") patch.category = category === "beauty" ? "beauty" : "non_beauty";
+      const category = oneOf(a, "category", ["associations", "referral", "fintech"]);
+      if (category && found.kind === "partnership") patch.category = category;
       if (Object.keys(patch).length) {
         const { data, error } = await u.db.from("projects").update(patch).eq("id", found.id).select("id");
         if (error) failed(error, "change it");

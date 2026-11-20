@@ -32,6 +32,7 @@ export const NOTIFY_GROUPS: { title: string; kinds: NotifyKindInfo[] }[] = [
       { key: "project_added", label: "Added to a project, campaign or partnership" },
       { key: "project_task", label: "New tasks in ones I own" },
       { key: "meeting", label: "Added to a meeting" },
+      { key: "renewal", label: "Partnership terms ending", hint: "30 days before, for the owners" },
     ],
   },
   {
