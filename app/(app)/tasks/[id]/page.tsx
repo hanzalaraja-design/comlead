@@ -23,7 +23,7 @@ import { describeActivity } from "@/lib/activity";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { getTaskFormData } from "@/lib/tasks/form-data";
-import { TASK_SELECT, withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
+import { taskHistory, withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
 import { formatDate, formatPKT } from "@/lib/time";
 import { isTaskFrom, taskHref, taskTrail } from "@/lib/tasks/scope";
 import type { ActivityEntry, PersonRef, TaskStatus } from "@/lib/types";
@@ -60,18 +60,12 @@ export default async function TaskPage({
       .select("id, file_name, storage_path, size_bytes, uploaded_by, created_at")
       .eq("task_id", id)
       .order("created_at"),
-    supabase
-      .from("activity_log")
-      .select("*")
-      .eq("task_id", id)
-      .neq("entity_type", "meeting")
-      .order("created_at", { ascending: false })
-      .limit(50),
+    taskHistory(supabase, id),
     getPeople(),
     // "Needed from others": soonest first, finished last.
     task.parent_task_id
       ? Promise.resolve({ data: [] })
-      : supabase.from("tasks").select(TASK_SELECT).eq("parent_task_id", id).order("due_date", { ascending: true, nullsFirst: false }).order("created_at").then((r) => (r.error ? { data: [] } : r)),
+      : withTaskSelect((select) => supabase.from("tasks").select(select).eq("parent_task_id", id).order("due_date", { ascending: true, nullsFirst: false }).order("created_at")).then((r) => (r.error ? { data: [] } : r)),
     // Its extra teams (empty if the database hasn't got them yet).
     supabase.from("task_teams").select("department_id").eq("task_id", id).then((r) => (r.error ? { data: [] } : r)),
     getTeamNames(),

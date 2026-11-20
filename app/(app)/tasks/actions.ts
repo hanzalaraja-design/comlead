@@ -10,6 +10,7 @@ import { syncLater } from "@/lib/calendar/schedule";
 import { syncTask } from "@/lib/calendar/sync";
 import { addDaysISO, formatDate, formatPKT, parseISODate, todayPKT } from "@/lib/time";
 import { isPushedLater } from "@/lib/tasks/due-moves";
+import { taskHistory } from "@/lib/tasks/queries";
 import { personName } from "@/lib/labels";
 import { OPEN_SUBTASKS } from "@/lib/tasks/open-subtasks";
 import { isInlineImage } from "@/lib/inline-image";
@@ -714,11 +715,11 @@ export async function getDueHistory(taskId: string): Promise<ActionResult<DueMov
   if (!uuid.safeParse(taskId).success) return { ok: false, error: "Task not found." };
   const supabase = await createClient();
   const [{ data }, { data: people }] = await Promise.all([
-    supabase.from("activity_log").select("actor_id, created_at, old_value, new_value").eq("task_id", taskId).eq("action", "task.due_changed").order("created_at", { ascending: false }).limit(50),
+    taskHistory(supabase, taskId, 200).then((r) => ({ data: ((r.data ?? []) as { action: string }[]).filter((e) => e.action === "task.due_changed") })),
     supabase.from("profiles").select("id, full_name, email"),
   ]);
   const byId = new Map(((people ?? []) as { id: string; full_name: string | null; email: string }[]).map((p) => [p.id, p]));
-  const moves = ((data ?? []) as { actor_id: string | null; created_at: string; old_value: { due_date?: string | null } | null; new_value: { due_date?: string | null } | null }[])
+  const moves = ((data ?? []) as unknown as { actor_id: string | null; created_at: string; old_value: { due_date?: string | null } | null; new_value: { due_date?: string | null } | null }[])
     .filter((e) => isPushedLater(e.old_value?.due_date, e.new_value?.due_date))
     .map((e) => ({
       from: e.old_value?.due_date ? formatDate(e.old_value.due_date, "EEE d MMM") : null,
