@@ -7,7 +7,7 @@ import { requireViewer } from "@/lib/auth";
 import { flushPush } from "@/lib/push";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
 
-const typeSchema = z.enum(["task", "project"]);
+const typeSchema = z.enum(["task", "project", "placement_tab"]);
 
 /** Ask the owner for access to a task, project, campaign or partnership. */
 export async function requestAccess(type: string, key: string, reason: string): Promise<ActionResult> {
@@ -19,6 +19,7 @@ export async function requestAccess(type: string, key: string, reason: string): 
   if (error) return { ok: false, error: friendlyError(error) };
   await flushPush();
   revalidatePath("/request-access");
+  if (t.data === "placement_tab") revalidatePath("/placements");
   return { ok: true };
 }
 

@@ -502,3 +502,61 @@ export async function bulkPlacements(ids: string[], op: BulkPlacementOp): Promis
   revalidatePath("/placements");
   return { ok: true, data: { changed, skipped: parsed.data.ids.length - changed } };
 }
+
+// ---------------------------------------------------------------------------
+// Homepage layout: Commercial (and Admins) move, add and hide sections.
+// ---------------------------------------------------------------------------
+
+const sectionKey = z.string().regex(/^[a-z0-9_]{1,80}$/);
+
+const newSectionSchema = z.object({
+  name: z.string().trim().min(1, "Give the section a name.").max(80, "Keep the name under 80 characters."),
+  kind: z.enum(["banner", "text", "icons", "carousel", "tiles", "badge"]),
+  slots: z.number().int().min(1, "At least 1 slot.").max(30, "At most 30 slots."),
+  shows_on: z.array(z.enum(["web", "app"])).min(1, "Pick where it shows.").max(2),
+  size_hint: z.string().trim().max(80),
+});
+
+/** Add a section at the bottom of the homepage. */
+export async function addSection(input: z.input<typeof newSectionSchema>): Promise<ActionResult<{ key: string }>> {
+  await requireViewer();
+  const parsed = newSectionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Some values aren't valid." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("add_placement_section", {
+    p_name: parsed.data.name,
+    p_kind: parsed.data.kind,
+    p_slots: parsed.data.slots,
+    p_shows_on: parsed.data.shows_on,
+    p_size_hint: parsed.data.size_hint || null,
+  });
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/placements");
+  revalidatePath("/admin/placements");
+  return { ok: true, data: { key: data as string } };
+}
+
+/** Put the sections in this order, top to bottom. */
+export async function orderSections(keys: string[]): Promise<ActionResult> {
+  await requireViewer();
+  const parsed = z.array(sectionKey).min(1).max(100).safeParse(keys);
+  if (!parsed.success) return { ok: false, error: "That order isn't valid." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("order_placement_sections", { p_keys: parsed.data });
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/placements");
+  revalidatePath("/admin/placements");
+  return { ok: true };
+}
+
+/** Hide a section (its bookings and history stay), or bring it back. */
+export async function hideSection(key: string, hidden: boolean): Promise<ActionResult> {
+  await requireViewer();
+  if (!sectionKey.safeParse(key).success) return { ok: false, error: "Section not found." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("hide_placement_section", { p_key: key, p_hidden: hidden });
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/placements");
+  revalidatePath("/admin/placements");
+  return { ok: true };
+}

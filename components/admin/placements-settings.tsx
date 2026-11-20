@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABELS, type PlacementRole, type Section } from "@/lib/placements";
-import { saveSection, saveTeams } from "@/app/(app)/admin/placements/actions";
+import { removeTabPerson, saveSection, saveTabAccess, saveTeams } from "@/app/(app)/admin/placements/actions";
+import { hideSection } from "@/app/(app)/placements/actions";
 
 type TeamKey = PlacementRole | "content";
 const TEAM_LABELS: Record<TeamKey, string> = { ...ROLE_LABELS, content: "Content" };
@@ -93,7 +94,7 @@ export function SectionRow({ section }: { section: Section }) {
     >
       <div className="space-y-1">
         <Label htmlFor={`n-${section.key}`} className="text-xs text-ink-muted">
-          Section
+          Section{section.archived ? " (hidden)" : ""}
         </Label>
         <Input id={`n-${section.key}`} value={name} onChange={(e) => setName(e.target.value)} />
       </div>
@@ -120,9 +121,133 @@ export function SectionRow({ section }: { section: Section }) {
         </Label>
         <Input id={`z-${section.key}`} value={size} onChange={(e) => setSize(e.target.value)} placeholder="e.g. 1440×400" />
       </div>
-      <Button type="submit" variant={dirty ? "default" : "outline"} disabled={pending || !dirty}>
-        Save
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" variant={dirty ? "default" : "outline"} disabled={pending || !dirty}>
+          Save
+        </Button>
+        {section.archived && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const res = await hideSection(section.key, false);
+                if (res.ok) toast.success(`${section.name} is back on the homepage.`);
+                else toast.error(res.error);
+              })
+            }
+          >
+            Bring back
+          </Button>
+        )}
+      </div>
     </form>
+  );
+}
+
+export type TabAccess = {
+  key: string;
+  label: string;
+  owner: string | null;
+  teams: string[];
+  people: { id: string; name: string }[];
+};
+
+/**
+ * Who sees each Placements tab (Design, Tech and Admins see them all), whose
+ * lead gives access when someone asks, and who was given access that way.
+ */
+export function TabAccessRow({ tab, departments }: { tab: TabAccess; departments: { id: string; name: string }[] }) {
+  const [teams, setTeams] = useState(tab.teams);
+  const [owner, setOwner] = useState(tab.owner);
+  const [pending, start] = useTransition();
+  const dirty = owner !== tab.owner || [...teams].sort().join() !== [...tab.teams].sort().join();
+  return (
+    <div className="space-y-3 border-b border-line px-4 py-4 last:border-0">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-[15px] font-semibold text-ink">{tab.label}</h3>
+        <Button
+          size="sm"
+          variant={dirty ? "default" : "outline"}
+          disabled={pending || !dirty}
+          onClick={() =>
+            start(async () => {
+              const res = await saveTabAccess(tab.key, teams, owner);
+              if (res.ok) toast.success(`${tab.label} saved.`);
+              else toast.error(res.error);
+            })
+          }
+        >
+          Save
+        </Button>
+      </div>
+      {tab.key !== "design" && (
+        <fieldset className="space-y-1.5">
+          <legend className="text-xs text-ink-muted">Teams that see it</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {departments.map((d) => {
+              const on = teams.includes(d.id);
+              return (
+                <label
+                  key={d.id}
+                  className={
+                    on
+                      ? "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-brand-primary bg-brand-bg px-3 py-1 text-sm text-ink"
+                      : "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1 text-sm text-ink-muted"
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={on}
+                    onChange={() => setTeams((t) => (on ? t.filter((x) => x !== d.id) : [...t, d.id]))}
+                  />
+                  {d.name}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
+      <label className="grid gap-1.5 text-xs text-ink-muted sm:grid-cols-[180px_1fr] sm:items-center">
+        Whose lead gives access
+        <select value={owner ?? ""} onChange={(e) => setOwner(e.target.value || null)} className="field h-9 px-3 text-sm text-ink">
+          <option value="">Admins only</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {tab.people.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-ink-muted">Also given access</p>
+          <div className="flex flex-wrap gap-1.5">
+            {tab.people.map((p) => (
+              <span key={p.id} className="inline-flex items-center gap-1 rounded-full bg-subtle py-1 pl-3 pr-1 text-sm text-ink">
+                {p.name}
+                <button
+                  type="button"
+                  aria-label={`Remove ${p.name} from ${tab.label}`}
+                  disabled={pending}
+                  onClick={() =>
+                    start(async () => {
+                      const res = await removeTabPerson(tab.key, p.id);
+                      if (res.ok) toast.success(`${p.name} removed.`);
+                      else toast.error(res.error);
+                    })
+                  }
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-white"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -28,7 +28,25 @@ export type Section = {
   sort: number;
   /** Fine to leave empty (e.g. the Partnership strip): never flagged as empty. */
   optional?: boolean;
+  /** Where new bookings in it show by default (none before the database has it). */
+  shows_on?: Surface[];
+  /** Hidden from the homepage map; its bookings stay. */
+  archived?: boolean;
 };
+
+/** The kinds of section Commercial can add, with what each looks like. */
+export const SECTION_KINDS: { kind: SectionKind; label: string; hint: string; slots: number }[] = [
+  { kind: "banner", label: "Banner", hint: "One wide image", slots: 1 },
+  { kind: "carousel", label: "Carousel", hint: "Slides that scroll sideways", slots: 6 },
+  { kind: "tiles", label: "Tiles", hint: "A grid of squares", slots: 6 },
+  { kind: "icons", label: "Category icons", hint: "Round icons with a label", slots: 5 },
+  { kind: "text", label: "Text strip", hint: "A line of offer text", slots: 1 },
+  { kind: "badge", label: "Badge", hint: "A small label on products", slots: 1 },
+];
+
+/** The Placements tabs. "web" is App / Website; the rest are design requests and Design's own list. */
+export type PlacementTab = "web" | "social" | "ads" | "crm" | "partnerships" | "design";
+export const PLACEMENT_TABS: PlacementTab[] = ["web", "social", "ads", "crm", "partnerships", "design"];
 
 export type Stage = "booked" | "ready" | "live" | "ended";
 

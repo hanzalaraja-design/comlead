@@ -360,7 +360,7 @@ function BookingForm({
   const [words, setWords] = useState((usesProducts(section) ? existing?.products : existing?.comms) ?? "");
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const [link, setLink] = useState(existing?.link ?? "");
-  const [shows, setShows] = useState<Surface[]>(existing?.shows_on?.length ? existing.shows_on : ["web", "app"]);
+  const [shows, setShows] = useState<Surface[]>(existing?.shows_on?.length ? existing.shows_on : section.shows_on?.length ? section.shows_on : ["web", "app"]);
   const [inspo, setInspo] = useState<string[]>(existing?.inspo_paths ?? []);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);

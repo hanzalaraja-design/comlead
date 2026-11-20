@@ -36,6 +36,10 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-4000-bb00-000000000002', 'pltest.other@highfy.pk', '{"full_name":"Ola Other"}'),
   ('00000000-0000-4000-bb00-000000000003', 'pltest.pending@highfy.pk', '{"full_name":"Pat Pending"}');
 update public.profiles set status = 'active' where email in ('pltest.booker@highfy.pk', 'pltest.other@highfy.pk');
+-- Ola is in Marketing, which sees App / Website.
+insert into public.placement_tab_teams (tab, department_id) select 'web', id from public.departments where slug = 'marketing' on conflict do nothing;
+insert into public.department_members (department_id, user_id, role)
+select id, '00000000-0000-4000-bb00-000000000002', 'member' from public.departments where slug = 'marketing';
 
 select pg_temp.login('00000000-0000-4000-bb00-000000000001');
 set local role authenticated;
