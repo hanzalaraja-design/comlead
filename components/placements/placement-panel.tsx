@@ -26,7 +26,10 @@ import {
   type Placement,
   type PlacementRole,
   type Section,
+  type ProjectLink,
+  PROJECT_KIND_LABELS,
 } from "@/lib/placements";
+import Link from "next/link";
 import {
   bookPlacement,
   cancelPlacement,
@@ -108,6 +111,7 @@ export function PlacementPanel({
   onMode,
   onClose,
   upload,
+  links = [],
 }: {
   mode: Mode;
   sections: Section[];
@@ -118,12 +122,14 @@ export function PlacementPanel({
   onMode: (m: Mode | null) => void;
   onClose: () => void;
   upload: ReturnType<typeof useArtworkUpload>;
+  /** Projects, campaigns and partnerships the viewer can link a booking to. */
+  links?: ProjectLink[];
 }) {
   const p = mode.kind === "new" ? undefined : placements.find((x) => x.id === mode.id);
   const section = sections.find((s) => s.key === (mode.kind === "new" ? mode.key : p?.section_key));
   if (!section || (mode.kind !== "new" && !p)) return <p className="p-4 text-sm text-ink-muted">This booking is no longer there.</p>;
 
-  if (mode.kind === "view") return <Details p={p!} section={section} {...{ placements, urls, today, role, onMode, onClose, upload }} />;
+  if (mode.kind === "view") return <Details p={p!} section={section} {...{ placements, urls, today, role, onMode, onClose, upload, links }} />;
   return (
     <BookingForm
       key={mode.kind === "new" ? `${mode.key}-${mode.position}-${mode.startsOn}` : mode.id}
@@ -133,6 +139,7 @@ export function PlacementPanel({
       startsOn={mode.kind === "new" ? mode.startsOn : p!.starts_on}
       urls={urls}
       today={today}
+      links={links}
       onDone={(id) => (id ? onMode({ kind: "view", id }) : onClose())}
     />
   );
@@ -157,6 +164,7 @@ function Details({
   onMode,
   onClose,
   upload,
+  links,
 }: {
   p: Placement;
   section: Section;
@@ -167,9 +175,11 @@ function Details({
   onMode: (m: Mode | null) => void;
   onClose: () => void;
   upload: ReturnType<typeof useArtworkUpload>;
+  links: ProjectLink[];
 }) {
   const [pending, start] = useTransition();
   const k = statusOf(p, today);
+  const linked = p.project_id ? links.find((l) => l.id === p.project_id) : undefined;
   const next = nextAfter(placements, p);
   const art = p.artwork_path ? urls[p.artwork_path] : undefined;
   const step = { booked: 0, ready: 1, live: 2, ended: 2 }[p.stage];
@@ -223,6 +233,17 @@ function Details({
 
       <dl className="grid grid-cols-[88px_1fr] gap-x-3 gap-y-2 text-sm">
         <Row label="Dates">{datesText(p, today)}</Row>
+        {p.project_id && (
+          <Row label="Linked to">
+            {linked ? (
+              <Link href={`/${linked.kind}s/${linked.slug}`} className="font-semibold text-brand-primary hover:underline">
+                {PROJECT_KIND_LABELS[linked.kind]} · {linked.name}
+              </Link>
+            ) : (
+              "A project you're not in"
+            )}
+          </Row>
+        )}
         {p.link && (
           <Row label="Link">
             <BookingLink link={p.link} />
@@ -341,6 +362,7 @@ function BookingForm({
   startsOn,
   urls,
   today,
+  links,
   onDone,
 }: {
   section: Section;
@@ -349,8 +371,10 @@ function BookingForm({
   startsOn: string;
   urls: Record<string, string>;
   today: string;
+  links: ProjectLink[];
   onDone: (id: string | null) => void;
 }) {
+  const [projectId, setProjectId] = useState(existing?.project_id ?? "");
   const [id] = useState(() => existing?.id ?? crypto.randomUUID());
   const start0 = existing ? existing.starts_on : startsOn < today ? today : startsOn;
   const [brand, setBrand] = useState(existing?.brand ?? "");
@@ -395,6 +419,8 @@ function BookingForm({
       inspo_paths: inspo,
       shows_on: shows,
       link,
+      // Only sent once someone picks one, so bookings still save before the database has links.
+      ...(projectId || existing?.project_id ? { project_id: projectId || null } : {}),
     };
     if (!shows.length) return void toast.error("Pick the website, the app, or both.");
     start(async () => {
@@ -466,6 +492,30 @@ function BookingForm({
           <Input id="pl-words" value={words} onChange={(e) => setWords(e.target.value)} placeholder="e.g. Flat 20% off · Only for today" />
         )}
       </div>
+      {links.length > 0 && (
+        <div className="space-y-1.5">
+          <Label htmlFor="pl-project">
+            Linked to <span className="font-normal text-ink-muted">(optional)</span>
+          </Label>
+          <select id="pl-project" value={projectId} onChange={(e) => setProjectId(e.target.value)} className="field h-10 w-full px-3 text-sm">
+            <option value="">Nothing</option>
+            {(["campaign", "partnership", "project"] as const).map((k) =>
+              links.some((l) => l.kind === k) ? (
+                <optgroup key={k} label={`${PROJECT_KIND_LABELS[k]}s`}>
+                  {links
+                    .filter((l) => l.kind === k)
+                    .map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                </optgroup>
+              ) : null,
+            )}
+          </select>
+          <p className="text-xs text-ink-muted">Adds a done task to it, so the booking shows in its tasks.</p>
+        </div>
+      )}
       <div className="space-y-1.5">
         <Label htmlFor="pl-link">
           Link <span className="font-normal text-ink-muted">(where the banner goes)</span>

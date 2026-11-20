@@ -30,6 +30,7 @@ import {
   type PlacementRole,
   type Section,
   type Surface,
+  type ProjectLink,
 } from "@/lib/placements";
 import { hideSection, makeLiveOn, markOnFigma, markTakenDown, orderSections } from "@/app/(app)/placements/actions";
 import { HomepageMap, type LayoutEdit } from "./homepage-map";
@@ -68,6 +69,7 @@ export function PlacementsBoard({
   openId,
   startDate,
   canEditLayout = false,
+  links = [],
 }: {
   sections: Section[];
   placements: Placement[];
@@ -80,6 +82,8 @@ export function PlacementsBoard({
   startDate?: string;
   /** Commercial and Admins can move, add and hide sections. */
   canEditLayout?: boolean;
+  /** Projects, campaigns and partnerships a booking can be linked to. */
+  links?: ProjectLink[];
 }) {
   const router = useRouter();
   const wide = useWide();
@@ -595,6 +599,7 @@ export function PlacementsBoard({
                 onMode={setMode}
                 onClose={() => setMode(null)}
                 upload={upload}
+                links={links}
               />
             )}
           </div>
