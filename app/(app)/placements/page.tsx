@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { PlacementsBoard } from "@/components/placements/placements-board";
+import { TabLock } from "@/components/placements/tab-lock";
+import { Lock } from "lucide-react";
 import { ChannelRequests, DesignRequests, type LinkOption, type WebItem } from "@/components/placements/requests";
 import { getPeople, requireViewer } from "@/lib/auth";
 import { CHANNELS, CREATIVE_COLUMNS, designGroups, isChannel, isOpen, type Channel, type CreativeRequest, type RequestComment } from "@/lib/creative";
 import { getProjects } from "@/lib/projects";
 import { createClient } from "@/lib/supabase/server";
-import { PLACEMENT_COLUMNS, slotName, surfacesText, toDesign, type Placement, type PlacementRole, type Section } from "@/lib/placements";
+import { PLACEMENT_COLUMNS, PLACEMENT_TABS, datesText, slotName, surfacesText, toDesign, type Placement, type PlacementRole, type Section } from "@/lib/placements";
 import { formatDate, todayPKT } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +19,7 @@ type Tab = "web" | Channel | "design";
 export default async function PlacementsPage({ searchParams }: { searchParams: Promise<{ open?: string; tab?: string; date?: string }> }) {
   const [viewer, supabase, sp] = await Promise.all([requireViewer(), createClient(), searchParams]);
   const today = todayPKT();
-  const [{ data: roleData }, { data: sectionData }, { data: placementData }, { data: settings }, requestsRes] = await Promise.all([
+  const [{ data: roleData }, { data: sectionData }, { data: placementData }, { data: settings }, requestsRes, tabsRes, layoutRes] = await Promise.all([
     supabase.rpc("placement_roles"),
     supabase.from("placement_sections").select("*").eq("surface", "web").eq("archived", false).order("sort"),
     supabase.from("placements").select(PLACEMENT_COLUMNS).neq("stage", "ended").order("starts_on"),
@@ -30,6 +32,10 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
       .order("created_at", { ascending: false })
       .limit(500)
       .then((r) => (r.error ? { data: [] } : r)),
+    // Which tabs you can see, and whether you can change the layout (both
+    // missing before the database has them: then everything shows, as before).
+    supabase.rpc("my_placement_tabs"),
+    supabase.rpc("can_edit_placement_layout"),
   ]);
   const roles = ((roleData ?? []) as PlacementRole[]).sort(
     (a, b) => ["commercial", "design", "tech"].indexOf(a) - ["commercial", "design", "tech"].indexOf(b),
@@ -38,10 +44,14 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
   const placements = (placementData ?? []) as unknown as Placement[];
 
   const isDesign = roles.includes("design");
+  const canSee = new Set<Tab>(tabsRes.error ? PLACEMENT_TABS : ((tabsRes.data ?? []) as Tab[]));
+  const canEditLayout = !layoutRes.error && layoutRes.data === true;
   const designDept = settings?.design_department_id ?? null;
   const canAssign = viewer.isAdmin || (!!designDept && viewer.leadDeptIds.includes(designDept));
   // Designers open on their list; everyone else on App / Website.
-  const tab: Tab = isChannel(sp.tab) ? sp.tab : sp.tab === "web" ? "web" : isDesign && (sp.tab === "design" || !viewer.isAdmin) ? "design" : "web";
+  const firstOpen: Tab = (["web", "social", "ads", "crm", "partnerships"] as Tab[]).find((t) => canSee.has(t)) ?? "web";
+  const tab: Tab = isChannel(sp.tab) ? sp.tab : sp.tab === "web" ? "web" : isDesign && (sp.tab === "design" || !viewer.isAdmin) ? "design" : firstOpen;
+  const locked = !canSee.has(tab);
   const openId = sp.open && /^[0-9a-f-]{36}$/.test(sp.open) ? sp.open : null;
 
   // Counts on the tabs: what's open, and for Design what needs them.
@@ -66,6 +76,7 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
             tab === t.key ? "border-brand-primary text-ink" : "border-transparent text-ink-muted hover:text-ink",
           )}
         >
+          {!canSee.has(t.key) && <Lock aria-label="You see only your own" className="h-3.5 w-3.5 text-ink-muted" />}
           {t.label}
           {t.n > 0 && <span className="rounded-full bg-brand-bg px-1.5 text-xs text-brand-primary">{t.n}</span>}
         </Link>
@@ -81,6 +92,22 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
     />
   );
   const sections = (sectionData ?? []) as Section[];
+  // Who to ask, on a tab you can't see.
+  const lock = locked
+    ? await supabase.rpc("access_info", { p_type: "placement_tab", p_key: tab }).then((r) => {
+        const info = r.data as { owner: string | null; teams: string[]; asked: boolean } | null;
+        return (
+          <TabLock
+            tab={tab}
+            label={tabs.find((t) => t.key === tab)!.label}
+            owner={info?.owner ?? null}
+            teams={info?.teams ?? []}
+            asked={info?.asked ?? false}
+            ownNoun={tab === "web" ? "bookings" : "requests"}
+          />
+        );
+      })
+    : null;
 
   if (tab !== "web") {
     const [people, projects, designMembers] = await Promise.all([
@@ -131,6 +158,7 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
       <>
         {header}
         {nav}
+        {lock}
         {tab === "design" ? (
           <DesignRequests requests={shown} web={web} openId={openId} {...shared} />
         ) : (
@@ -140,7 +168,37 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
     );
   }
 
-  const paths = placements.flatMap((p) => [...p.inspo_paths, ...(p.artwork_path ? [p.artwork_path] : [])]);
+  // App / Website you can't see: just your own bookings, and who to ask.
+  if (locked) {
+    return (
+      <>
+        {header}
+        {nav}
+        {lock}
+        <section aria-label="Your bookings" className="surface divide-y divide-line">
+          {placements.length ? (
+            placements.map((p) => {
+              const s = sections.find((x) => x.key === p.section_key);
+              return (
+                <div key={p.id} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3">
+                  <span className="text-[15px] font-semibold text-ink">{p.brand}</span>
+                  <span className="text-sm text-ink-muted">
+                    {s ? slotName(s, p.position) : "Homepage"} · {datesText(p, today)}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <p className="px-4 py-6 text-sm text-ink-muted">You haven&apos;t booked anything.</p>
+          )}
+        </section>
+      </>
+    );
+  }
+
+  // Bookings in hidden sections stay, but aren't on the map.
+  const shownPlacements = placements.filter((p) => sections.some((s) => s.key === p.section_key));
+  const paths = shownPlacements.flatMap((p) => [...p.inspo_paths, ...(p.artwork_path ? [p.artwork_path] : [])]);
   const { data: signed } = paths.length
     ? await supabase.storage.from("placement-files").createSignedUrls(paths, 3600)
     : { data: [] as { path: string | null; signedUrl: string }[] };
@@ -170,8 +228,9 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
       )}
       <PlacementsBoard
         sections={sections}
-        placements={placements}
+        placements={shownPlacements}
         urls={urls}
+        canEditLayout={canEditLayout}
         roles={roles.length ? roles : ["commercial"]}
         defaultRole={defaultRole}
         today={today}

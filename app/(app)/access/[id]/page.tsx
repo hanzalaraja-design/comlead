@@ -12,7 +12,7 @@ export const metadata = { title: "Access request" };
 
 type Req = {
   id: string;
-  item_type: "task" | "project";
+  item_type: "task" | "project" | "placement_tab";
   item_id: string;
   requested_by: string;
   reason: string | null;
@@ -36,7 +36,14 @@ export default async function AccessRequestPage({ params }: { params: Promise<{ 
 
   const [people, item, { data: canDecide }] = await Promise.all([
     getPeople(),
-    r.item_type === "task"
+    r.item_type === "placement_tab"
+      ? supabase
+          .from("placement_tabs")
+          .select("key, label")
+          .eq("id", r.item_id)
+          .maybeSingle()
+          .then(({ data }) => (data ? { name: `Placements · ${data.label as string}`, href: `/placements?tab=${data.key as string}`, noun: "tab" } : null))
+      : r.item_type === "task"
       ? supabase.from("tasks").select("title").eq("id", r.item_id).maybeSingle().then(({ data }) => (data ? { name: data.title as string, href: `/tasks/${r.item_id}`, noun: "task" } : null))
       : supabase
           .from("projects")
@@ -78,11 +85,13 @@ export default async function AccessRequestPage({ params }: { params: Promise<{ 
             <div className="space-y-2">
               <DecideAccess requestId={r.id} name={askerName} />
               <p className="text-xs text-ink-muted">
-                Giving access adds them as {r.item_type === "task" ? "a collaborator on the task" : `a person on the ${item.noun}`}. You can remove them later.
+                {r.item_type === "placement_tab"
+                  ? "Giving access lets them see everything in this tab. An Admin can remove them later."
+                  : `Giving access adds them as ${r.item_type === "task" ? "a collaborator on the task" : `a person on the ${item.noun}`}. You can remove them later.`}
               </p>
             </div>
           ) : (
-            <p className="text-sm text-ink-muted">Waiting for the owner to decide.</p>
+            <p className="text-sm text-ink-muted">{r.item_type === "placement_tab" ? "Waiting for the team lead or an Admin to decide." : "Waiting for the owner to decide."}</p>
           )
         ) : (
           <p className={r.status === "given" ? "text-sm font-semibold text-success-ink" : "text-sm font-semibold text-ink-muted"}>

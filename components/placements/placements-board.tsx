@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarDays, Check } from "lucide-react";
+import { CalendarDays, Check, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -31,8 +31,9 @@ import {
   type Section,
   type Surface,
 } from "@/lib/placements";
-import { makeLiveOn, markOnFigma, markTakenDown } from "@/app/(app)/placements/actions";
-import { HomepageMap } from "./homepage-map";
+import { hideSection, makeLiveOn, markOnFigma, markTakenDown, orderSections } from "@/app/(app)/placements/actions";
+import { HomepageMap, type LayoutEdit } from "./homepage-map";
+import { AddSectionForm } from "./section-editor";
 import { PlacementPanel, useArtworkUpload, type PanelMode } from "./placement-panel";
 import { STATUS_CHIP } from "./styles";
 import { BulkAdd, SchedulePlanner } from "./schedule";
@@ -66,6 +67,7 @@ export function PlacementsBoard({
   today,
   openId,
   startDate,
+  canEditLayout = false,
 }: {
   sections: Section[];
   placements: Placement[];
@@ -76,6 +78,8 @@ export function PlacementsBoard({
   openId: string | null;
   /** Show the homepage on this day (yyyy-MM-dd) instead of today. */
   startDate?: string;
+  /** Commercial and Admins can move, add and hide sections. */
+  canEditLayout?: boolean;
 }) {
   const router = useRouter();
   const wide = useWide();
@@ -91,6 +95,58 @@ export function PlacementsBoard({
   const [mode, setMode] = useState<PanelMode | null>(() => (openId && placements.some((p) => p.id === openId) ? { kind: "view", id: openId } : null));
   const upload = useArtworkUpload();
   const [pending, start] = useTransition();
+  // Edit layout: the order as moved here, saved as you go.
+  const [editing, setEditing] = useState(false);
+  const [order, setOrder] = useState<string[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const shownSections = editing && order ? order.map((k) => sections.find((s) => s.key === k)).filter((s): s is Section => !!s) : sections;
+  const saveOrder = (keys: string[]) => {
+    setOrder(keys);
+    start(async () => {
+      const res = await orderSections(keys);
+      if (!res.ok) {
+        toast.error(res.error);
+        setOrder(sections.map((s) => s.key));
+      }
+      router.refresh();
+    });
+  };
+  const layoutEdit: LayoutEdit | undefined = editing
+    ? {
+        busy: pending,
+        onMove: (key, dir) => {
+          const keys = shownSections.map((s) => s.key);
+          const i = keys.indexOf(key);
+          const j = i + dir;
+          if (i < 0 || j < 0 || j >= keys.length) return;
+          [keys[i], keys[j]] = [keys[j], keys[i]];
+          saveOrder(keys);
+        },
+        onDrop: (key, beforeKey) => {
+          const keys = shownSections.map((s) => s.key).filter((k) => k !== key);
+          const from = shownSections.findIndex((s) => s.key === key);
+          const to = shownSections.findIndex((s) => s.key === beforeKey);
+          // Dropped on a section below: it goes after it; above: before it.
+          keys.splice(keys.indexOf(beforeKey) + (from < to ? 1 : 0), 0, key);
+          saveOrder(keys);
+        },
+        onHide: (sec) => {
+          const current = placements.filter((p) => p.section_key === sec.key).length;
+          const warn = current
+            ? ` It has ${current} booking${current === 1 ? "" : "s"} that ${current === 1 ? "isn't" : "aren't"} over yet: ${current === 1 ? "it stays" : "they stay"}, but won't show on this board (or for Tech) until the section is back. Take any live banner down first.`
+            : " Its bookings and history stay.";
+          if (!window.confirm(`Hide "${sec.name}" from the homepage?${warn} An Admin can bring it back from Admin > Placements.`)) return;
+          start(async () => {
+            const res = await hideSection(sec.key, true);
+            if (!res.ok) return void toast.error(res.error);
+            setOrder((o) => (o ?? shownSections.map((x) => x.key)).filter((k) => k !== sec.key));
+            toast.success(`${sec.name} is hidden.`);
+            router.refresh();
+          });
+        },
+        onAdd: () => setAdding(true),
+      }
+    : undefined;
 
   // Drop "?open=" from the address once it's been used.
   useEffect(() => {
@@ -180,7 +236,29 @@ export function PlacementsBoard({
             className="absolute inset-0 cursor-pointer opacity-0"
           />
         </label>
+        {canEditLayout && (
+          <button
+            type="button"
+            onClick={() => {
+              setOrder(sections.map((x) => x.key));
+              setEditing((e) => !e);
+            }}
+            aria-pressed={editing}
+            className={cn(
+              "ml-auto inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-semibold",
+              editing ? "border-brand-primary bg-brand-primary text-white" : "border-line bg-white text-ink hover:bg-subtle",
+            )}
+          >
+            {editing ? <Check className="h-4 w-4" /> : <LayoutList className="h-4 w-4" />}
+            {editing ? "Done" : "Edit layout"}
+          </button>
+        )}
       </div>
+      {editing && (
+        <p className="rounded-[12px] bg-brand-bg px-3 py-2 text-sm text-ink">
+          Drag a section by its handle, or use the arrows. Moving sections changes the order for everyone.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-1.5 text-sm">
         <span className="text-ink-muted">{formatDate(date, "EEEE d MMMM")}:</span>
         <span className={cn("rounded-full px-2 text-xs font-semibold leading-6", STATUS_CHIP.live)}>{sum.live} live</span>
@@ -193,7 +271,8 @@ export function PlacementsBoard({
 
   const map = (
     <HomepageMap
-      sections={sections}
+      sections={shownSections}
+      edit={layoutEdit}
       placements={placements}
       urls={urls}
       date={date}
@@ -456,6 +535,31 @@ export function PlacementsBoard({
           </div>
         </div>
       )}
+
+      <Sheet open={adding} onOpenChange={setAdding}>
+        <SheetContent
+          side={wide ? "right" : "bottom"}
+          className={cn("gap-0 overflow-y-auto bg-white p-0", wide ? "w-full sm:max-w-md" : "max-h-[92svh] rounded-t-[22px]")}
+        >
+          <SheetHeader className="px-5 pb-2 pt-5">
+            <SheetDescription className="text-xs">Homepage layout</SheetDescription>
+            <SheetTitle className="pr-8 text-xl text-ink">Add a section</SheetTitle>
+          </SheetHeader>
+          <div className="px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            {adding && (
+              <AddSectionForm
+                onDone={(key) => {
+                  setAdding(false);
+                  if (key) {
+                    setOrder((o) => [...(o ?? sections.map((x) => x.key)), key]);
+                    router.refresh();
+                  }
+                }}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Sheet open={bulk} onOpenChange={setBulk}>
         <SheetContent

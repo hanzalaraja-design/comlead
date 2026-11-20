@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { HighfyLogo } from "@/components/brand";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,16 @@ import {
   type Section,
 } from "@/lib/placements";
 import { SLOT, STATUS_CARD, STATUS_CHIP, WRAP } from "./styles";
+import { SectionEditBar } from "./section-editor";
+
+/** Moving, hiding and adding sections (Commercial and Admins, in edit mode). */
+export type LayoutEdit = {
+  busy: boolean;
+  onMove: (key: string, dir: -1 | 1) => void;
+  onDrop: (key: string, beforeKey: string) => void;
+  onHide: (s: Section) => void;
+  onAdd: () => void;
+};
 
 /**
  * The highfy.pk homepage, section by section, as it is (or will be) on one
@@ -29,6 +39,7 @@ export function HomepageMap({
   canBook,
   onOpen,
   onBook,
+  edit,
 }: {
   sections: Section[];
   placements: Placement[];
@@ -38,15 +49,55 @@ export function HomepageMap({
   canBook: boolean;
   onOpen: (p: Placement) => void;
   onBook: (s: Section, position: number) => void;
+  edit?: LayoutEdit;
 }) {
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
   return (
     <div className="surface flex flex-col gap-4 overflow-hidden p-3">
       <div className="flex items-end justify-between px-0.5">
         <HighfyLogo className="w-20" />
         <span className="text-xs text-ink-muted">highfy.pk</span>
       </div>
-      {sections.map((s) => (
-        <section key={s.key} className="flex min-w-0 flex-col gap-1.5">
+      {sections.map((s, i) => (
+        <section
+          key={s.key}
+          className={cn(
+            "flex min-w-0 flex-col gap-1.5",
+            edit && "rounded-[14px]",
+            edit && dragging && over === s.key && dragging !== s.key && "outline-2 outline-offset-4 outline-dashed outline-brand-primary",
+          )}
+          onDragOver={
+            edit && dragging
+              ? (e) => {
+                  e.preventDefault();
+                  setOver(s.key);
+                }
+              : undefined
+          }
+          onDrop={
+            edit && dragging
+              ? (e) => {
+                  e.preventDefault();
+                  if (dragging !== s.key) edit.onDrop(dragging, s.key);
+                  setDragging(null);
+                  setOver(null);
+                }
+              : undefined
+          }
+          onDragEnd={edit ? () => (setDragging(null), setOver(null)) : undefined}
+        >
+          {edit ? (
+            <SectionEditBar
+              section={s}
+              first={i === 0}
+              last={i === sections.length - 1}
+              busy={edit.busy}
+              onMove={(dir) => edit.onMove(s.key, dir)}
+              onHide={() => edit.onHide(s)}
+              onDragStart={() => setDragging(s.key)}
+            />
+          ) : (
           <h3 className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
             <span>
               {s.name}
@@ -57,7 +108,8 @@ export function HomepageMap({
               {(s.kind === "carousel" || s.kind === "icons") && s.slots > 2 && <ScrollButtons target={s.key} name={s.name} />}
             </span>
           </h3>
-          <div className={WRAP[s.kind]} data-scroll-row={s.key}>
+          )}
+          <div className={cn(WRAP[s.kind], edit && "pointer-events-none opacity-60")} data-scroll-row={s.key} aria-hidden={edit ? true : undefined}>
             {Array.from({ length: s.slots }, (_, i) => i + 1).map((n) => {
               const p = activeOn(placements, s.key, n, date);
               const label = slotLabel(s, n);
@@ -153,6 +205,16 @@ export function HomepageMap({
           </div>
         </section>
       ))}
+      {edit && (
+        <button
+          type="button"
+          onClick={edit.onAdd}
+          disabled={edit.busy}
+          className="flex h-12 items-center justify-center gap-1.5 rounded-[12px] border-[1.5px] border-dashed border-line text-sm font-semibold text-brand-primary hover:border-brand-primary disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" /> Add a section
+        </button>
+      )}
     </div>
   );
 }
