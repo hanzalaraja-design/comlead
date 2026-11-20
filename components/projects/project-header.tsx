@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { Plus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
@@ -37,7 +37,8 @@ export async function loadProject(slug: string, raw: Raw, kind?: ProjectKind, re
     getTeamNames(),
     getPeople(),
   ]);
-  if (!data) notFound();
+  // Not yours to see: ask for access (that page says "not found" if it doesn't exist).
+  if (!data) redirect(`/request-access?project=${encodeURIComponent(slug)}`);
   const project = toProject(data as unknown as Parameters<typeof toProject>[0]);
   if (kind && project.kind !== kind) redirect(`${domainHref(project)}${rest}`);
   const memberIds = (await membersByProject([project]))[project.id] ?? [];

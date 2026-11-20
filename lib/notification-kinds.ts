@@ -35,6 +35,10 @@ export const NOTIFY_GROUPS: { title: string; kinds: NotifyKindInfo[] }[] = [
     ],
   },
   {
+    title: "Access",
+    kinds: [{ key: "access", label: "Access requests", hint: "Someone asks for access to something you own, and answers to yours" }],
+  },
+  {
     title: "Placements and design",
     kinds: [
       { key: "design_new", label: "New work for my team", hint: "Bookings and requests for Design; banners for Tech to put live" },

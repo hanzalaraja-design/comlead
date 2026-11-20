@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { CornerDownRight, FolderKanban, NotebookPen } from "lucide-react";
 import { CollaboratorsField, InlineNotes, InlineTitle, LinkTags, PickTeam, TaskLockSwitch, TeamsField } from "@/components/tasks/task-inline";
 import { DoneOn, InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
@@ -11,6 +11,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { DueLabel, StatusBadge } from "@/components/tasks/task-badges";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { TaskComments } from "@/components/tasks/task-comments";
+import { ActivityButton } from "@/components/activity/activity-button";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
 import { TaskMenu } from "@/components/tasks/task-actions-menu";
 import { BackLink } from "@/components/return-to";
@@ -40,7 +41,8 @@ export default async function TaskPage({
   const supabase = await createClient();
 
   const { data: taskData } = await withTaskSelect((select) => supabase.from("tasks").select(select).eq("id", id).maybeSingle());
-  if (!taskData) notFound();
+  // Not yours to see (or gone): ask for access, or "not found" if it doesn't exist.
+  if (!taskData) redirect(`/request-access?task=${id}`);
   const task = taskData as unknown as TaskListRow;
 
   const [collabRes, commentsRes, filesRes, historyRes, people, subtasksRes, teamsRes, teamNames, allProjects, meetingsRes, dbCanEdit, dbCanDelete] = await Promise.all([
@@ -168,7 +170,19 @@ export default async function TaskPage({
             />
           )
         }
-        actions={<TaskMenu taskId={id} title={task.title} subtasks={subtasks.length} canDelete={canDelete} fallback={home.href} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <ActivityButton
+              lines={((historyRes.data ?? []) as ActivityEntry[]).map((e) => ({
+                id: e.id,
+                who: e.actor_id ? personName(person(e.actor_id)) : "System",
+                text: describeActivity(e, { person }),
+                when: formatPKT(e.created_at),
+              }))}
+            />
+            <TaskMenu taskId={id} title={task.title} subtasks={subtasks.length} canDelete={canDelete} fallback={home.href} />
+          </div>
+        }
       />
       {locked && (
         <p className="-mt-2 mb-4 rounded-[12px] bg-warning-soft px-3 py-2 text-sm text-warning-ink">
@@ -285,23 +299,6 @@ export default async function TaskPage({
             />
           </section>
 
-          {(historyRes.data ?? []).length > 0 && (
-            <details className="surface group p-4 md:p-6">
-              <summary className="kicker cursor-pointer list-none text-ink">
-                History <span className="font-normal text-ink-muted">· {(historyRes.data ?? []).length}</span>
-                <span className="ml-1 text-xs font-normal text-ink-muted group-open:hidden">(show)</span>
-              </summary>
-              <ol className="mt-3 space-y-2 border-l pl-4">
-                {((historyRes.data ?? []) as ActivityEntry[]).map((e) => (
-                  <li key={e.id} className="text-sm">
-                    <span className="font-medium">{e.actor_id ? personName(person(e.actor_id)) : "System"}</span>{" "}
-                    <span className="text-muted-foreground">{describeActivity(e, { person })}</span>
-                    <span className="block text-xs text-muted-foreground">{formatPKT(e.created_at)}</span>
-                  </li>
-                ))}
-              </ol>
-            </details>
-          )}
         </div>
 
         <aside className="h-fit space-y-4 surface p-4 text-sm lg:sticky lg:top-8">
