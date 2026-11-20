@@ -5,13 +5,16 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { PersonAvatar } from "@/components/person-avatar";
 import { ProjectForm } from "@/components/projects/project-form";
+import { ProjectComments, type ProjectComment } from "@/components/projects/project-comments";
+import { personName } from "@/lib/labels";
 import { ProjectHeader, loadProject, teamsText } from "@/components/projects/project-header";
 import { ProjectMeetings } from "@/components/projects/project-meetings";
+import { JourneysView, journeySettings } from "@/components/projects/journeys/journeys-view";
 import { BoardView, CalendarView, ListView } from "@/components/tasks/task-views";
 import { getDepartments, getPeople, requireViewer } from "@/lib/auth";
-import { CATEGORY_LABELS, DOMAINS, datesText, domainHref, getProjectMembers, getProjects, getTeamDirectory, getTeamNames, ownersOf } from "@/lib/projects";
+import { CATEGORY_LABELS, DOMAINS, datesText, domainHref, getProjectMembers, getProjects, getTeamDirectory, getTeamNames, homeTeamFor, ownersOf } from "@/lib/projects";
 import { createClient } from "@/lib/supabase/server";
-import { todayPKT } from "@/lib/time";
+import { formatPKT, todayPKT } from "@/lib/time";
 import type { Project, ProjectKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -33,10 +36,8 @@ const TABS: Record<ProjectKind, { key: string; label: string; test: (p: Project,
     { key: "live", label: "Live & upcoming", test: (p, today) => !p.end_date || p.end_date >= today },
     { key: "ended", label: "Ended", test: (p, today) => !!p.end_date && p.end_date < today },
   ],
-  partnership: [
-    { key: "strategic", label: "Strategic partnerships", test: (p) => p.category !== "beauty" },
-    { key: "beauty", label: "Beauty partnerships", test: (p) => p.category === "beauty" },
-  ],
+  // Brand partnerships have their own list (components/partnerships/partnership-index.tsx).
+  partnership: [{ key: "all", label: "All", test: () => true }],
 };
 
 export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: Raw }) {
@@ -198,6 +199,23 @@ export async function DomainListPage({ kind, params, searchParams }: ItemProps) 
       </>
     );
   }
+  const journeys = await journeySettings(loaded.project.id);
+  if (journeys.on) {
+    return (
+      <>
+        <ProjectHeader loaded={loaded} view="list" journeys />
+        <JourneysView
+          project={loaded.project}
+          base={loaded.base}
+          raw={raw}
+          viewerId={loaded.viewer.id}
+          canEdit={loaded.isMember || loaded.canManage}
+          people={journeys.people}
+          quickDept={homeTeamFor(loaded.viewer, loaded.project) ?? undefined}
+        />
+      </>
+    );
+  }
   return (
     <>
       <ProjectHeader loaded={loaded} view="list" />
@@ -209,8 +227,29 @@ export async function DomainListPage({ kind, params, searchParams }: ItemProps) 
         showProject={false}
         show={typeof raw.show === "string" ? raw.show : ""}
       />
+      <ProjectCommentsSection projectId={loaded.project.id} viewerId={loaded.viewer.id} />
     </>
   );
+}
+
+/** Comments under the task list (none shown if the database hasn't got them yet). */
+async function ProjectCommentsSection({ projectId, viewerId }: { projectId: string; viewerId: string }) {
+  const supabase = await createClient();
+  const [{ data, error }, people] = await Promise.all([
+    supabase.from("project_comments").select("id, body, author_id, created_at").eq("project_id", projectId).order("created_at"),
+    getPeople(),
+  ]);
+  if (error) return null;
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const comments: ProjectComment[] = ((data ?? []) as { id: string; body: string; author_id: string; created_at: string }[]).map((c) => ({
+    id: c.id,
+    body: c.body,
+    when: formatPKT(c.created_at, "d MMM, h:mm a"),
+    author: byId.get(c.author_id) ?? null,
+    authorName: personName(byId.get(c.author_id) ?? null),
+    mine: c.author_id === viewerId,
+  }));
+  return <ProjectComments projectId={projectId} comments={comments} canComment />;
 }
 
 export async function DomainBoardPage({ kind, params, searchParams }: ItemProps) {

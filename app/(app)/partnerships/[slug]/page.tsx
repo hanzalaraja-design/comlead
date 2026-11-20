@@ -1,6 +1,6 @@
 import { DomainListPage } from "@/components/projects/domain-pages";
 
-export const metadata = { title: "Partnerships · Highfy Tasks" };
+export const metadata = { title: "Brand partnerships · Highfy Tasks" };
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 

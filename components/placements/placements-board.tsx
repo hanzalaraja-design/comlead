@@ -36,6 +36,7 @@ import { HomepageMap } from "./homepage-map";
 import { PlacementPanel, useArtworkUpload, type PanelMode } from "./placement-panel";
 import { STATUS_CHIP } from "./styles";
 import { BulkAdd, SchedulePlanner } from "./schedule";
+import { GridView } from "./grid-view";
 
 const subscribeWide = (cb: () => void) => {
   const m = window.matchMedia("(min-width: 1024px)");
@@ -79,7 +80,7 @@ export function PlacementsBoard({
   const router = useRouter();
   const wide = useWide();
   const [role, setRole] = useState<PlacementRole>(defaultRole);
-  const [tab, setTab] = useState<"map" | "list" | "schedule">("map");
+  const [tab, setTab] = useState<"map" | "list" | "grid" | "schedule">("map");
   const [bulk, setBulk] = useState(false);
   // A given day, else the day a booking opened from a link starts (if it's still to come), else today.
   const [date, setDate] = useState(() => {
@@ -401,7 +402,7 @@ export function PlacementsBoard({
 
       {/* Phones: one thing at a time. Desktop: the homepage with its list, or the month. */}
       <div className="flex gap-5 border-b border-line">
-        {(["map", "list", "schedule"] as const).map((t) => {
+        {(["map", "list", "grid", "schedule"] as const).map((t) => {
           // On desktop the list sits beside the homepage, so "Homepage" covers both.
           const on = tab === t || (wide && t === "map" && tab === "list");
           return (
@@ -416,7 +417,7 @@ export function PlacementsBoard({
               on ? "border-brand-primary text-ink" : "border-transparent text-ink-muted",
             )}
           >
-            {t === "map" ? "Homepage" : t === "list" ? QUEUE_TITLE[role] : "Schedule"}
+            {t === "map" ? "Homepage" : t === "list" ? QUEUE_TITLE[role] : t === "grid" ? "Grid" : "Schedule"}
             {t === "list" && queueCount > 0 && (
               <span className="rounded-full bg-brand-primary px-1.5 text-xs leading-5 text-white">{queueCount}</span>
             )}
@@ -425,7 +426,12 @@ export function PlacementsBoard({
         })}
       </div>
 
-      {tab === "schedule" ? (
+      {tab === "grid" ? (
+        <div className="flex flex-col gap-4">
+          {controls}
+          <GridView sections={sections} placements={placements} urls={urls} date={date} today={today} onOpen={open} />
+        </div>
+      ) : tab === "schedule" ? (
         <SchedulePlanner
           sections={sections}
           placements={placements}

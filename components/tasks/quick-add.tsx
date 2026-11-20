@@ -12,6 +12,7 @@ export function QuickAdd({
   defaultDepartmentId = null,
   mine = false,
   projectId,
+  partId,
 }: {
   departments: { id: string; name: string }[];
   defaultDepartmentId?: string | null;
@@ -19,6 +20,8 @@ export function QuickAdd({
   mine?: boolean;
   /** Inside a project: the task goes in it, and it's yours. */
   projectId?: string;
+  /** Inside a journey: new tasks belong to it. */
+  partId?: string;
 }) {
   const [title, setTitle] = useState("");
   const [dept, setDept] = useState<string>(defaultDepartmentId ?? departments[0]?.id ?? "");
@@ -30,7 +33,7 @@ export function QuickAdd({
     const value = title;
     setTitle("");
     startTransition(async () => {
-      const res = await quickAddTask(value, dept || null, projectId, mine);
+      const res = await quickAddTask(value, dept || null, projectId, mine, partId);
       if (res.ok)
         toast.success(
           res.data!.done

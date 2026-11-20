@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { addDaysISO, formatDate, startOfDayPKT, todayPKT } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
-export const metadata = { title: "Brand collabs · Highfy Tasks" };
+export const metadata = { title: "Paid social · Highfy Tasks" };
 
 const TABS = [
   { key: "requests", label: "Requests" },
@@ -20,14 +20,14 @@ const TABS = [
   { key: "terms", label: "Terms" },
 ] as const;
 
-/** Brand collabs: Commercial asks, Content plans and delivers, Commercial approves and gets the report. */
+/** Paid social: Commercial asks, Content plans and delivers, Commercial approves and gets the report. */
 export default async function CollabsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const [{ tab: raw }, access] = await Promise.all([searchParams, collabAccess()]);
   const tab = TABS.some((t) => t.key === raw) ? raw! : "requests";
   const header = (
     <PageHeader
-      breadcrumb={["Brand collabs"]}
-      title="Brand collabs"
+      breadcrumb={["Paid social"]}
+      title="Paid social"
       description="Commercial asks for content, Content plans it from the media kit, Commercial approves, Content delivers and reports."
       actions={
         access.commercial && (
@@ -44,7 +44,7 @@ export default async function CollabsPage({ searchParams }: { searchParams: Prom
     return (
       <>
         {header}
-        <EmptyState>Brand collabs is for the Commercial and Content teams. Ask an Admin if you need it.</EmptyState>
+        <EmptyState>Paid social is for the Commercial and Content teams. Ask an Admin if you need it.</EmptyState>
       </>
     );
 
@@ -85,7 +85,7 @@ export default async function CollabsPage({ searchParams }: { searchParams: Prom
   return (
     <>
       {header}
-      <nav aria-label="Brand collabs" className="-mx-4 mb-4 flex gap-5 border-b border-line px-4 md:mx-0 md:px-0">
+      <nav aria-label="Paid social" className="-mx-4 mb-4 flex gap-5 border-b border-line px-4 md:mx-0 md:px-0">
         {TABS.map((t) => (
           <Link
             key={t.key}

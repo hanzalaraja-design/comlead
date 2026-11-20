@@ -17,9 +17,9 @@ const SHOW = [
   { key: "unread", label: "Unread" },
   { key: "mentions", label: "Mentions" },
   { key: "tasks", label: "Tasks" },
-  { key: "design", label: "Placements, design and collabs" },
+  { key: "design", label: "Placements, design and paid social" },
 ] as const;
-const TASK_KINDS = ["assigned", "collaborator", "comment", "finished", "status", "due", "edits", "roundup", "due_tomorrow", "project_task", "project_added", "meeting"];
+const TASK_KINDS = ["assigned", "collaborator", "comment", "finished", "status", "due", "edits", "roundup", "due_tomorrow", "project_task", "project_added", "meeting", "access", "renewal"];
 const DESIGN_KINDS = ["design_new", "my_requests", "revision", "ending", "homepage_today", "collab"];
 
 /** Everything that happened that concerns you, newest first; unread ones stand out. */

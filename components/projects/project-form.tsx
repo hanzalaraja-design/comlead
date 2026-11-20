@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { MultiSelect } from "@/components/multi-select";
 import { personName } from "@/lib/labels";
-import { DOMAINS } from "@/lib/domains";
+import { CATEGORIES, CATEGORY_LABELS, DOMAINS } from "@/lib/domains";
 import { cn } from "@/lib/utils";
 import type { PartnerCategory, PersonRef, Project, ProjectKind } from "@/lib/types";
 import { createProject, setProjectArchived, updateProject } from "@/app/(app)/projects/actions";
@@ -100,7 +100,7 @@ export function ProjectForm({
           <select id="kind" name="kind" className={selectClass} value={kind} onChange={(e) => setKind(e.target.value as ProjectKind)}>
             <option value="project">Project</option>
             <option value="campaign">Campaign</option>
-            <option value="partnership">Partnership</option>
+            <option value="partnership">Brand partnership</option>
           </select>
         </div>
       </div>
@@ -108,17 +108,17 @@ export function ProjectForm({
 
       {kind === "partnership" && (
         <fieldset className="space-y-1.5">
-          <legend className="mb-1.5 text-sm font-medium">Kind of partnership</legend>
+          <legend className="mb-1.5 text-sm font-medium">Category</legend>
           <div className="inline-flex gap-1 rounded-[12px] bg-subtle p-1">
-            {(["non_beauty", "beauty"] as const).map((c) => (
+            {CATEGORIES.map((c) => (
               <button
                 key={c}
                 type="button"
                 aria-pressed={category === c}
-                onClick={() => setCategory(c)}
+                onClick={() => setCategory(category === c ? null : c)}
                 className={cn("h-9 rounded-[9px] px-4 text-sm font-semibold", category === c ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink")}
               >
-                {c === "beauty" ? "Beauty" : "Strategic"}
+                {CATEGORY_LABELS[c]}
               </button>
             ))}
           </div>

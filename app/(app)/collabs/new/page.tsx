@@ -6,7 +6,7 @@ import { collabAccess } from "@/lib/collabs-server";
 import { REQUEST_COLUMNS, type CollabRate, type CollabRequest } from "@/lib/collabs";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata = { title: "New request · Brand collabs · Highfy Tasks" };
+export const metadata = { title: "New request · Paid social · Highfy Tasks" };
 
 /** Commercial's brief: new, or ?edit=<id> before the plan arrives. */
 export default async function NewCollabPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
@@ -23,7 +23,7 @@ export default async function NewCollabPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader
-        breadcrumb={[{ label: "Brand collabs", href: "/collabs" }, r ? r.brand : "New request"]}
+        breadcrumb={[{ label: "Paid social", href: "/collabs" }, r ? r.brand : "New request"]}
         title={r ? "Edit the brief" : "Request content"}
         description="Tell Content what to promote and why. Links and extras are optional."
       />

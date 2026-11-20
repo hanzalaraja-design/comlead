@@ -37,6 +37,7 @@ import {
   submitArtwork,
   updatePlacement,
 } from "@/app/(app)/placements/actions";
+import { BookingLink, BookingThreadPanel } from "./booking-thread";
 import { STATUS_CHIP } from "./styles";
 import { PlainText } from "@/components/plain-text";
 
@@ -222,6 +223,11 @@ function Details({
 
       <dl className="grid grid-cols-[88px_1fr] gap-x-3 gap-y-2 text-sm">
         <Row label="Dates">{datesText(p, today)}</Row>
+        {p.link && (
+          <Row label="Link">
+            <BookingLink link={p.link} />
+          </Row>
+        )}
         <Row label="Shows on">
           {surfacesText(p.shows_on?.length ? p.shows_on : ["web"])}
           {p.stage === "ready" && p.live_on.length > 0 && ` · live on ${surfacesText(p.live_on)} so far`}
@@ -322,6 +328,7 @@ function Details({
           </Button>
         )}
       </div>
+      <BookingThreadPanel placementId={p.id} />
       <p className="text-center text-xs text-ink-muted">{slotName(section, p.position)}</p>
     </div>
   );
@@ -352,6 +359,7 @@ function BookingForm({
   const [ongoing, setOngoing] = useState(existing ? existing.ends_on === null : false);
   const [words, setWords] = useState((usesProducts(section) ? existing?.products : existing?.comms) ?? "");
   const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [link, setLink] = useState(existing?.link ?? "");
   const [shows, setShows] = useState<Surface[]>(existing?.shows_on?.length ? existing.shows_on : ["web", "app"]);
   const [inspo, setInspo] = useState<string[]>(existing?.inspo_paths ?? []);
   const [previews, setPreviews] = useState<Record<string, string>>({});
@@ -386,6 +394,7 @@ function BookingForm({
       notes,
       inspo_paths: inspo,
       shows_on: shows,
+      link,
     };
     if (!shows.length) return void toast.error("Pick the website, the app, or both.");
     start(async () => {
@@ -456,6 +465,12 @@ function BookingForm({
         ) : (
           <Input id="pl-words" value={words} onChange={(e) => setWords(e.target.value)} placeholder="e.g. Flat 20% off · Only for today" />
         )}
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="pl-link">
+          Link <span className="font-normal text-ink-muted">(where the banner goes)</span>
+        </Label>
+        <Input id="pl-link" inputMode="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://highfy.pk/…" maxLength={500} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="pl-notes">

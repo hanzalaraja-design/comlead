@@ -82,7 +82,7 @@ export type TaskRow = Task & {
 };
 
 export type ProjectKind = "project" | "campaign" | "partnership";
-export type PartnerCategory = "beauty" | "non_beauty";
+export type PartnerCategory = "associations" | "referral" | "fintech";
 
 /** A folder of tasks people from any team share. */
 export type Project = {
@@ -91,7 +91,7 @@ export type Project = {
   slug: string;
   description: string | null;
   kind: ProjectKind;
-  /** Partnerships only: beauty or non-beauty brand. */
+  /** Brand partnerships only: Associations, Referral or Fintech (or none yet). */
   category: PartnerCategory | null;
   /** Locked: only its owners can change it. */
   locked: boolean;

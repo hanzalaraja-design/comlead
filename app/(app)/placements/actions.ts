@@ -8,7 +8,10 @@ import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { notifyTeamLater, placementsPath } from "@/lib/notify";
 import { personName } from "@/lib/labels";
 import { PLACEMENT_COLUMNS, SURFACE_LABELS, datesText, slotName, type Placement, type Section, type Surface } from "@/lib/placements";
-import { todayPKT } from "@/lib/time";
+import { formatPKT, todayPKT } from "@/lib/time";
+import { describeActivity } from "@/lib/activity";
+import { flushPush } from "@/lib/push";
+import type { ActivityEntry, PersonRef } from "@/lib/types";
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date.");
@@ -28,6 +31,13 @@ const bookingSchema = z.object({
   products: text(1000),
   notes: text(2000),
   inspo_paths: z.array(z.string().max(300)).max(10),
+  // Where the banner goes. Left out when empty, so bookings still save before the database has links.
+  link: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .transform((v) => (v ? (/^https?:\/\//i.test(v) ? v : `https://${v}`) : undefined)),
   // Website, app or both.
   shows_on: z
     .array(z.enum(["web", "app"]))
@@ -107,7 +117,9 @@ export async function updatePlacement(id: string, input: BookingInput): Promise<
   const madeAlready = p.stage === "ready" || p.stage === "live";
   const changed_from = madeAlready && textChanged ? (p.changed_from ?? { comms: p.comms, products: p.products }) : p.changed_from;
 
-  const { data, error } = await supabase.from("placements").update({ ...c.data, changed_from }).eq("id", id).select("id");
+  // An emptied link clears it (only when there was one, so this works before the database has links).
+  const linkPatch = c.data.link === undefined && p.link ? { link: null } : {};
+  const { data, error } = await supabase.from("placements").update({ ...c.data, ...linkPatch, changed_from }).eq("id", id).select("id");
   if (error) return { ok: false, error: friendlyError(error) };
   if (!data?.length) return { ok: false, error: "Only whoever booked it (or Commercial) can change it." };
 
@@ -382,4 +394,111 @@ export async function saveDailyDeals(rows: DealRow[]): Promise<ActionResult<{ sa
   revalidatePath("/placements");
   revalidatePath("/daily-deals");
   return { ok: true, data: { saved, failed } };
+}
+
+// ---------------------------------------------------------------------------
+// Comments and history on a booking
+// ---------------------------------------------------------------------------
+
+export type BookingThread = {
+  comments: { id: string; body: string; author: string; when: string; mine: boolean }[];
+  activity: { id: number; who: string; text: string; when: string }[];
+};
+
+/** A booking's comments and history (empty before the database has them). */
+export async function getBookingThread(id: string): Promise<ActionResult<BookingThread>> {
+  const { viewer, supabase } = await context();
+  if (!uuid.safeParse(id).success) return { ok: false, error: "Booking not found." };
+  const [{ data: comments }, { data: log }, { data: people }] = await Promise.all([
+    supabase.from("placement_comments").select("id, body, author_id, created_at").eq("placement_id", id).order("created_at"),
+    supabase.from("activity_log").select("*").eq("entity_type", "placement").eq("entity_id", id).order("created_at", { ascending: false }).limit(50),
+    supabase.from("profiles").select("id, full_name, email"),
+  ]);
+  const byId = new Map(((people ?? []) as { id: string; full_name: string | null; email: string }[]).map((p) => [p.id, p]));
+  const who = (pid: unknown) => (typeof pid === "string" && byId.get(pid) ? personName(byId.get(pid)!) : "Someone");
+  return {
+    ok: true,
+    data: {
+      comments: ((comments ?? []) as { id: string; body: string; author_id: string; created_at: string }[]).map((c) => ({
+        id: c.id,
+        body: c.body,
+        author: who(c.author_id),
+        when: formatPKT(c.created_at, "d MMM, h:mm a"),
+        mine: c.author_id === viewer.id,
+      })),
+      activity: ((log ?? []) as ActivityEntry[]).map((e) => ({
+        id: e.id,
+        who: e.actor_id ? who(e.actor_id) : "System",
+        text: describeActivity(e, { person: (pid) => (typeof pid === "string" ? (byId.get(pid) as PersonRef | undefined) ?? null : null) }),
+        when: formatPKT(e.created_at),
+      })),
+    },
+  };
+}
+
+export async function addBookingComment(id: string, body: string): Promise<ActionResult> {
+  const { supabase } = await context();
+  const text = body.trim();
+  if (!uuid.safeParse(id).success || !text || text.length > 5000) return { ok: false, error: "Write something first." };
+  const { error } = await supabase.from("placement_comments").insert({ placement_id: id, body: text });
+  if (error) return { ok: false, error: friendlyError(error) };
+  await flushPush();
+  return { ok: true };
+}
+
+export async function deleteBookingComment(commentId: string): Promise<ActionResult> {
+  const { supabase } = await context();
+  if (!uuid.safeParse(commentId).success) return { ok: false, error: "Comment not found." };
+  const { data, error } = await supabase.from("placement_comments").delete().eq("id", commentId).select("id");
+  if (error) return { ok: false, error: friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "You can only remove your own comments." };
+  return { ok: true };
+}
+
+const bulkPlacementSchema = z.object({
+  ids: z.array(uuid).min(1).max(200),
+  op: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("live") }),
+    z.object({ kind: z.literal("remove") }),
+    z.object({ kind: z.literal("dates"), starts_on: date.optional(), ends_on: date.nullable().optional() }),
+  ]),
+});
+export type BulkPlacementOp = z.input<typeof bulkPlacementSchema>["op"];
+
+/**
+ * The same change to many ticked bookings: make live (everywhere each one
+ * shows), remove (cancel what isn't live yet, end today what is), or change
+ * dates. Each goes through the usual rules; ones you can't change are skipped.
+ */
+export async function bulkPlacements(ids: string[], op: BulkPlacementOp): Promise<ActionResult<{ changed: number; skipped: number }>> {
+  const { supabase } = await context();
+  const parsed = bulkPlacementSchema.safeParse({ ids, op });
+  if (!parsed.success) return { ok: false, error: "Pick some bookings first." };
+  const o = parsed.data.op;
+  if (o.kind === "dates" && o.starts_on && o.ends_on && o.ends_on < o.starts_on) return { ok: false, error: "The end date has to be on or after the start date." };
+  let changed = 0;
+  for (const id of [...new Set(parsed.data.ids)]) {
+    const { data: p } = await supabase.from("placements").select("stage, shows_on, live_on, starts_on, ends_on").eq("id", id).maybeSingle();
+    if (!p) continue;
+    if (o.kind === "live") {
+      if (p.stage !== "ready") continue;
+      let ok = true;
+      for (const s of ((p.shows_on as Surface[])?.length ? (p.shows_on as Surface[]) : (["web"] as Surface[])).filter((x) => !(p.live_on as Surface[]).includes(x))) {
+        const res = await makeLiveOn(id, s);
+        if (!res.ok) ok = false;
+      }
+      if (ok) changed++;
+    } else if (o.kind === "remove") {
+      const res = p.stage === "live" ? await endPlacementToday(id) : p.stage === "ended" ? { ok: false } : await cancelPlacement(id);
+      if (res.ok) changed++;
+    } else {
+      const starts = o.starts_on ?? (p.starts_on as string);
+      const ends = o.ends_on === undefined ? (p.ends_on as string | null) : o.ends_on;
+      if (ends && ends < starts) continue;
+      const { data } = await supabase.from("placements").update({ starts_on: starts, ends_on: ends }).eq("id", id).select("id");
+      if (data?.length) changed++;
+    }
+  }
+  revalidatePath("/placements");
+  return { ok: true, data: { changed, skipped: parsed.data.ids.length - changed } };
 }

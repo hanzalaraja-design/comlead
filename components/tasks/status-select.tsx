@@ -16,14 +16,24 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useBulk } from "@/components/bulk-select";
+import { useBulkTasks } from "@/components/tasks/bulk-tasks";
+import { TASK_DONE_EVENT, type TaskDoneDetail } from "@/components/progress/celebrate";
 
-/** Compact status dropdown that saves immediately. Asks for a reason when Blocked. */
+/**
+ * Compact status dropdown that saves immediately. Asks for a reason when
+ * Blocked. When this task is ticked along with others, the change goes to
+ * every ticked task.
+ */
 export function StatusSelect({
   taskId,
   status,
   disabled,
   className,
+  dueByToday = false,
 }: {
+  /** Due today or earlier: finishing it counts towards clearing today. */
+  dueByToday?: boolean;
   taskId: string;
   status: TaskStatus;
   disabled?: boolean;
@@ -33,10 +43,19 @@ export function StatusSelect({
   const [pending, startTransition] = useTransition();
   const [askReason, setAskReason] = useState(false);
   const [reason, setReason] = useState("");
+  const bulk = useBulk();
+  const { run } = useBulkTasks();
+  const many = !!bulk && bulk.selected.has(taskId) && bulk.selected.size > 1;
 
   function save(next: TaskStatus, blockedReason?: string) {
+    if (many) {
+      const label = STATUSES.find((s) => s.value === next)?.label ?? next;
+      run({ kind: "status", status: next, blocked_reason: blockedReason }, `set to ${label}`);
+      return;
+    }
     const previous = value;
     setValue(next);
+    if (next === "done") window.dispatchEvent(new CustomEvent<TaskDoneDetail>(TASK_DONE_EVENT, { detail: { dueByToday } }));
     startTransition(async () => {
       const res = await saveStatus(taskId, next, blockedReason);
       if (!res.ok) {
@@ -50,7 +69,7 @@ export function StatusSelect({
     <>
       <span className="relative inline-flex">
       <select
-        aria-label="Status"
+        aria-label={many ? `Status of all ${bulk!.selected.size} ticked tasks` : "Status"}
         value={value}
         disabled={disabled || pending}
         onClick={(e) => e.stopPropagation()}

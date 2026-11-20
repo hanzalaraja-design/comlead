@@ -22,7 +22,7 @@ const projectSchema = z.object({
   category: z
     .string()
     .optional()
-    .transform((v) => (v === "beauty" || v === "non_beauty" ? v : null)),
+    .transform((v) => (v === "associations" || v === "referral" || v === "fintech" ? v : null)),
   // Picked owners: they can lock it. At least one.
   owners: z.array(uuid).min(1, "Pick at least one owner").max(20),
   start_date: isoDate,
@@ -108,7 +108,6 @@ export async function createProject(formData: FormData): Promise<ActionResult<{ 
   const parsed = readProjectForm(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the details" };
   const v = parsed.data;
-  if (v.kind === "partnership" && !v.category) return { ok: false, error: "Is it a beauty or a non-beauty brand?" };
   const bad = checkDates(v);
   if (bad) return { ok: false, error: bad };
 
@@ -157,7 +156,6 @@ export async function updateProject(projectId: string, formData: FormData): Prom
   const v = parsed.data;
   const bad = checkDates(v);
   if (bad) return { ok: false, error: bad };
-  if (v.kind === "partnership" && !v.category) return { ok: false, error: "Is it a beauty or a non-beauty brand?" };
 
   const supabase = await createClient();
   const { data: updated, error } = await supabase

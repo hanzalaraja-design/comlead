@@ -8,9 +8,10 @@ import { Check, ChevronDown, Plus, TriangleAlert, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
-import { CompleteButton } from "@/components/tasks/complete-button";
+import { BulkProvider, RowCheck, SelectAll } from "@/components/bulk-select";
+import { BulkTasksBar } from "@/components/tasks/bulk-tasks";
+import { StatusSelect } from "@/components/tasks/status-select";
 import { InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
-import { StatusBadge } from "@/components/tasks/task-badges";
 import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { ON_TIME_STYLES, onTimeStatus } from "@/lib/tasks/ontime";
 import { formatDate, todayPKT } from "@/lib/time";
@@ -253,25 +254,22 @@ export function SubtaskSection({
 
       {subtasks.length > 0 && (
         <PeopleProvider people={people}>
+          <BulkProvider ids={subtasks.map((s) => s.id)}>
+          {subtasks.length > 1 && (
+            <div className="mb-1 flex justify-end">
+              <SelectAll noun="subtasks" />
+            </div>
+          )}
           <ul className="divide-y divide-line">
             {subtasks.map((s) => {
               const late = !!parentDue && !!s.due_date && s.due_date > parentDue && OPEN_STATUSES.includes(s.status);
               return (
                 <li key={s.id} className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
-                  {OPEN_STATUSES.includes(s.status) ? (
-                    <CompleteButton taskId={s.id} title={s.title} dueByToday={!!s.due_date && s.due_date <= today} />
-                  ) : (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-success text-white">
-                      <Check className="h-3 w-3" strokeWidth={3} />
-                    </span>
-                  )}
-                  <Link
-                    href={`/tasks/${s.id}`}
-                    className={cn("min-w-0 flex-1 basis-40 font-medium text-ink hover:underline", s.status === "done" && "text-ink-muted line-through")}
-                  >
+                  <RowCheck id={s.id} label={s.title} />
+                  <Link href={`/tasks/${s.id}`} className="min-w-0 flex-1 basis-40 font-medium text-ink hover:underline">
                     {s.title}
                   </Link>
-                  {s.status !== "todo" && s.status !== "done" && <StatusBadge status={s.status} />}
+                  <StatusSelect key={s.status} taskId={s.id} status={s.status as TaskStatus} dueByToday={!!s.due_date && s.due_date <= today} />
                   <InlineOwner taskId={s.id} owner={s.owner} />
                   {s.status === "done" && onTimeStatus(s.due_date, s.completed_at) ? (
                     <span className={cn("rounded-full px-2 py-0.5 text-xs font-bold", ON_TIME_STYLES[onTimeStatus(s.due_date, s.completed_at)!.tone])}>
@@ -289,6 +287,8 @@ export function SubtaskSection({
               );
             })}
           </ul>
+          <BulkTasksBar people={people} />
+          </BulkProvider>
         </PeopleProvider>
       )}
 

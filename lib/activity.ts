@@ -6,6 +6,20 @@ type Lookup = { person: (id: unknown) => PersonRef | null };
 
 const s = (v: unknown) => (typeof v === "string" ? v : "");
 
+const PART_STAGES: Record<string, string> = {
+  draft: "Draft",
+  in_talks: "In talks",
+  agreed: "Signed / agreed",
+  live: "Live",
+  ended: "Ended",
+  idea: "Idea",
+  drafting: "Drafting",
+  design: "Design",
+  review: "Review",
+  approved: "Approved",
+};
+const partStage = (k: string) => PART_STAGES[k] ?? k;
+
 /** One-line, human description of an activity entry (without the actor). */
 export function describeActivity(e: ActivityEntry, { person }: Lookup): string {
   const o = e.old_value ?? {};
@@ -64,6 +78,39 @@ export function describeActivity(e: ActivityEntry, { person }: Lookup): string {
       return `removed ${label}`;
     case "membership.role_changed":
       return `changed ${label} to ${s(n.role) === "lead" ? "Dept admin" : "Member"}`;
+    case "placement.booked":
+      return `booked “${label}”`;
+    case "placement.cancelled":
+      return `cancelled the booking for “${label}”`;
+    case "placement.stage_changed":
+      return s(n.stage) === "ready" ? "put the banner on Figma" : s(n.stage) === "live" ? "made it live" : s(n.stage) === "ended" ? "took it down" : `moved it to ${s(n.stage)}`;
+    case "placement.live_on":
+      return `made it live on ${(Array.isArray(n.live_on) ? (n.live_on as string[]) : []).map((x) => (x === "app" ? "the app" : "the website")).join(" and ")}`;
+    case "placement.dates_changed":
+      return `changed the dates to ${s(n.starts_on)}${s(n.ends_on) ? ` – ${s(n.ends_on)}` : " onwards"}`;
+    case "placement.artwork":
+      return "uploaded the banner";
+    case "placement.edited":
+      return "changed the booking details";
+    case "placement.commented":
+    case "term.created":
+      return `added the term “${label}”`;
+    case "term.deleted":
+      return `removed the term “${label}”`;
+    case "term.edited":
+      return `edited the term “${label}”`;
+    case "term.stage_changed":
+      return `moved the term “${label}” to ${partStage(s(n.stage))}`;
+    case "journey.created":
+      return `added the journey “${label}”`;
+    case "journey.deleted":
+      return `removed the journey “${label}”`;
+    case "journey.edited":
+      return `edited the journey “${label}”`;
+    case "journey.stage_changed":
+      return `moved the journey “${label}” to ${partStage(s(n.stage))}`;
+    case "project.commented":
+      return `commented: “${s(n.body)}”`;
     default:
       return `${e.action} ${label}`;
   }

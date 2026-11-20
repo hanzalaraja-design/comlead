@@ -2,12 +2,12 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { taskHref, type TaskFrom } from "@/lib/tasks/scope";
 import { CornerDownRight, ListChecks } from "lucide-react";
-import { MeetingTag, ProjectTag, StatusBadge } from "@/components/tasks/task-badges";
+import { MeetingTag, ProjectTag } from "@/components/tasks/task-badges";
 import { CollaboratorsChip, InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
 import { getPeople } from "@/lib/auth";
 import { StatusSelect } from "@/components/tasks/status-select";
-import { OPEN_STATUSES, personName } from "@/lib/labels";
-import { CompleteButton } from "@/components/tasks/complete-button";
+import { personName } from "@/lib/labels";
+import { RowCheck } from "@/components/bulk-select";
 import { ON_TIME_STYLES, onTimeStatus } from "@/lib/tasks/ontime";
 import { formatPKT, todayPKT } from "@/lib/time";
 import type { TaskListRow } from "@/lib/tasks/queries";
@@ -15,7 +15,9 @@ import type { TaskListRow } from "@/lib/tasks/queries";
 /**
  * One list that works on phones and desktop: on phones each task is a card;
  * from md up it lines up as table columns. Owner, due date and
- * status change right in the row.
+ * status change right in the row. Inside a BulkProvider each row gets a tick
+ * box for selecting it; status is changed from the pill, and finished tasks
+ * stay where they are, at full strength.
  */
 export async function TaskList({
   tasks,
@@ -23,8 +25,11 @@ export async function TaskList({
   showCompleted = false,
   showOwner = true,
   showProject = true,
+  selectable = false,
   from,
 }: {
+  /** Tick boxes for picking several tasks (the list sits in a BulkProvider). */
+  selectable?: boolean;
   tasks: TaskListRow[];
   /** Off inside a project, where every task is in it. */
   showProject?: boolean;
@@ -51,7 +56,7 @@ export async function TaskList({
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskListItem key={t.id} task={t} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} showProject={showProject} assignedBy={byName(t)} />
+          <TaskListItem key={t.id} task={t} selectable={selectable} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} showProject={showProject} assignedBy={byName(t)} />
         ))}
       </ul>
     </div>
@@ -61,6 +66,7 @@ export async function TaskList({
 
 function TaskListItem({
   task: t,
+  selectable,
   showDepartment,
   showCompleted,
   showOwner,
@@ -70,6 +76,7 @@ function TaskListItem({
   assignedBy,
 }: {
   task: TaskListRow;
+  selectable: boolean;
   showProject: boolean;
   assignedBy?: string;
   showDepartment: boolean;
@@ -78,7 +85,7 @@ function TaskListItem({
   cols: string;
   from?: TaskFrom;
 }) {
-  const today = todayPKT();
+  const dueByToday = t.overdue || (!!t.due_date && t.due_date <= todayPKT());
   const onTime = t.status === "done" ? onTimeStatus(t.due_date, t.completed_at) : null;
   return (
     <li
@@ -86,29 +93,20 @@ function TaskListItem({
         "relative px-4 py-3 hover:bg-subtle/60 md:grid md:items-center md:gap-3 md:py-2",
         cols,
         t.overdue && "before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-danger",
-        t.status === "done" && "opacity-70",
       )}
     >
       <div className="hidden md:block">
-        <StatusSelect taskId={t.id} status={t.status} className="relative z-10" />
+        <StatusSelect key={t.status} taskId={t.id} status={t.status} dueByToday={dueByToday} className="relative z-10" />
       </div>
 
       <div className="min-w-0">
         <div className="flex items-start gap-2.5">
-          {OPEN_STATUSES.includes(t.status) && (
-            <CompleteButton
-              taskId={t.id}
-              title={t.title}
-              dueByToday={t.overdue || (!!t.due_date && t.due_date <= today)}
-              // Subtasks get a square box.
-              className={cn("mt-0.5", t.parent_task_id && "rounded-md")}
-            />
-          )}
+          {selectable && <RowCheck id={t.id} label={t.title} className="mt-1" />}
           <Link href={taskHref(t.id, from)} className="block min-w-0 font-semibold leading-snug text-ink after:absolute after:inset-0">
             <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
           </Link>
         </div>
-        <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
+        <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", selectable && "pl-[26px]")}>
           {showProject && t.project && <ProjectTag name={t.project.name} kind={t.project.kind} />}
           {t.meeting && <MeetingTag title={t.meeting.title} date={t.meeting.meeting_date} />}
           {showDepartment && t.department && <span>{t.department.name}</span>}
@@ -132,9 +130,9 @@ function TaskListItem({
         </div>
       </div>
 
-      {/* Phone: one compact row. Tick to finish; status shows only when it's not To do. */}
-      <div className={cn("mt-2 flex flex-wrap items-center gap-2 md:hidden", OPEN_STATUSES.includes(t.status) && "pl-[30px]")}>
-        {t.status !== "todo" && <StatusBadge status={t.status} />}
+      {/* Phone: one compact row, with the status pill to change it. */}
+      <div className={cn("mt-2 flex flex-wrap items-center gap-2 md:hidden", selectable && "pl-[26px]")}>
+        <StatusSelect key={t.status} taskId={t.id} status={t.status} dueByToday={dueByToday} className="relative z-10" />
         {onTime ? (
           <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>
         ) : (
