@@ -236,29 +236,8 @@ export function PlacementsBoard({
             className="absolute inset-0 cursor-pointer opacity-0"
           />
         </label>
-        {canEditLayout && (
-          <button
-            type="button"
-            onClick={() => {
-              setOrder(sections.map((x) => x.key));
-              setEditing((e) => !e);
-            }}
-            aria-pressed={editing}
-            className={cn(
-              "ml-auto inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-semibold",
-              editing ? "border-brand-primary bg-brand-primary text-white" : "border-line bg-white text-ink hover:bg-subtle",
-            )}
-          >
-            {editing ? <Check className="h-4 w-4" /> : <LayoutList className="h-4 w-4" />}
-            {editing ? "Done" : "Edit layout"}
-          </button>
-        )}
       </div>
-      {editing && (
-        <p className="rounded-[12px] bg-brand-bg px-3 py-2 text-sm text-ink">
-          Drag a section by its handle, or use the arrows. Moving sections changes the order for everyone.
-        </p>
-      )}
+
       <div className="flex flex-wrap items-center gap-1.5 text-sm">
         <span className="text-ink-muted">{formatDate(date, "EEEE d MMMM")}:</span>
         <span className={cn("rounded-full px-2 text-xs font-semibold leading-6", STATUS_CHIP.live)}>{sum.live} live</span>
@@ -273,6 +252,25 @@ export function PlacementsBoard({
     <HomepageMap
       sections={shownSections}
       edit={layoutEdit}
+      editToggle={
+        canEditLayout ? (
+          <button
+            type="button"
+            onClick={() => {
+              setOrder(sections.map((x) => x.key));
+              setEditing((e) => !e);
+            }}
+            aria-pressed={editing}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-semibold",
+              editing ? "bg-brand-primary text-white" : "text-brand-primary hover:bg-brand-bg",
+            )}
+          >
+            {editing ? <Check className="h-4 w-4" /> : <LayoutList className="h-4 w-4" />}
+            {editing ? "Done" : "Edit layout"}
+          </button>
+        ) : undefined
+      }
       placements={placements}
       urls={urls}
       date={date}
