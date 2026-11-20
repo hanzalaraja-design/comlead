@@ -1,5 +1,5 @@
 import { BulkProvider, SelectAll } from "@/components/bulk-select";
-import { BulkTasksBar } from "@/components/tasks/bulk-tasks";
+import { BulkTasksBar, type PartTarget } from "@/components/tasks/bulk-tasks";
 import { getPeople } from "@/lib/auth";
 import { getProjects } from "@/lib/projects";
 
@@ -8,7 +8,18 @@ import { getProjects } from "@/lib/projects";
  * "Select all" above, and the bulk bar once something is ticked. Lists inside
  * pass `selectable` to TaskList.
  */
-export async function SelectableTasks({ ids, children, selectAll = true }: { ids: string[]; children: React.ReactNode; selectAll?: boolean }) {
+export async function SelectableTasks({
+  ids,
+  children,
+  selectAll = true,
+  parts,
+}: {
+  ids: string[];
+  children: React.ReactNode;
+  selectAll?: boolean;
+  /** Journeys of the project, for "move to a journey". */
+  parts?: PartTarget[];
+}) {
   const [people, projects] = await Promise.all([getPeople(), getProjects()]);
   return (
     <BulkProvider ids={ids}>
@@ -21,6 +32,7 @@ export async function SelectableTasks({ ids, children, selectAll = true }: { ids
       <BulkTasksBar
         people={people}
         projects={projects.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, kind: p.kind }))}
+        parts={parts}
       />
     </BulkProvider>
   );

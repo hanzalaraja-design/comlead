@@ -13,13 +13,26 @@ import { addProjectComment, deleteProjectComment } from "@/app/(app)/projects/pa
 export type ProjectComment = { id: string; body: string; when: string; author: PersonRef | null; authorName: string; mine: boolean };
 
 /** Comments on a project, campaign or partnership. Everyone in it is told about a new one. */
-export function ProjectComments({ projectId, comments, canComment }: { projectId: string; comments: ProjectComment[]; canComment: boolean }) {
+export function ProjectComments({
+  projectId,
+  comments,
+  canComment,
+  partId,
+  title = "Comments",
+}: {
+  projectId: string;
+  comments: ProjectComment[];
+  canComment: boolean;
+  /** Comments on one journey (or term) only. */
+  partId?: string;
+  title?: string;
+}) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
   const post = () =>
     start(async () => {
-      const res = await addProjectComment(projectId, text);
+      const res = await addProjectComment(projectId, text, partId);
       if (!res.ok) return void toast.error(res.error);
       setText("");
       router.refresh();
@@ -27,7 +40,7 @@ export function ProjectComments({ projectId, comments, canComment }: { projectId
   return (
     <section id="comments" className="mt-6 scroll-mt-6 surface space-y-4 p-4 md:p-6">
       <h2 className="text-[15px] font-semibold text-ink">
-        Comments {comments.length > 0 && <span className="font-normal text-ink-muted">· {comments.length}</span>}
+        {title} {comments.length > 0 && <span className="font-normal text-ink-muted">· {comments.length}</span>}
       </h2>
       {comments.length > 0 && (
         <ul className="space-y-4">

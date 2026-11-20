@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarDays, Check, CircleDot, FolderInput, Trash2, UserRound } from "lucide-react";
+import { CalendarDays, Check, CircleDot, FolderInput, Route, Trash2, UserRound } from "lucide-react";
 import { BAR_BUTTON, BulkBar, useBulk } from "@/components/bulk-select";
 import { DeleteDialog } from "@/components/delete-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -13,6 +13,8 @@ import type { PersonRef, ProjectKind } from "@/lib/types";
 import { bulkTasks, type BulkTaskOp } from "@/app/(app)/tasks/actions";
 
 export type MoveTarget = { id: string; name: string; kind: ProjectKind };
+/** Journeys (or terms) of the project the list is in. */
+export type PartTarget = { id: string; name: string };
 
 const MENU_ITEM = "block w-full rounded-[8px] px-3 py-2 text-left text-sm hover:bg-subtle";
 
@@ -36,7 +38,7 @@ export function useBulkTasks() {
 }
 
 /** Mark done, change status, move the date, give to someone, move to a project, or delete the ticked tasks. */
-export function BulkTasksBar({ people, projects = [] }: { people: PersonRef[]; projects?: MoveTarget[] }) {
+export function BulkTasksBar({ people, projects = [], parts = [] }: { people: PersonRef[]; projects?: MoveTarget[]; parts?: PartTarget[] }) {
   const ctx = useBulk();
   const { run, pending } = useBulkTasks();
   const [deleting, setDeleting] = useState(false);
@@ -121,6 +123,25 @@ export function BulkTasksBar({ people, projects = [] }: { people: PersonRef[]; p
                   Not in a project
                 </button>
               </div>
+            </PopoverContent>
+          </Popover>
+        )}
+        {parts.length > 0 && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" disabled={pending} className={BAR_BUTTON}>
+                <Route className="h-4 w-4" /> Journey
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-1" side="top">
+              {parts.map((p) => (
+                <button key={p.id} type="button" onClick={() => run({ kind: "part", part_id: p.id }, `moved to ${p.name}`)} className={MENU_ITEM}>
+                  {p.name}
+                </button>
+              ))}
+              <button type="button" onClick={() => run({ kind: "part", part_id: null }, "moved to Other tasks")} className={`${MENU_ITEM} text-ink-muted`}>
+                Not in a journey (Other tasks)
+              </button>
             </PopoverContent>
           </Popover>
         )}

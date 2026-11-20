@@ -306,6 +306,8 @@ export async function quickAddTask(
   projectId?: string,
   /** Added from My tasks: it's yours, whichever team it's in. */
   mine = false,
+  /** Added inside a journey: it belongs to it. */
+  partId?: string,
 ): Promise<ActionResult<{ id: string; owner: string | null; done: boolean }>> {
   const viewer = await requireViewer();
   let title = input.trim().replace(/\s+/g, " ");
@@ -370,6 +372,7 @@ export async function quickAddTask(
     .select("id")
     .single();
   if (error || !data) return { ok: false, error: friendlyError(error) };
+  if (partId && project && uuid.safeParse(partId).success) await supabase.from("tasks").update({ part_id: partId }).eq("id", data.id);
   revalidateTaskViews(data.id);
   syncLater(() => syncTask(data.id));
   return { ok: true, data: { id: data.id as string, owner: owner === viewer.id ? "you" : ownerName, done: !!tick } };
@@ -639,6 +642,7 @@ const bulkSchema = z.object({
     z.object({ kind: z.literal("due"), due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }),
     z.object({ kind: z.literal("owner"), owner_id: uuid }),
     z.object({ kind: z.literal("project"), project_id: uuid.nullable() }),
+    z.object({ kind: z.literal("part"), part_id: uuid.nullable() }),
     z.object({ kind: z.literal("delete") }),
   ]),
 });
@@ -665,6 +669,13 @@ export async function bulkTasks(ids: string[], op: BulkTaskOp): Promise<ActionRe
     if (o.kind === "delete") {
       const res = await deleteTask(id);
       if (res.ok) changed++;
+      continue;
+    }
+    if (o.kind === "part") {
+      // Into a journey (or term) of the task's own project; the database checks.
+      const supabase = await createClient();
+      const { data } = await supabase.from("tasks").update({ part_id: o.part_id }).eq("id", id).select("id");
+      if (data?.length) changed++;
       continue;
     }
     const patch = o.kind === "due" ? { due_date: o.due_date } : o.kind === "owner" ? { owner_id: o.owner_id } : { project_id: o.project_id };

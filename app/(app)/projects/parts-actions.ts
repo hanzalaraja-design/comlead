@@ -110,12 +110,14 @@ export async function reorderParts(ids: string[]): Promise<ActionResult> {
   return { ok: true };
 }
 
-export async function addProjectComment(projectId: string, body: string): Promise<ActionResult> {
+export async function addProjectComment(projectId: string, body: string, partId?: string | null): Promise<ActionResult> {
   await requireViewer();
   const text = body.trim();
   if (!uuid.safeParse(projectId).success || !text || text.length > 10000) return { ok: false, error: "Write something first." };
   const supabase = await createClient();
-  const { error } = await supabase.from("project_comments").insert({ project_id: projectId, body: text });
+  const { error } = await supabase
+    .from("project_comments")
+    .insert({ project_id: projectId, body: text, ...(partId && uuid.safeParse(partId).success ? { part_id: partId } : {}) });
   if (error) return { ok: false, error: friendlyError(error) };
   await flushPush();
   refresh();
