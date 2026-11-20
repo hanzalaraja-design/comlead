@@ -156,7 +156,7 @@ export function CollabRequestForm({ id, initial, campaigns }: { id?: string; ini
         <span className="text-[13px] text-ink-muted">
           By sending, you agree to the{" "}
           <Link href="/collabs?tab=terms" target="_blank" className="font-semibold text-brand-primary hover:underline">
-            brand collab terms
+            paid social terms
           </Link>
           .
         </span>

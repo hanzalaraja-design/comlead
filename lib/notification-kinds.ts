@@ -50,8 +50,8 @@ export const NOTIFY_GROUPS: { title: string; kinds: NotifyKindInfo[] }[] = [
     ],
   },
   {
-    title: "Brand collabs",
-    kinds: [{ key: "collab", label: "Brand collab requests", hint: "New requests, plans, approvals, pieces going live and reports" }],
+    title: "Paid social",
+    kinds: [{ key: "collab", label: "Paid social requests", hint: "New requests, plans, approvals, pieces going live and reports" }],
   },
 ];
 

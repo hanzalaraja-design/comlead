@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { useRef } from "react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { HighfyLogo } from "@/components/brand";
 import { cn } from "@/lib/utils";
 import {
@@ -46,14 +47,17 @@ export function HomepageMap({
       </div>
       {sections.map((s) => (
         <section key={s.key} className="flex min-w-0 flex-col gap-1.5">
-          <h3 className="flex items-baseline justify-between text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+          <h3 className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
             <span>
               {s.name}
               {s.optional && <span className="ml-1.5 font-medium normal-case tracking-normal">(optional)</span>}
             </span>
-            {s.slots > 1 && <span className="font-medium normal-case tracking-normal">{s.slots} slots</span>}
+            <span className="flex items-center gap-1.5">
+              {s.slots > 1 && <span className="font-medium normal-case tracking-normal">{s.slots} slots</span>}
+              {(s.kind === "carousel" || s.kind === "icons") && s.slots > 2 && <ScrollButtons target={s.key} name={s.name} />}
+            </span>
           </h3>
-          <div className={WRAP[s.kind]}>
+          <div className={WRAP[s.kind]} data-scroll-row={s.key}>
             {Array.from({ length: s.slots }, (_, i) => i + 1).map((n) => {
               const p = activeOn(placements, s.key, n, date);
               const label = slotLabel(s, n);
@@ -150,5 +154,28 @@ export function HomepageMap({
         </section>
       ))}
     </div>
+  );
+}
+
+/**
+ * Left and right buttons for a carousel row, for people using a mouse (a
+ * trackpad or a phone can still swipe).
+ */
+function ScrollButtons({ target, name }: { target: string; name: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const move = (dir: 1 | -1) => {
+    const row = ref.current?.closest("section")?.querySelector<HTMLElement>(`[data-scroll-row="${target}"]`);
+    if (row) row.scrollBy({ left: dir * Math.max(160, row.clientWidth * 0.8), behavior: "smooth" });
+  };
+  const btn = "inline-flex h-6 w-6 items-center justify-center rounded-full border border-line bg-white text-ink hover:bg-subtle";
+  return (
+    <span ref={ref} className="flex gap-1 normal-case tracking-normal">
+      <button type="button" aria-label={`Scroll ${name} left`} onClick={() => move(-1)} className={btn}>
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </button>
+      <button type="button" aria-label={`Scroll ${name} right`} onClick={() => move(1)} className={btn}>
+        <ChevronRight className="h-3.5 w-3.5" />
+      </button>
+    </span>
   );
 }

@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     supabase.from("tasks").select("id", { count: "exact", head: true }).eq("owner_id", id).eq("overdue", true),
     supabase.rpc("can_use_placements"),
     supabase.rpc("placement_todo_count"),
-    // Until the Brand collabs SQL is run this is simply false.
+    // Until the Paid social SQL is run this is simply false.
     supabase.rpc("can_use_collabs").then((r) => (r.error ? { data: false } : r)),
   ]);
 

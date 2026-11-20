@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatPKT } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
-export const metadata = { title: "Brand collab · Highfy Tasks" };
+export const metadata = { title: "Paid social · Highfy Tasks" };
 
 const STEPS = ["Requested", "Plan", "Approved", "Live", "Report"] as const;
 const stepOf = (s: CollabRequest["status"]) => ({ requested: 1, changes: 1, planned: 1, approved: 2, live: 3, reported: 4 })[s];
@@ -99,7 +99,7 @@ export default async function CollabPage({ params, searchParams }: { params: Pro
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
-        breadcrumb={[{ label: "Brand collabs", href: "/collabs" }, r.brand]}
+        breadcrumb={[{ label: "Paid social", href: "/collabs" }, r.brand]}
         title={r.brand}
         description={`Asked by ${requester} · ${formatPKT(r.created_at, "d MMM")} · live by ${formatDate(r.go_live, "EEE d MMM")} · ${r.budget}`}
         actions={<span className={cn("rounded-full px-3 py-1 text-[13px] font-semibold", STATUS_STYLES[r.status])}>{STATUS_LABELS[r.status]}</span>}

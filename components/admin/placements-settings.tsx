@@ -11,7 +11,7 @@ import { saveSection, saveTeams } from "@/app/(app)/admin/placements/actions";
 type TeamKey = PlacementRole | "content";
 const TEAM_LABELS: Record<TeamKey, string> = { ...ROLE_LABELS, content: "Content" };
 const ROLE_HINT: Record<TeamKey, string> = {
-  content: "Plans, makes and reports on Brand collab content.",
+  content: "Plans, makes and reports on Paid social content.",
   commercial: "Books brands into slots and gets reminders when bookings are ending.",
   design: "Gets told when a banner needs making or changing.",
   tech: "Gets told when a banner is ready to go live or needs taking down.",

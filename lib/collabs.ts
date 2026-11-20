@@ -1,5 +1,5 @@
 /**
- * Brand collabs: Commercial asks Content for social content for a brand,
+ * Paid social: Commercial asks Content for social content for a brand,
  * Content plans it from the media kit, Commercial approves, Content delivers
  * and reports. Shared by the pages, actions and forms.
  */

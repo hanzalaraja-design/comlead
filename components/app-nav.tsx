@@ -58,7 +58,7 @@ const ADMIN: NavItem[] = [
 // Only for the teams that book, design and put up homepage banners.
 const PLACEMENTS: NavItem = { href: "/placements", label: "Placements", icon: Images, dot: "#C2417A" };
 // Commercial asks Content for brand content; Content plans, delivers and reports.
-const COLLABS: NavItem = { href: "/collabs", label: "Brand collabs", icon: Images, dot: "#0F6E6E" };
+const COLLABS: NavItem = { href: "/collabs", label: "Paid social", icon: Images, dot: "#0F6E6E" };
 
 // Bottom bar on phones: the four things people open most.
 const MOBILE: NavItem[] = [

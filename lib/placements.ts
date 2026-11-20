@@ -49,13 +49,15 @@ export type Placement = {
   /** Where it shows, and where Tech has already made it live. */
   shows_on: Surface[];
   live_on: Surface[];
+  /** Where the banner goes when someone taps it (none before the database has it). */
+  link?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export const PLACEMENT_COLUMNS =
-  "id, section_key, position, brand, starts_on, ends_on, comms, products, notes, inspo_paths, artwork_path, stage, changed_from, shows_on, live_on, created_by, created_at, updated_at";
+// Every column, so newer ones (the link) come through once the database has them.
+export const PLACEMENT_COLUMNS = "*";
 
 /** Bookings that end within this many days show as "ending soon". */
 export const ENDING_DAYS = 3;
