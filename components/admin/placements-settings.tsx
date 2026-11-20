@@ -277,7 +277,7 @@ function TeamChips({ legend, departments, value, onChange }: { legend: string; d
   );
 }
 
-/** Teams besides Commercial and Content who see Paid social, and besides Commercial who edit the homepage layout. */
+/** Teams who ask for Paid social like Commercial, and who edit the homepage layout besides Commercial. */
 export function ExtraTeams({ departments, paidSocial, layout }: { departments: { id: string; name: string }[]; paidSocial: string[]; layout: string[] }) {
   const [ps, setPs] = useState(paidSocial);
   const [ly, setLy] = useState(layout);
@@ -287,8 +287,8 @@ export function ExtraTeams({ departments, paidSocial, layout }: { departments: {
   return (
     <div className="surface space-y-4 p-4 md:p-5">
       <div className="space-y-1">
-        <TeamChips legend="Also see Paid social" departments={departments} value={ps} onChange={setPs} />
-        <p className="text-xs text-ink-muted">They can look and comment. Asking, planning, approving and delivering stay with Commercial and Content.</p>
+        <TeamChips legend="Also ask for Paid social, like Commercial" departments={departments} value={ps} onChange={setPs} />
+        <p className="text-xs text-ink-muted">They send and edit requests, approve plans or ask for changes, and see everything Commercial sees. Planning and delivering stay with Content.</p>
       </div>
       <div className="space-y-1">
         <TeamChips legend="Also edit the homepage layout" departments={departments} value={ly} onChange={setLy} />
