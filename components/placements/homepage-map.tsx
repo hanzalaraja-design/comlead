@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import { HighfyLogo } from "@/components/brand";
 import { cn } from "@/lib/utils";
 import {
@@ -24,7 +24,14 @@ export type LayoutEdit = {
   onDrop: (key: string, beforeKey: string) => void;
   onHide: (s: Section) => void;
   onAdd: () => void;
+  /** One more slot at the end. */
+  onAddSlot: (s: Section) => void;
+  /** Take a slot out; the ones after it move up (only when nothing is booked in it). */
+  onRemoveSlot: (s: Section, position: number) => void;
 };
+
+/** "slide", "tile", "icon": what one slot of a section is called. */
+const slotWord = (s: Section) => (s.kind === "tiles" ? "tile" : s.kind === "icons" ? "icon" : "slide");
 
 /**
  * The highfy.pk homepage, section by section, as it is (or will be) on one
@@ -56,6 +63,31 @@ export function HomepageMap({
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  // Edit mode: a small cross on each slot of a carousel, tile grid or icon row,
+  // unless it's the only one or something is booked in it now or later.
+  const withRemove = (s: Section, n: number, node: React.ReactNode) => {
+    if (!edit || s.slots < 2 || !(s.kind === "carousel" || s.kind === "tiles" || s.kind === "icons")) return node;
+    const booked = placements.some((p) => p.section_key === s.key && p.position === n);
+    const label = slotLabel(s, n);
+    return (
+      <span key={n} className={cn(SLOT[s.kind], "relative block [&>button:first-child]:h-full [&>button:first-child]:w-full")}>
+        {node}
+        <button
+          type="button"
+          disabled={edit.busy || booked}
+          onClick={() => edit.onRemoveSlot(s, n)}
+          aria-label={`Remove ${label}`}
+          title={booked ? `${label} has a booking, so it can't be removed` : `Remove ${label}`}
+          className={cn(
+            "absolute z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-line bg-white text-ink shadow-sm hover:bg-danger-soft hover:text-danger-ink disabled:cursor-not-allowed disabled:opacity-40",
+            s.kind === "icons" ? "-right-1 -top-1" : "bottom-1.5 right-1.5",
+          )}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </span>
+    );
+  };
   return (
     <div className="surface flex flex-col gap-4 overflow-hidden p-3">
       <div className="flex min-h-8 items-center justify-between gap-2 px-0.5">
@@ -120,8 +152,8 @@ export function HomepageMap({
             </span>
           </h3>
           )}
-          <div className={cn(WRAP[s.kind], edit && "pointer-events-none opacity-60")} data-scroll-row={s.key} aria-hidden={edit ? true : undefined}>
-            {Array.from({ length: s.slots }, (_, i) => i + 1).map((n) => {
+          <div className={WRAP[s.kind]} data-scroll-row={s.key}>
+            {Array.from({ length: s.slots }, (_, i) => i + 1).map((n) => withRemove(s, n, (() => {
               const p = activeOn(placements, s.key, n, date);
               const label = slotLabel(s, n);
               if (!p) {
@@ -132,8 +164,10 @@ export function HomepageMap({
                     onClick={() => canBook && onBook(s, n)}
                     disabled={!canBook}
                     aria-label={`${s.name}, ${label}: empty${canBook ? ". Book it" : ""}`}
+                    tabIndex={edit ? -1 : undefined}
                     className={cn(
                       SLOT[s.kind],
+                      edit && "pointer-events-none opacity-60",
                       "relative flex items-center justify-center gap-1 border-[1.5px] border-dashed border-line bg-white text-xs font-semibold text-ink-muted",
                       canBook ? "hover:border-brand-primary hover:text-brand-primary" : "cursor-default",
                     )}
@@ -164,8 +198,10 @@ export function HomepageMap({
                   type="button"
                   onClick={() => onOpen(p)}
                   aria-label={`${s.name}, ${label}: ${p.brand}, ${statusText(k, p, today)}`}
+                  tabIndex={edit ? -1 : undefined}
                   className={cn(
                     SLOT[s.kind],
+                    edit && "pointer-events-none opacity-60",
                     "relative flex flex-col justify-end overflow-hidden px-2.5 py-2 text-left",
                     s.kind === "icons" && "items-center justify-center p-1.5 text-center",
                     art ? "bg-subtle" : STATUS_CARD[k],
@@ -212,7 +248,26 @@ export function HomepageMap({
                   )}
                 </button>
               );
-            })}
+            })()))}
+            {edit && (s.kind === "carousel" || s.kind === "tiles" || s.kind === "icons") && (() => {
+              return (
+                <span
+                  className={cn(
+                    SLOT[s.kind],
+                    "flex flex-col items-center justify-center gap-1 border-[1.5px] border-dashed border-brand-primary/50 bg-brand-bg/40 p-1 text-center",
+                  )}
+                >
+                  <button
+                    type="button"
+                    disabled={edit.busy || s.slots >= 30}
+                    onClick={() => edit.onAddSlot(s)}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-brand-primary hover:bg-brand-bg disabled:opacity-40"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> {s.kind === "icons" ? "Add" : `Add ${slotWord(s)}`}
+                  </button>
+                </span>
+              );
+            })()}
           </div>
         </section>
       ))}

@@ -32,7 +32,7 @@ import {
   type Surface,
   type ProjectLink,
 } from "@/lib/placements";
-import { hideSection, makeLiveOn, markOnFigma, markTakenDown, orderSections } from "@/app/(app)/placements/actions";
+import { hideSection, makeLiveOn, markOnFigma, markTakenDown, orderSections, addSectionSlot, removeSectionSlot } from "@/app/(app)/placements/actions";
 import { HomepageMap, type LayoutEdit } from "./homepage-map";
 import { AddSectionForm } from "./section-editor";
 import { PlacementPanel, useArtworkUpload, type PanelMode } from "./placement-panel";
@@ -149,6 +149,20 @@ export function PlacementsBoard({
           });
         },
         onAdd: () => setAdding(true),
+        onAddSlot: (sec) =>
+          start(async () => {
+            const res = await addSectionSlot(sec.key);
+            if (!res.ok) return void toast.error(res.error);
+            router.refresh();
+          }),
+        onRemoveSlot: (sec, n) => {
+          if (!window.confirm(`Remove ${slotLabel(sec, n)} from ${sec.name}? The ones after it move up one, with their bookings.`)) return;
+          start(async () => {
+            const res = await removeSectionSlot(sec.key, n);
+            if (!res.ok) return void toast.error(res.error);
+            router.refresh();
+          });
+        },
       }
     : undefined;
 
