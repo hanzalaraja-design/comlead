@@ -93,3 +93,20 @@ export async function removeTabPerson(tab: string, userId: string): Promise<Acti
   revalidatePath("/admin/placements");
   return { ok: true };
 }
+
+/** Teams who also see Paid social, and who also edit the homepage layout. */
+export async function saveExtraTeams(paidSocial: string[], layout: string[]): Promise<ActionResult> {
+  await requireAdmin();
+  const ids = z.array(z.string().uuid()).max(50);
+  const a = ids.safeParse(paidSocial);
+  const b = ids.safeParse(layout);
+  if (!a.success || !b.success) return { ok: false, error: "Pick teams from the list." };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("placement_settings")
+    .update({ paid_social_team_ids: a.data, layout_team_ids: b.data, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

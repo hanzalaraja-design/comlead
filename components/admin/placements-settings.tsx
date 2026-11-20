@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABELS, type PlacementRole, type Section } from "@/lib/placements";
-import { removeTabPerson, saveSection, saveTabAccess, saveTeams } from "@/app/(app)/admin/placements/actions";
+import { removeTabPerson, saveExtraTeams, saveSection, saveTabAccess, saveTeams } from "@/app/(app)/admin/placements/actions";
 import { hideSection } from "@/app/(app)/placements/actions";
 
 type TeamKey = PlacementRole | "content";
@@ -182,34 +182,32 @@ export function TabAccessRow({ tab, departments }: { tab: TabAccess; departments
           Save
         </Button>
       </div>
-      {tab.key !== "design" && (
-        <fieldset className="space-y-1.5">
-          <legend className="text-xs text-ink-muted">Teams that see it</legend>
-          <div className="flex flex-wrap gap-1.5">
-            {departments.map((d) => {
-              const on = teams.includes(d.id);
-              return (
-                <label
-                  key={d.id}
-                  className={
-                    on
-                      ? "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-brand-primary bg-brand-bg px-3 py-1 text-sm text-ink"
-                      : "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1 text-sm text-ink-muted"
-                  }
-                >
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={on}
-                    onChange={() => setTeams((t) => (on ? t.filter((x) => x !== d.id) : [...t, d.id]))}
-                  />
-                  {d.name}
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
-      )}
+      <fieldset className="space-y-1.5">
+        <legend className="text-xs text-ink-muted">Teams that see it</legend>
+        <div className="flex flex-wrap gap-1.5">
+          {departments.map((d) => {
+            const on = teams.includes(d.id);
+            return (
+              <label
+                key={d.id}
+                className={
+                  on
+                    ? "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-brand-primary bg-brand-bg px-3 py-1 text-sm text-ink"
+                    : "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1 text-sm text-ink-muted"
+                }
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={on}
+                  onChange={() => setTeams((t) => (on ? t.filter((x) => x !== d.id) : [...t, d.id]))}
+                />
+                {d.name}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
       <label className="grid gap-1.5 text-xs text-ink-muted sm:grid-cols-[180px_1fr] sm:items-center">
         Whose lead gives access
         <select value={owner ?? ""} onChange={(e) => setOwner(e.target.value || null)} className="field h-9 px-3 text-sm text-ink">
@@ -248,6 +246,69 @@ export function TabAccessRow({ tab, departments }: { tab: TabAccess; departments
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Teams picked from chips, used for "also sees Paid social" and "also edits the layout". */
+function TeamChips({ legend, departments, value, onChange }: { legend: string; departments: { id: string; name: string }[]; value: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <fieldset className="space-y-1.5">
+      <legend className="text-sm font-medium text-ink">{legend}</legend>
+      <div className="flex flex-wrap gap-1.5">
+        {departments.map((d) => {
+          const on = value.includes(d.id);
+          return (
+            <label
+              key={d.id}
+              className={
+                on
+                  ? "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-brand-primary bg-brand-bg px-3 py-1 text-sm text-ink"
+                  : "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1 text-sm text-ink-muted"
+              }
+            >
+              <input type="checkbox" className="sr-only" checked={on} onChange={() => onChange(on ? value.filter((x) => x !== d.id) : [...value, d.id])} />
+              {d.name}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+/** Teams besides Commercial and Content who see Paid social, and besides Commercial who edit the homepage layout. */
+export function ExtraTeams({ departments, paidSocial, layout }: { departments: { id: string; name: string }[]; paidSocial: string[]; layout: string[] }) {
+  const [ps, setPs] = useState(paidSocial);
+  const [ly, setLy] = useState(layout);
+  const [pending, start] = useTransition();
+  const same = (a: string[], b: string[]) => [...a].sort().join() === [...b].sort().join();
+  const dirty = !same(ps, paidSocial) || !same(ly, layout);
+  return (
+    <div className="surface space-y-4 p-4 md:p-5">
+      <div className="space-y-1">
+        <TeamChips legend="Also see Paid social" departments={departments} value={ps} onChange={setPs} />
+        <p className="text-xs text-ink-muted">They can look and comment. Asking, planning, approving and delivering stay with Commercial and Content.</p>
+      </div>
+      <div className="space-y-1">
+        <TeamChips legend="Also edit the homepage layout" departments={departments} value={ly} onChange={setLy} />
+        <p className="text-xs text-ink-muted">Move, add and hide homepage sections, like Commercial.</p>
+      </div>
+      <div className="flex justify-end">
+        <Button
+          variant={dirty ? "default" : "outline"}
+          disabled={pending || !dirty}
+          onClick={() =>
+            start(async () => {
+              const res = await saveExtraTeams(ps, ly);
+              if (res.ok) toast.success("Saved.");
+              else toast.error(res.error);
+            })
+          }
+        >
+          Save
+        </Button>
+      </div>
     </div>
   );
 }

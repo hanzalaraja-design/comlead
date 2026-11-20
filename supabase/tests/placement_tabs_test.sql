@@ -160,6 +160,29 @@ select pg_temp.denied($$select public.hide_placement_section('badge', true)$$, '
 select pg_temp.denied($$insert into public.placement_tab_people (tab, user_id) values ('partnerships', auth.uid())$$, 'nobody can give themselves a tab');
 reset role;
 
+-- Brand gets everything: Design's list, Paid social (to see) and the layout.
+insert into public.placement_tab_teams (tab, department_id)
+select t.tab, d.id from (values ('ads'), ('design')) as t(tab) join public.departments d on d.slug = 'brand' on conflict do nothing;
+update public.placement_settings
+   set paid_social_team_ids = array[(select id from public.departments where slug = 'brand')],
+       layout_team_ids = array[(select id from public.departments where slug = 'brand')]
+ where id = 1;
+select pg_temp.login('00000000-0000-4000-e400-000000000005');
+set local role authenticated;
+select pg_temp.ok(public.my_placement_tabs() = array['web', 'social', 'ads', 'crm', 'partnerships', 'design'], 'Brand sees every tab, Design''s list too');
+select pg_temp.ok(public.can_use_collabs(), 'Brand sees Paid social');
+select pg_temp.ok(public.can_edit_placement_layout(), 'Brand can edit the homepage layout');
+select pg_temp.denied($$select public.collab_save_request(null, '{}'::jsonb)$$, 'but cannot send Paid social requests');
+reset role;
+select pg_temp.login('00000000-0000-4000-e400-000000000001');
+set local role authenticated;
+select pg_temp.ok(not public.can_see_placement_tab('design') and not public.can_use_collabs() and not public.can_edit_placement_layout(), 'Marketing still has none of those');
+reset role;
+select pg_temp.login('00000000-0000-4000-e400-000000000004');
+set local role authenticated;
+select pg_temp.ok(not public.can_see_placement_tab('design'), 'Tech still does not see Design''s list');
+reset role;
+
 set local role anon;
 select pg_temp.denied($$select public.can_see_placement_tab('web')$$, 'signed-out visitors get nothing');
 reset role;
