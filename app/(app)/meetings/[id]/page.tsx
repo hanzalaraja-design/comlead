@@ -122,6 +122,16 @@ export default async function MeetingPage({
             "Edit",
           ]}
           title="Edit minutes"
+          description={
+            <MeetingLinks
+              meetingId={id}
+              linked={linked}
+              options={allProjects.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, slug: p.slug, kind: p.kind }))}
+              editable={canEdit}
+              unlinkedItems={items.filter((t) => !t.project_id && !t.parent_task_id).length}
+              recurring={!!meeting.series_id}
+            />
+          }
         />
         <div className="hidden md:block">{carryForward}</div>
         {prev && (

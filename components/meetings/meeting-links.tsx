@@ -85,7 +85,7 @@ export function MeetingLinks({
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <button type="button" className="inline-flex h-7 items-center gap-1 rounded-md border border-dashed border-line px-2.5 text-[13px] font-semibold text-ink-muted hover:text-ink">
-              <Plus className="h-3.5 w-3.5" /> Link
+              <Plus className="h-3.5 w-3.5" /> Link to a project, campaign or partnership
             </button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-72 p-0">
