@@ -39,7 +39,7 @@ const MAIN: NavItem[] = [
 const DOMAIN_ITEMS: NavItem[] = [
   { href: "/projects", label: "Projects", icon: FolderKanban, dot: "#9B3DB0" },
   { href: "/campaigns", label: "Campaigns", icon: FolderKanban, dot: "#F2A15F" },
-  { href: "/partnerships", label: "Partnerships", icon: FolderKanban, dot: "#2E9C74" },
+  { href: "/partnerships", label: "Brand partnerships", icon: FolderKanban, dot: "#2E9C74" },
   // What's on the homepage banners each day, month by month.
   { href: "/daily-deals", label: "Daily deals", icon: FolderKanban, dot: "#2F6FD6" },
 ];

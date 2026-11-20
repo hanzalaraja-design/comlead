@@ -6,6 +6,20 @@ type Lookup = { person: (id: unknown) => PersonRef | null };
 
 const s = (v: unknown) => (typeof v === "string" ? v : "");
 
+const PART_STAGES: Record<string, string> = {
+  draft: "Draft",
+  in_talks: "In talks",
+  agreed: "Signed / agreed",
+  live: "Live",
+  ended: "Ended",
+  idea: "Idea",
+  drafting: "Drafting",
+  design: "Design",
+  review: "Review",
+  approved: "Approved",
+};
+const partStage = (k: string) => PART_STAGES[k] ?? k;
+
 /** One-line, human description of an activity entry (without the actor). */
 export function describeActivity(e: ActivityEntry, { person }: Lookup): string {
   const o = e.old_value ?? {};
@@ -79,6 +93,23 @@ export function describeActivity(e: ActivityEntry, { person }: Lookup): string {
     case "placement.edited":
       return "changed the booking details";
     case "placement.commented":
+    case "term.created":
+      return `added the term “${label}”`;
+    case "term.deleted":
+      return `removed the term “${label}”`;
+    case "term.edited":
+      return `edited the term “${label}”`;
+    case "term.stage_changed":
+      return `moved the term “${label}” to ${partStage(s(n.stage))}`;
+    case "journey.created":
+      return `added the journey “${label}”`;
+    case "journey.deleted":
+      return `removed the journey “${label}”`;
+    case "journey.edited":
+      return `edited the journey “${label}”`;
+    case "journey.stage_changed":
+      return `moved the journey “${label}” to ${partStage(s(n.stage))}`;
+    case "project.commented":
       return `commented: “${s(n.body)}”`;
     default:
       return `${e.action} ${label}`;

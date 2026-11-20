@@ -2,6 +2,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/page-header";
 import { PersonAvatar } from "@/components/person-avatar";
 import { TaskList } from "@/components/tasks/task-list";
+import { SelectableTasks } from "@/components/tasks/selectable-tasks";
 import { getPeople } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import type { TaskFilters } from "@/lib/tasks/filters";
@@ -310,6 +311,7 @@ export async function WhatsUp({
       {by === "person" ? (
         <People groups={groups} path={path} raw={raw} from={from} />
       ) : shown.length ? (
+        <SelectableTasks ids={shown.flatMap((g) => g.tasks.map((t) => t.id))}>
         <div className="space-y-6">
           {shown.map((g) => (
             <section key={g.key} id={g.key} className="scroll-mt-24">
@@ -318,10 +320,11 @@ export async function WhatsUp({
                 <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", TONE[g.tone])}>{g.tasks.length}</span>
                 {g.hint && <span className="text-[13px] font-normal text-ink-muted">{g.hint}</span>}
               </h2>
-              <TaskList tasks={g.tasks} showCompleted={g.done} showOwner={showOwner} showDepartment={showDepartment} from={from} />
+              <TaskList tasks={g.tasks} selectable showCompleted={g.done} showOwner={showOwner} showDepartment={showDepartment} from={from} />
             </section>
           ))}
         </div>
+        </SelectableTasks>
       ) : (
         <EmptyState>{period.when === "past" ? `Nothing was due ${period.words}.` : `Nothing ${period.words ? `for ${period.words}` : "open"}. Enjoy the quiet.`}</EmptyState>
       )}

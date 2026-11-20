@@ -306,6 +306,8 @@ export async function quickAddTask(
   projectId?: string,
   /** Added from My tasks: it's yours, whichever team it's in. */
   mine = false,
+  /** Added inside a journey: it belongs to it. */
+  partId?: string,
 ): Promise<ActionResult<{ id: string; owner: string | null; done: boolean }>> {
   const viewer = await requireViewer();
   let title = input.trim().replace(/\s+/g, " ");
@@ -370,6 +372,7 @@ export async function quickAddTask(
     .select("id")
     .single();
   if (error || !data) return { ok: false, error: friendlyError(error) };
+  if (partId && project && uuid.safeParse(partId).success) await supabase.from("tasks").update({ part_id: partId }).eq("id", data.id);
   revalidateTaskViews(data.id);
   syncLater(() => syncTask(data.id));
   return { ok: true, data: { id: data.id as string, owner: owner === viewer.id ? "you" : ownerName, done: !!tick } };
@@ -630,4 +633,55 @@ export async function setTaskCollaborators(taskId: string, userIds: string[]): P
   revalidateTaskViews(taskId);
   syncLater(() => syncTask(taskId));
   return { ok: true };
+}
+
+const bulkSchema = z.object({
+  ids: z.array(uuid).min(1).max(300),
+  op: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("status"), status: z.enum(["todo", "in_progress", "blocked", "done", "cancelled"]), blocked_reason: z.string().max(500).optional() }),
+    z.object({ kind: z.literal("due"), due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }),
+    z.object({ kind: z.literal("owner"), owner_id: uuid }),
+    z.object({ kind: z.literal("project"), project_id: uuid.nullable() }),
+    z.object({ kind: z.literal("part"), part_id: uuid.nullable() }),
+    z.object({ kind: z.literal("delete") }),
+  ]),
+});
+export type BulkTaskOp = z.input<typeof bulkSchema>["op"];
+
+/**
+ * The same change to many ticked tasks at once. Each one goes through the
+ * usual rules (locks, who may change what); ones you can't change are skipped
+ * and counted. Finishing a task with open subtasks leaves those open.
+ */
+export async function bulkTasks(ids: string[], op: BulkTaskOp): Promise<ActionResult<{ changed: number; skipped: number }>> {
+  await requireViewer();
+  const parsed = bulkSchema.safeParse({ ids, op });
+  if (!parsed.success) return { ok: false, error: "Pick some tasks first." };
+  const unique = [...new Set(parsed.data.ids)];
+  const o = parsed.data.op;
+  let changed = 0;
+  for (const id of unique) {
+    if (o.kind === "status") {
+      const res = await setTaskStatus(id, o.status, o.blocked_reason, "keep");
+      if (res.ok) changed++;
+      continue;
+    }
+    if (o.kind === "delete") {
+      const res = await deleteTask(id);
+      if (res.ok) changed++;
+      continue;
+    }
+    if (o.kind === "part") {
+      // Into a journey (or term) of the task's own project; the database checks.
+      const supabase = await createClient();
+      const { data } = await supabase.from("tasks").update({ part_id: o.part_id }).eq("id", id).select("id");
+      if (data?.length) changed++;
+      continue;
+    }
+    const patch = o.kind === "due" ? { due_date: o.due_date } : o.kind === "owner" ? { owner_id: o.owner_id } : { project_id: o.project_id };
+    const res = await updateTaskInline(id, patch);
+    if (res.ok) changed++;
+  }
+  revalidatePath("/", "layout");
+  return { ok: true, data: { changed, skipped: unique.length - changed } };
 }
