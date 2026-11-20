@@ -8,7 +8,7 @@ import { Check, ChevronDown, Plus, TriangleAlert, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
-import { BulkProvider, RowCheck, SelectAll } from "@/components/bulk-select";
+import { BulkProvider, RowCheck, useBulk } from "@/components/bulk-select";
 import { BulkTasksBar } from "@/components/tasks/bulk-tasks";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { DueExtend } from "@/components/tasks/due-extend";
@@ -234,90 +234,117 @@ export function SubtaskSection({
   }
 
   if (!subtasks.length && !canAdd) return null;
+  const COLS = "md:grid md:grid-cols-[2rem_minmax(0,1fr)_8rem_9rem_9.5rem] md:items-center md:gap-3";
   return (
-    <section className="surface p-4">
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="text-[15px] font-semibold text-ink">Subtasks</h2>
-        {subtasks.length > 0 && (
-          <span className="text-sm text-ink-muted">
-            {done} of {subtasks.length} done
-            {finished.length > 0 &&
-              ` · ${[onTimeCount && `${onTimeCount} on time`, finished.length - onTimeCount && `${finished.length - onTimeCount} late`].filter(Boolean).join(", ")}`}
-            {next?.owner && (
-              <>
-                {" · "}waiting on <span className="font-medium text-ink">{personName(next.owner)}</span>
-                {next.due_date && ` (due ${formatDate(next.due_date, "EEE d MMM")})`}
-              </>
-            )}
-          </span>
+    <section className="surface overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3.5 md:px-5">
+        <div className="min-w-0">
+          <h2 className="text-[17px] font-semibold text-ink">Subtasks</h2>
+          {subtasks.length > 0 && (
+            <p className="text-[13px] text-ink-muted">
+              {done} of {subtasks.length} done
+              {next?.owner && (
+                <>
+                  {" · "}waiting on <span className="font-medium text-ink">{personName(next.owner)}</span>
+                  {next.due_date && `, due ${formatDate(next.due_date, "EEE d MMM")}`}
+                </>
+              )}
+              {finished.length > 0 &&
+                ` · ${[onTimeCount && `${onTimeCount} on time`, finished.length - onTimeCount && `${finished.length - onTimeCount} late`].filter(Boolean).join(", ")}`}
+            </p>
+          )}
+        </div>
+        {canAdd && !draft && (
+          <Button size="sm" variant="outline" onClick={() => setDraft(blank())} className="text-brand-primary">
+            <Plus className="h-4 w-4" /> Add a subtask
+          </Button>
         )}
       </div>
+
+      {canAdd && draft && (
+        <div className="space-y-2 border-t border-line px-4 py-3 md:px-5">
+          <DraftRow draft={draft} people={people} onChange={setDraft} autoFocus />
+          <div className="flex gap-2">
+            <Button size="sm" disabled={pending} onClick={save}>
+              {pending ? "Adding…" : "Add"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       {subtasks.length > 0 && (
         <PeopleProvider people={people}>
           <BulkProvider ids={subtasks.map((s) => s.id)}>
-          {subtasks.length > 1 && (
-            <div className="mb-1 flex justify-end">
-              <SelectAll noun="subtasks" />
+            <div className={cn("hidden h-9 border-t border-line bg-[#F7F6F4] px-4 text-xs font-semibold text-ink-muted md:px-5", COLS)}>
+              <HeaderCheck />
+              <span>Subtask</span>
+              <span>Status</span>
+              <span>Who</span>
+              <span>Due</span>
             </div>
-          )}
-          <ul className="divide-y divide-line">
-            {subtasks.map((s) => {
-              const late = !!parentDue && !!s.due_date && s.due_date > parentDue && OPEN_STATUSES.includes(s.status);
-              return (
-                <li key={s.id} className="group/row relative flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
-                  <RowCheck id={s.id} label={s.title} />
-                  <Link href={`/tasks/${s.id}`} className="min-w-0 flex-1 basis-40 font-medium text-ink hover:underline">
-                    {s.title}
-                  </Link>
-                  <StatusSelect key={s.status} taskId={s.id} status={s.status as TaskStatus} dueByToday={!!s.due_date && s.due_date <= today} />
-                  <InlineOwner taskId={s.id} owner={s.owner} />
-                  {s.status === "done" && onTimeStatus(s.due_date, s.completed_at) ? (
-                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-bold", ON_TIME_STYLES[onTimeStatus(s.due_date, s.completed_at)!.tone])}>
-                      {onTimeStatus(s.due_date, s.completed_at)!.label}
+            <ul>
+              {subtasks.map((s) => {
+                const late = !!parentDue && !!s.due_date && s.due_date > parentDue && OPEN_STATUSES.includes(s.status);
+                const onTime = s.status === "done" ? onTimeStatus(s.due_date, s.completed_at) : null;
+                return (
+                  <li key={s.id} className={cn("group/row relative flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line px-4 py-3 md:px-5 md:py-2.5", COLS)}>
+                    <RowCheck id={s.id} label={s.title} />
+                    <span className="min-w-0 flex-1 basis-40">
+                      <Link href={`/tasks/${s.id}`} className="block truncate font-medium text-ink hover:underline">
+                        {s.title}
+                      </Link>
+                      {late && (
+                        <span className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-warning-ink">
+                          <TriangleAlert className="h-3.5 w-3.5" /> Due after the main task ({formatDate(parentDue!, "d MMM")})
+                        </span>
+                      )}
                     </span>
-                  ) : (
-                    <>
-                      <InlineDue taskId={s.id} date={s.due_date} time={s.due_time} overdue={s.overdue} />
-                      {s.status !== "cancelled" && <DueExtend taskId={s.id} title={s.title} date={s.due_date} />}
-                    </>
-                  )}
-                  {late && (
-                    <span className="inline-flex basis-full items-center gap-1 pl-8 text-xs font-medium text-warning-ink">
-                      <TriangleAlert className="h-3.5 w-3.5" /> Due after the main task ({formatDate(parentDue!, "d MMM")})
+                    <span>
+                      <StatusSelect key={s.status} taskId={s.id} status={s.status as TaskStatus} dueByToday={!!s.due_date && s.due_date <= today} className="w-28" />
                     </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-          <BulkTasksBar people={people} />
+                    <span className="min-w-0">
+                      <InlineOwner taskId={s.id} owner={s.owner} />
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      {onTime ? (
+                        <span className={cn("rounded-full px-2 py-0.5 text-xs font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>
+                      ) : (
+                        <>
+                          <InlineDue taskId={s.id} date={s.due_date} time={s.due_time} overdue={s.overdue} />
+                          {s.status !== "cancelled" && <DueExtend taskId={s.id} title={s.title} date={s.due_date} />}
+                        </>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <BulkTasksBar people={people} />
           </BulkProvider>
         </PeopleProvider>
       )}
-
-      {canAdd &&
-        (draft ? (
-          <div className="mt-3 space-y-2">
-            <DraftRow draft={draft} people={people} onChange={setDraft} autoFocus />
-            <div className="flex gap-2">
-              <Button size="sm" disabled={pending} onClick={save}>
-                {pending ? "Adding…" : "Add"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setDraft(blank())}
-            className={cn("inline-flex items-center gap-1 text-sm font-medium text-brand-primary hover:underline", subtasks.length > 0 && "mt-2")}
-          >
-            <Plus className="h-4 w-4" /> Add a subtask
-          </button>
-        ))}
     </section>
+  );
+}
+
+/** "Select all" as the tick box in the table's header row. */
+function HeaderCheck() {
+  const ctx = useBulk();
+  if (!ctx || ctx.ids.length < 2) return <span />;
+  const all = ctx.selected.size === ctx.ids.length;
+  return (
+    <input
+      type="checkbox"
+      aria-label={all ? "Unselect all subtasks" : "Select all subtasks"}
+      checked={all}
+      ref={(el) => {
+        if (el) el.indeterminate = ctx.selected.size > 0 && !all;
+      }}
+      onChange={() => ctx.setAll(!all)}
+      className="h-4 w-4 cursor-pointer accent-[hsl(var(--brand-primary))]"
+    />
   );
 }
