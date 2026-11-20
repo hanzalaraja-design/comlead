@@ -40,6 +40,7 @@ export function HomepageMap({
   onOpen,
   onBook,
   edit,
+  editToggle,
 }: {
   sections: Section[];
   placements: Placement[];
@@ -50,15 +51,25 @@ export function HomepageMap({
   onOpen: (p: Placement) => void;
   onBook: (s: Section, position: number) => void;
   edit?: LayoutEdit;
+  /** "Edit layout" / "Done", for people who can change the layout. */
+  editToggle?: React.ReactNode;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   return (
     <div className="surface flex flex-col gap-4 overflow-hidden p-3">
-      <div className="flex items-end justify-between px-0.5">
-        <HighfyLogo className="w-20" />
-        <span className="text-xs text-ink-muted">highfy.pk</span>
+      <div className="flex min-h-8 items-center justify-between gap-2 px-0.5">
+        <span className="flex items-end gap-2">
+          <HighfyLogo className="w-20" />
+          <span className="text-xs text-ink-muted">highfy.pk</span>
+        </span>
+        {editToggle}
       </div>
+      {edit && (
+        <p className="rounded-[12px] bg-brand-bg px-3 py-2 text-sm text-ink">
+          Drag a section by its handle, or use the arrows. Moving sections changes the order for everyone.
+        </p>
+      )}
       {sections.map((s, i) => (
         <section
           key={s.key}

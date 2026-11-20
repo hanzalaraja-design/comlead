@@ -178,8 +178,8 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
         {nav}
         {lock}
         <section aria-label="Your bookings" className="surface divide-y divide-line">
-          {placements.length ? (
-            placements.map((p) => {
+          {placements.some((p) => p.created_by === viewer.id) ? (
+            placements.filter((p) => p.created_by === viewer.id).map((p) => {
               const s = sections.find((x) => x.key === p.section_key);
               return (
                 <div key={p.id} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3">
