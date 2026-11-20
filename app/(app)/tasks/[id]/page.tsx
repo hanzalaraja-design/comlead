@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { CornerDownRight, FolderKanban, NotebookPen } from "lucide-react";
 import { CollaboratorsField, InlineNotes, InlineTitle, LinkTags, PickTeam, TaskLockSwitch, TeamsField } from "@/components/tasks/task-inline";
 import { DoneOn, InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
-import { DueExtend, MovedMark } from "@/components/tasks/due-extend";
+import { DueExtend } from "@/components/tasks/due-extend";
 import { isPushedLater } from "@/lib/tasks/due-moves";
 import { getProjects, getTeamNames } from "@/lib/projects";
 import { SubtaskSection } from "@/components/tasks/subtasks";
@@ -206,18 +206,28 @@ export default async function TaskPage({
               {canEdit && task.status !== "done" && task.status !== "cancelled" && (
                 <DueExtend taskId={id} title={task.title} date={task.due_date} className="md:opacity-100" />
               )}
-              <MovedMark
-                taskId={id}
-                count={
-                  ((historyRes.data ?? []) as ActivityEntry[]).filter(
-                    (e) => e.action === "task.due_changed" && isPushedLater(e.old_value?.due_date as string | undefined, e.new_value?.due_date as string | undefined),
-                  ).length
-                }
-              />
               {task.status === "done" && task.completed_at && (
                 <DoneOn taskId={id} completedAt={task.completed_at} dueDate={task.due_date} editable={isOwner || viewer.isAdmin} />
               )}
             </div>
+            {(() => {
+              // Only when the deadline was pushed later: one quiet line.
+              const pushes = ((historyRes.data ?? []) as ActivityEntry[]).filter(
+                (e) => e.action === "task.due_changed" && isPushedLater(e.old_value?.due_date as string | undefined, e.new_value?.due_date as string | undefined),
+              );
+              if (!pushes.length) return null;
+              const last = pushes[0];
+              const first = pushes[pushes.length - 1];
+              const by = last.actor_id ? personName(person(last.actor_id)) : null;
+              const from = formatDate(first.old_value?.due_date as string, "EEE d MMM");
+              const to = formatDate(last.new_value?.due_date as string, "EEE d MMM");
+              return (
+                <p className="-mt-2 text-[13px] text-ink-muted">
+                  Deadline extended {pushes.length > 1 ? `${pushes.length} times, ` : ""}from {from} to {to}
+                  {by ? ` by ${by}` : ""}
+                </p>
+              );
+            })()}
             {task.status === "blocked" && (
               <p className="rounded-[12px] bg-warning-soft px-3 py-2 text-sm text-warning-ink">
                 <span className="font-medium">Blocked:</span> {task.blocked_reason || "No reason given"}
