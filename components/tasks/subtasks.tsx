@@ -234,7 +234,8 @@ export function SubtaskSection({
   }
 
   if (!subtasks.length && !canAdd) return null;
-  const COLS = "md:grid md:grid-cols-[2rem_minmax(0,1fr)_8rem_9rem_9.5rem] md:items-center md:gap-3";
+  // Narrow, fixed columns (in px, so they don't grow with the text size); the subtask gets the rest.
+  const COLS = "md:grid md:grid-cols-[16px_minmax(0,1fr)_112px_104px_128px] md:items-center md:gap-x-3";
   return (
     <section className="surface overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3.5 md:px-5">
@@ -293,7 +294,7 @@ export function SubtaskSection({
                   <li key={s.id} className={cn("group/row relative flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line px-4 py-3 md:px-5 md:py-2.5", COLS)}>
                     <RowCheck id={s.id} label={s.title} />
                     <span className="min-w-0 flex-1 basis-40">
-                      <Link href={`/tasks/${s.id}`} className="block truncate font-medium text-ink hover:underline">
+                      <Link href={`/tasks/${s.id}`} className="line-clamp-2 font-medium leading-snug text-ink hover:underline">
                         {s.title}
                       </Link>
                       {late && (
@@ -303,9 +304,9 @@ export function SubtaskSection({
                       )}
                     </span>
                     <span>
-                      <StatusSelect key={s.status} taskId={s.id} status={s.status as TaskStatus} dueByToday={!!s.due_date && s.due_date <= today} className="w-28" />
+                      <StatusSelect key={s.status} taskId={s.id} status={s.status as TaskStatus} dueByToday={!!s.due_date && s.due_date <= today} className="w-[112px]" />
                     </span>
-                    <span className="min-w-0">
+                    <span className="min-w-0 overflow-hidden">
                       <InlineOwner taskId={s.id} owner={s.owner} />
                     </span>
                     <span className="flex items-center gap-1.5">
