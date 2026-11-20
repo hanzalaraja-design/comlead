@@ -59,7 +59,7 @@ export default async function PlacementsAdminPage() {
         <section className="space-y-3">
           <h2 className="kicker text-ink">Who sees each tab</h2>
           <p className="text-sm text-ink-muted">
-            The Design team and Admins see every tab, and Tech sees every tab except the Design list. Everyone else sees the tabs of their teams and
+            The Design team and Admins see every tab. Everyone else sees the tabs of their teams and
             their own requests. Anyone can ask for access, and the lead picked here (or an Admin) decides.
           </p>
           <div className="surface">

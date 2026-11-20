@@ -55,6 +55,8 @@ update public.placement_settings
        commercial_department_id = (select id from public.departments where slug = 'commercial')
  where id = 1;
 update public.placement_tabs set owner_department_id = '00000000-0000-4000-e300-0000000000d1' where key = 'design';
+-- Tech sees App / Website (the tab table lists it there).
+insert into public.placement_tab_teams (tab, department_id) values ('web', '00000000-0000-4000-e300-0000000000d2') on conflict do nothing;
 
 insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-4000-e400-000000000001', 'pttest.mkt@highfy.pk', '{"full_name":"Mia Marketing"}'),
@@ -123,14 +125,14 @@ select pg_temp.ok((select count(*) from public.creative_requests where channel =
 select pg_temp.ok(not public.can_see_placement_tab('web'), 'but still not App / Website');
 reset role;
 
--- Design and Tech see everything; Design's list is Design's.
+-- Design sees everything; Tech sees what the tab table gives it.
 select pg_temp.login('00000000-0000-4000-e400-000000000003');
 set local role authenticated;
 select pg_temp.ok(public.can_see_placement_tab('partnerships') and public.can_see_placement_tab('design'), 'Design sees every tab and its own list');
 reset role;
 select pg_temp.login('00000000-0000-4000-e400-000000000004');
 set local role authenticated;
-select pg_temp.ok(public.can_see_placement_tab('partnerships') and public.can_see_placement_tab('web') and not public.can_see_placement_tab('design'), 'Tech sees every tab except Design''s list');
+select pg_temp.ok(public.my_placement_tabs() = array['web'], 'Tech sees App / Website only (as set in the tab table)');
 select pg_temp.denied($$select public.add_placement_section('Tech section', 'banner', 1, '{web}')$$, 'Tech cannot add sections');
 reset role;
 
@@ -185,7 +187,7 @@ select pg_temp.denied($$select public.collab_save_request(null, '{}'::jsonb)$$, 
 reset role;
 select pg_temp.login('00000000-0000-4000-e400-000000000004');
 set local role authenticated;
-select pg_temp.ok(not public.can_see_placement_tab('design'), 'Tech still does not see Design''s list');
+select pg_temp.ok(not public.can_see_placement_tab('design') and not public.can_see_placement_tab('crm'), 'Tech still does not see Design''s list or CRM');
 reset role;
 
 set local role anon;
