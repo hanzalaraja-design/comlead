@@ -47,6 +47,7 @@ begin
   return new;
 end;
 $$;
+drop trigger if exists tasks_count_due_moves on public.tasks;
 create trigger tasks_count_due_moves before update on public.tasks
   for each row execute function public.tasks_count_due_moves();
 
