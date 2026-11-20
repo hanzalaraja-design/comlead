@@ -173,3 +173,49 @@ export async function setMeetingProjects(meetingId: string, projectIds: string[]
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+/**
+ * Link a meeting to a project, campaign or partnership. Optionally move its
+ * existing action items into it, and link every future meeting in its series.
+ */
+export async function linkMeeting(meetingId: string, projectId: string, opts: { move?: boolean; series?: boolean } = {}): Promise<ActionResult> {
+  await requireViewer();
+  if (!z.string().uuid().safeParse(meetingId).success || !z.string().uuid().safeParse(projectId).success) return { ok: false, error: "That link isn't valid." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("link_meeting", { p_meeting: meetingId, p_project: projectId, p_move: !!opts.move, p_series: !!opts.series });
+  if (error) {
+    // Before the database has linking functions: link the way it used to.
+    if (/link_meeting/.test(error.message ?? "") && /function|schema cache/i.test(error.message ?? "")) {
+      const { error: e2 } = await supabase.from("meeting_projects").insert({ meeting_id: meetingId, project_id: projectId });
+      if (e2 && e2.code !== "23505") return { ok: false, error: friendlyError(e2) };
+    } else return { ok: false, error: friendlyError(error) };
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function unlinkMeeting(meetingId: string, projectId: string, series = false): Promise<ActionResult> {
+  await requireViewer();
+  if (!z.string().uuid().safeParse(meetingId).success || !z.string().uuid().safeParse(projectId).success) return { ok: false, error: "That link isn't valid." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("unlink_meeting", { p_meeting: meetingId, p_project: projectId, p_series: series });
+  if (error) {
+    if (/unlink_meeting/.test(error.message ?? "") && /function|schema cache/i.test(error.message ?? "")) {
+      const { error: e2 } = await supabase.from("meeting_projects").delete().eq("meeting_id", meetingId).eq("project_id", projectId);
+      if (e2) return { ok: false, error: friendlyError(e2) };
+    } else return { ok: false, error: friendlyError(error) };
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Which linked project an action item goes into (null: only in the meeting). */
+export async function setActionItemProject(taskId: string, projectId: string | null): Promise<ActionResult> {
+  await requireViewer();
+  if (!z.string().uuid().safeParse(taskId).success || (projectId !== null && !z.string().uuid().safeParse(projectId).success)) return { ok: false, error: "That isn't valid." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_action_item_project", { p_task: taskId, p_project: projectId });
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}

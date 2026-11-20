@@ -1,4 +1,5 @@
 import { MeetingLinks } from "@/components/meetings/meeting-links";
+import { ActionItemTargets } from "@/components/meetings/action-item-targets";
 import { getProjects } from "@/lib/projects";
 import type { ProjectKind } from "@/lib/types";
 import Link from "next/link";
@@ -182,6 +183,8 @@ export default async function MeetingPage({
               linked={linked}
               options={allProjects.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, slug: p.slug, kind: p.kind }))}
               editable={canEdit}
+              unlinkedItems={items.filter((t) => !t.project_id && !t.parent_task_id).length}
+              recurring={!!meeting.series_id}
             />
           </>
         }
@@ -249,6 +252,11 @@ export default async function MeetingPage({
         ) : (
           <p className="text-sm text-muted-foreground">No action items.</p>
         )}
+        <ActionItemTargets
+          items={items.filter((t) => !t.parent_task_id).map((t) => ({ id: t.id, title: t.title, projectId: t.project_id ?? null }))}
+          linked={linked.map((l) => ({ id: l.id, name: l.name }))}
+          editable={canEdit}
+        />
       </section>
 
       <p className="text-xs text-muted-foreground">Last updated {formatPKT(meeting.updated_at)}</p>

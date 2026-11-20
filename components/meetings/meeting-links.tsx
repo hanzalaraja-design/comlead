@@ -9,28 +9,55 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ProjectTag } from "@/components/tasks/task-badges";
 import { DOMAINS, domainHref } from "@/lib/domains";
 import type { ProjectKind } from "@/lib/types";
-import { setMeetingProjects } from "@/app/(app)/meetings/actions";
+import { linkMeeting, unlinkMeeting } from "@/app/(app)/meetings/actions";
+import { LinkConfirm } from "@/components/meetings/link-confirm";
 
 type Item = { id: string; name: string; slug: string; kind: ProjectKind };
 
 /** "Linked to" on a meeting: the projects, campaigns and partnerships it's about. */
-export function MeetingLinks({ meetingId, linked, options, editable }: { meetingId: string; linked: Item[]; options: Item[]; editable: boolean }) {
+export function MeetingLinks({
+  meetingId,
+  linked,
+  options,
+  editable,
+  unlinkedItems = 0,
+  recurring = false,
+}: {
+  meetingId: string;
+  linked: Item[];
+  options: Item[];
+  editable: boolean;
+  /** Action items not in any project yet: offered to move when linking. */
+  unlinkedItems?: number;
+  /** Part of a recurring series: offer to link every future meeting too. */
+  recurring?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<Item | null>(null);
   const ids = linked.map((l) => l.id);
   const q = query.trim().toLowerCase();
 
-  function save(next: string[], done: string) {
+  function run(fn: () => Promise<{ ok: boolean; error?: string }>, done: string) {
     startTransition(async () => {
-      const res = await setMeetingProjects(meetingId, next);
+      const res = await fn();
       if (res.ok) {
         toast.success(done);
+        setPicked(null);
         router.refresh();
-      } else toast.error(res.error);
+      } else toast.error(res.error ?? "Couldn't change that.");
     });
   }
+  const link = (o: Item) => {
+    if (unlinkedItems > 0 || recurring) return setPicked(o);
+    run(() => linkMeeting(meetingId, o.id), `Linked to ${o.name}. New action items land there too.`);
+  };
+  const unlink = (l: Item) => {
+    const series = recurring && window.confirm(`Also unlink every future meeting in this series from ${l.name}? (Cancel unlinks just this one.)`);
+    run(() => unlinkMeeting(meetingId, l.id, series), `Unlinked ${l.name}.`);
+  };
 
   if (!linked.length && !editable) return null;
   return (
@@ -46,7 +73,7 @@ export function MeetingLinks({ meetingId, linked, options, editable }: { meeting
               type="button"
               aria-label={`Unlink ${l.name}`}
               disabled={pending}
-              onClick={() => save(ids.filter((x) => x !== l.id), `Unlinked ${l.name}.`)}
+              onClick={() => unlink(l)}
               className="text-ink-muted hover:text-ink"
             >
               <X className="h-3.5 w-3.5" />
@@ -78,7 +105,7 @@ export function MeetingLinks({ meetingId, linked, options, editable }: { meeting
                         onClick={() => {
                           setOpen(false);
                           setQuery("");
-                          save([...ids, o.id], `Linked to ${o.name}. New action items land there too.`);
+                          link(o);
                         }}
                         className="flex w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-subtle"
                       >
@@ -91,6 +118,18 @@ export function MeetingLinks({ meetingId, linked, options, editable }: { meeting
             </div>
           </PopoverContent>
         </Popover>
+            )}
+      {picked && (
+        <LinkConfirm
+          open
+          title={`Link to ${picked.name}`}
+          projectName={picked.name}
+          unlinkedItems={unlinkedItems}
+          recurring={recurring}
+          pending={pending}
+          onCancel={() => setPicked(null)}
+          onConfirm={(o) => run(() => linkMeeting(meetingId, picked.id, o), `Linked to ${picked.name}.`)}
+        />
       )}
     </span>
   );

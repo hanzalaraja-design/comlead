@@ -6,6 +6,7 @@ import { EmptyState, PageHeader } from "@/components/page-header";
 import { PersonAvatar } from "@/components/person-avatar";
 import { ProjectForm } from "@/components/projects/project-form";
 import { ProjectHeader, loadProject, teamsText } from "@/components/projects/project-header";
+import { ProjectMeetings } from "@/components/projects/project-meetings";
 import { BoardView, CalendarView, ListView } from "@/components/tasks/task-views";
 import { getDepartments, getPeople, requireViewer } from "@/lib/auth";
 import { CATEGORY_LABELS, DOMAINS, datesText, domainHref, getProjectMembers, getProjects, getTeamDirectory, getTeamNames, ownersOf } from "@/lib/projects";
@@ -189,6 +190,14 @@ type ItemProps = { kind: ProjectKind; params: Promise<{ slug: string }>; searchP
 export async function DomainListPage({ kind, params, searchParams }: ItemProps) {
   const [{ slug }, raw] = await Promise.all([params, searchParams]);
   const loaded = await loadProject(slug, raw, kind);
+  if (raw.view === "meetings") {
+    return (
+      <>
+        <ProjectHeader loaded={loaded} view="list" meetingsView />
+        <ProjectMeetings project={loaded.project} canUnlink={loaded.canManage || loaded.viewer.isAdmin || loaded.members.some((m) => m.id === loaded.viewer.id)} />
+      </>
+    );
+  }
   return (
     <>
       <ProjectHeader loaded={loaded} view="list" />
