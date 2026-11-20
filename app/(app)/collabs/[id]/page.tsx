@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PlainText } from "@/components/plain-text";
 import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -284,13 +285,17 @@ export default async function CollabPage({ params, searchParams }: { params: Pro
               {r.refs && (
                 <>
                   <dt className="text-ink-muted">References</dt>
-                  <dd className="whitespace-pre-wrap break-words text-ink">{r.refs}</dd>
+                  <dd className="whitespace-pre-wrap break-words text-ink">
+                    <PlainText text={r.refs} />
+                  </dd>
                 </>
               )}
               {r.notes && (
                 <>
                   <dt className="text-ink-muted">Notes</dt>
-                  <dd className="whitespace-pre-wrap text-ink">{r.notes}</dd>
+                  <dd className="whitespace-pre-wrap break-words text-ink">
+                    <PlainText text={r.notes} />
+                  </dd>
                 </>
               )}
             </dl>

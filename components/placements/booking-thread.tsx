@@ -1,5 +1,6 @@
 "use client";
 
+import { PlainText } from "@/components/plain-text";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Copy, ExternalLink, History, Trash2 } from "lucide-react";
@@ -96,7 +97,9 @@ export function BookingThreadPanel({ placementId }: { placementId: string }) {
             <p className="text-xs">
               <span className="font-semibold text-ink">{c.author}</span> <span className="text-ink-muted">· {c.when}</span>
             </p>
-            <p className="whitespace-pre-line text-sm text-ink">{c.body}</p>
+            <p className="whitespace-pre-line break-words text-sm text-ink">
+              <PlainText text={c.body} />
+            </p>
           </div>
           {c.mine && (
             <button

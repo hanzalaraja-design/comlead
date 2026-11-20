@@ -3,9 +3,12 @@ import { Fragment, type ReactNode } from "react";
 /**
  * Plain text as people typed it, except that cells pasted from Excel or
  * Google Sheets (lines with tabs between the values) show as a table.
- * `render` styles each piece of ordinary text (e.g. to highlight @mentions).
+ * Web addresses (https://…, www.…) are clickable links. `render` styles each
+ * piece of ordinary text (e.g. to highlight @mentions).
  */
-export function PlainText({ text, render = (s) => s }: { text: string; render?: (s: string) => ReactNode }) {
+export function PlainText({ text, render: style = (s) => s }: { text: string; render?: (s: string) => ReactNode }) {
+  // Web addresses become links; the rest is styled as given.
+  const render = (s: string) => withLinks(s, style);
   const lines = text.replace(/\r/g, "").split("\n");
   const blocks: { table: boolean; lines: string[] }[] = [];
   for (const line of lines) {
@@ -44,4 +47,27 @@ export function PlainText({ text, render = (s) => s }: { text: string; render?: 
       })}
     </>
   );
+}
+
+// http(s) or www. addresses, without the punctuation that usually ends a sentence.
+const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"]*[^\s<>".,;:!?)\]'’”]/gi;
+
+/** Text with its web addresses as links that open in a new tab. */
+export function withLinks(text: string, render: (s: string) => ReactNode = (s) => s): ReactNode {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push(<Fragment key={`t${at}`}>{render(text.slice(last, at))}</Fragment>);
+    const href = /^https?:\/\//i.test(m[0]) ? m[0] : `https://${m[0]}`;
+    out.push(
+      <a key={`a${at}`} href={href} target="_blank" rel="noopener noreferrer" className="break-all text-brand-primary underline underline-offset-2 hover:no-underline">
+        {m[0]}
+      </a>,
+    );
+    last = at + m[0].length;
+  }
+  if (!out.length) return render(text);
+  if (last < text.length) out.push(<Fragment key="end">{render(text.slice(last))}</Fragment>);
+  return out;
 }

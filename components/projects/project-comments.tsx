@@ -1,5 +1,6 @@
 "use client";
 
+import { PlainText } from "@/components/plain-text";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -51,7 +52,9 @@ export function ProjectComments({
                 <p className="text-[13px]">
                   <span className="font-semibold text-ink">{c.authorName}</span> <span className="text-ink-muted">· {c.when}</span>
                 </p>
-                <p className="whitespace-pre-line text-[15px] leading-relaxed text-ink">{c.body}</p>
+                <p className="whitespace-pre-line break-words text-[15px] leading-relaxed text-ink">
+                  <PlainText text={c.body} />
+                </p>
               </div>
               {c.mine && (
                 <button

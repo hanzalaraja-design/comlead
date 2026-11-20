@@ -1,4 +1,5 @@
 import { MeetingLinks } from "@/components/meetings/meeting-links";
+import { PlainText } from "@/components/plain-text";
 import { ActionItemTargets } from "@/components/meetings/action-item-targets";
 import { getProjects } from "@/lib/projects";
 import type { ProjectKind } from "@/lib/types";
@@ -229,7 +230,9 @@ export default async function MeetingPage({
       {meeting.agenda && (
         <section className="surface p-4 md:p-6">
           <h2 className="kicker mb-2 text-ink">Agenda</h2>
-          <p className="whitespace-pre-wrap text-sm">{meeting.agenda}</p>
+          <p className="whitespace-pre-wrap break-words text-sm">
+            <PlainText text={meeting.agenda} />
+          </p>
         </section>
       )}
 
