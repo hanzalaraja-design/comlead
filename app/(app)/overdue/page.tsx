@@ -1,6 +1,7 @@
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { TaskFilterBar } from "@/components/tasks/task-filter-bar";
 import { TaskList } from "@/components/tasks/task-list";
+import { SelectableTasks } from "@/components/tasks/selectable-tasks";
 import { getDepartments, requireViewer, viewerId } from "@/lib/auth";
 import { parseFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
@@ -40,16 +41,18 @@ export default async function OverduePage({
       {groups.length === 0 ? (
         <EmptyState>Nothing overdue.</EmptyState>
       ) : (
+        <SelectableTasks ids={tasks.map((t) => t.id)}>
         <div className="space-y-6">
           {groups.map(([id, g]) => (
             <section key={id}>
               <h2 className="kicker mb-2 text-ink">
                 {g.name} <span className="font-normal text-muted-foreground">· {g.tasks.length}</span>
               </h2>
-              <TaskList tasks={g.tasks} showDepartment={false} />
+              <TaskList tasks={g.tasks} selectable showDepartment={false} />
             </section>
           ))}
         </div>
+        </SelectableTasks>
       )}
     </>
   );

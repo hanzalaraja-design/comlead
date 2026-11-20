@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/page-header";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TaskList } from "@/components/tasks/task-list";
+import { SelectableTasks } from "@/components/tasks/selectable-tasks";
 import { STATUS_STYLES } from "@/lib/labels";
 import { filtersToSearch, type TaskFilters } from "@/lib/tasks/filters";
-import { TASK_LIMIT, fetchTasks, type TaskListRow } from "@/lib/tasks/queries";
+import { TASK_LIMIT, compareCreated, fetchTasks, type TaskListRow } from "@/lib/tasks/queries";
 import { taskHref, viewHref, type ScopeRef, type TaskFrom } from "@/lib/tasks/scope";
 import { addDaysISO, formatTime, parseISODate, todayPKT } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -69,10 +70,10 @@ export async function ListView({
   ]);
   const completed = done?.tasks ?? [];
   return (
-    <>
+    <SelectableTasks ids={[...tasks, ...completed].map((t) => t.id)}>
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
       {tasks.length ? (
-        <TaskList tasks={tasks} showCompleted={filters.sort === "completed"} showOwner={showOwner} showDepartment={showDepartment} showProject={showProject} from={from} />
+        <TaskList tasks={tasks} selectable showCompleted={filters.sort === "completed"} showOwner={showOwner} showDepartment={showDepartment} showProject={showProject} from={from} />
       ) : (
         <EmptyState>{withDone ? "Nothing open here." : "No tasks match these filters."}</EmptyState>
       )}
@@ -91,14 +92,18 @@ export async function ListView({
               <CompletedNote filters={filters} scope={scope} extra={extra} />
             </span>
           </h2>
-          <TaskList tasks={completed} showCompleted showOwner={showOwner} showDepartment={showDepartment} showProject={showProject} from={from} />
+          <TaskList tasks={completed} selectable showCompleted showOwner={showOwner} showDepartment={showDepartment} showProject={showProject} from={from} />
         </section>
       )}
-    </>
+    </SelectableTasks>
   );
 }
 
-/** Open and finished tasks together, finished ones last, with how many are done. */
+/**
+ * Open and finished tasks together, with how many are done. Finished tasks
+ * stay in their place (by due date, like the rest) rather than dropping to
+ * the bottom; with another sort picked they follow the open ones.
+ */
 async function ListWithDone({
   filters,
   viewerId,
@@ -124,7 +129,10 @@ async function ListWithDone({
   ]);
   const finished = done?.tasks ?? [];
   const total = open.tasks.length + finished.length;
-  const tasks = mode === "open" ? open.tasks : mode === "done" ? finished : [...open.tasks, ...finished];
+  const byDue = (a: TaskListRow, b: TaskListRow) =>
+    a.due_date === b.due_date ? compareCreated(a, b) : !a.due_date ? 1 : !b.due_date ? -1 : a.due_date.localeCompare(b.due_date);
+  const together = filters.sort === "due" && filters.dir !== "desc" ? [...open.tasks, ...finished].sort(byDue) : [...open.tasks, ...finished];
+  const tasks = mode === "open" ? open.tasks : mode === "done" ? finished : together;
   const link = (m: string) => {
     const params = new URLSearchParams(filtersToSearch(filters).slice(1));
     if (m !== "all") params.set("show", m);
@@ -157,7 +165,9 @@ async function ListWithDone({
         </div>
       )}
       {tasks.length ? (
-        <TaskList tasks={tasks} showOwner={showOwner} showDepartment={showDepartment} showProject={false} from={from} />
+        <SelectableTasks ids={tasks.map((t) => t.id)}>
+          <TaskList tasks={tasks} selectable showOwner={showOwner} showDepartment={showDepartment} showProject={false} from={from} />
+        </SelectableTasks>
       ) : (
         <EmptyState>{mode === "done" ? "Nothing finished yet." : mode === "open" ? "Nothing open here." : "No tasks yet."}</EmptyState>
       )}
