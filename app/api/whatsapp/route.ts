@@ -21,7 +21,17 @@ export function GET(request: NextRequest) {
   return new NextResponse("forbidden", { status: 403 });
 }
 
-type WaMessage = { id: string; from: string; type: string; text?: { body: string }; audio?: { id: string; mime_type?: string } };
+type WaMessage = {
+  id: string;
+  from: string;
+  type: string;
+  text?: { body: string };
+  audio?: { id: string; mime_type?: string };
+  // A photo, video or file can come with a caption: the caption becomes the task.
+  image?: { caption?: string };
+  video?: { caption?: string };
+  document?: { caption?: string; filename?: string };
+};
 
 export async function POST(request: NextRequest) {
   const raw = await request.text();
@@ -61,7 +71,7 @@ async function handle(m: WaMessage) {
   const userId = (link?.user_id as string | undefined) ?? null;
   const { error: dup } = await db
     .from("whatsapp_messages")
-    .insert({ wa_id: m.id, phone, user_id: userId, direction: "in", kind, body: m.text?.body?.slice(0, 4000) ?? null });
+    .insert({ wa_id: m.id, phone, user_id: userId, direction: "in", kind, body: (m.text?.body ?? m.image?.caption ?? m.video?.caption ?? m.document?.caption)?.slice(0, 4000) ?? null });
   if (dup?.code === "23505") return; // already handled
   if (dup) console.error("[whatsapp] couldn't record the message (has the WhatsApp SQL been run?):", dup.message);
   await markRead(m.id);
@@ -84,7 +94,7 @@ async function handle(m: WaMessage) {
   if (!u) return reply(phone, userId, "Your Highfy Tasks account isn't active. Ask an Admin.");
   if (!isAiConfigured()) return reply(phone, userId, "The assistant isn't set up yet. Ask an Admin to add the Anthropic key.");
 
-  let text = m.text?.body?.trim() ?? "";
+  let text = (m.text?.body ?? m.image?.caption ?? m.video?.caption ?? m.document?.caption ?? "").trim();
   if (kind === "audio" && m.audio) {
     if (!isTranscribeConfigured()) return reply(phone, userId, "Voice notes aren't switched on yet. Send it as a text for now.");
     try {
@@ -97,7 +107,7 @@ async function handle(m: WaMessage) {
     }
     if (!text) return reply(phone, userId, "I couldn't make out any words in that voice note.");
   }
-  if (!text) return reply(phone, userId, "I can read text messages and voice notes. Send the task as one of those.");
+  if (!text) return reply(phone, userId, "I can read text, voice notes and captions. Add a few words about the task and send it again.");
 
   // The last day's conversation, so "make it Monday" knows what "it" is.
   const { data: past } = await db
