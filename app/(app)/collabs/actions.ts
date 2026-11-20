@@ -6,7 +6,7 @@ import { requireViewer } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { friendlyError, type ActionResult } from "@/lib/action-result";
 import { isInlineImage } from "@/lib/inline-image";
-import { BUDGETS, GOALS } from "@/lib/collabs";
+import { GOALS } from "@/lib/collabs";
 
 const uuid = z.string().uuid();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date.");
@@ -17,13 +17,21 @@ const requestSchema = z.object({
   promote: z.string().trim().min(1, "Say what to promote.").max(500),
   goals: z.array(z.enum(GOALS)).min(1, "Pick at least one goal.").max(6),
   go_live: date,
-  budget: z.enum(BUDGETS, { error: "Pick a budget." }),
+  // One of the ranges, or one typed in ("Rs 150,000 – 300,000").
+  budget: z.string().trim().min(1, "Pick a budget.").max(80),
   audience: z.string().trim().min(1, "Say who it's for.").max(300),
   key_message: z.string().trim().min(1, "Add the key message.").max(300),
   link: optional(500),
   refs: optional(2000),
   project_id: z.union([uuid, z.literal("")]).optional().transform((v) => v || ""),
   notes: optional(2000),
+  // What they'd like from the media kit, and anything else.
+  wants: z
+    .array(z.object({ rate_id: uuid, name: z.string().trim().min(1).max(120), qty: z.number().int().min(1).max(50) }))
+    .max(30)
+    .optional()
+    .transform((v) => v ?? []),
+  wants_other: optional(1000),
 });
 export type CollabRequestInput = z.input<typeof requestSchema>;
 

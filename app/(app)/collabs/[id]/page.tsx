@@ -9,7 +9,7 @@ import { PlanBuilder } from "@/components/collabs/plan-builder";
 import { CollabComments, DecidePlan, LiveLink, MarkLive, ReportForm } from "@/components/collabs/actions-ui";
 import { getDepartmentMembers, getPeople } from "@/lib/auth";
 import { collabAccess } from "@/lib/collabs-server";
-import { REQUEST_COLUMNS, STATUS_LABELS, STATUS_STYLES, money, priceText, totalText, type CollabItem, type CollabRate, type CollabRequest } from "@/lib/collabs";
+import { STATUS_LABELS, STATUS_STYLES, money, priceText, totalText, type CollabItem, type CollabRate, type CollabRequest } from "@/lib/collabs";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatPKT } from "@/lib/time";
@@ -38,7 +38,8 @@ export default async function CollabPage({ params, searchParams }: { params: Pro
   if (!/^[0-9a-f-]{36}$/i.test(id) || !access.can) notFound();
   const supabase = await createClient();
   const [{ data: rData }, { data: itemData }, { data: rateData }, { data: commentData }, people, members] = await Promise.all([
-    supabase.from("collab_requests").select(REQUEST_COLUMNS).eq("id", id).maybeSingle(),
+    // "*" so the media kit picks come through once the database has them.
+    supabase.from("collab_requests").select("*").eq("id", id).maybeSingle(),
     supabase.from("collab_items").select("*").eq("request_id", id).order("sort"),
     supabase.from("collab_rates").select("*").eq("archived", false).order("sort"),
     supabase.from("collab_comments").select("id, author_id, body, image_paths, created_at").eq("request_id", id).order("created_at"),
@@ -114,7 +115,7 @@ export default async function CollabPage({ params, searchParams }: { params: Pro
             </div>
           )}
 
-          {planning && <PlanBuilder requestId={r.id} rates={rates} people={owners} me={access.viewer.id} goLive={r.go_live} existing={items} requester={requester} />}
+          {planning && <PlanBuilder requestId={r.id} rates={rates} people={owners} me={access.viewer.id} goLive={r.go_live} existing={items} requester={requester} wanted={r.wants ?? []} />}
 
           {(r.status === "requested" || r.status === "changes") && !access.content && (
             <div className="surface space-y-3 p-4 md:p-5">
@@ -248,6 +249,16 @@ export default async function CollabPage({ params, searchParams }: { params: Pro
               <dd className="text-ink">{r.goals.join(", ")}</dd>
               <dt className="text-ink-muted">Go live by</dt>
               <dd className="text-ink">{formatDate(r.go_live, "EEE d MMM yyyy")}</dd>
+              {((r.wants?.length ?? 0) > 0 || r.wants_other) && (
+                <>
+                  <dt className="text-ink-muted">Asked for</dt>
+                  <dd className="text-ink">
+                    {(r.wants ?? []).map((w) => `${w.qty} × ${w.name}`).join(", ")}
+                    {r.wants?.length && r.wants_other ? ". " : ""}
+                    {r.wants_other ? <>Also: {r.wants_other}</> : null}
+                  </dd>
+                </>
+              )}
               <dt className="text-ink-muted">Budget</dt>
               <dd className="text-ink">{r.budget}</dd>
               <dt className="text-ink-muted">For</dt>

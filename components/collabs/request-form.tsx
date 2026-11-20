@@ -4,19 +4,35 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { BUDGETS, GOALS } from "@/lib/collabs";
+import { BUDGETS, GOALS, RATE_GROUPS, budgetRange, money, priceText, type CollabRate, type CollabWant } from "@/lib/collabs";
 import { cn } from "@/lib/utils";
 import { saveCollabRequest, type CollabRequestInput } from "@/app/(app)/collabs/actions";
 
-type Values = Required<{ [K in keyof CollabRequestInput]: K extends "goals" ? string[] : string }>;
+type Values = Required<{ [K in Exclude<keyof CollabRequestInput, "wants">]: K extends "goals" ? string[] : string }> & { wants: CollabWant[] };
 
-/** Commercial's brief: 7 required fields, the rest folded away. */
-export function CollabRequestForm({ id, initial, campaigns }: { id?: string; initial?: Partial<Values>; campaigns: { id: string; name: string }[] }) {
+const CUSTOM = "custom";
+const parseRs = (s: string) => {
+  const n = Number(s.replace(/[^0-9]/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+/** The brief: what to promote, what you'd like from the media kit, budget; extras folded away. */
+export function CollabRequestForm({
+  id,
+  initial,
+  campaigns,
+  rates,
+}: {
+  id?: string;
+  initial?: Partial<Values>;
+  campaigns: { id: string; name: string }[];
+  rates: CollabRate[];
+}) {
   const router = useRouter();
   const [v, setV] = useState<Values>({
     brand: "",
@@ -30,8 +46,29 @@ export function CollabRequestForm({ id, initial, campaigns }: { id?: string; ini
     refs: "",
     project_id: "",
     notes: "",
+    wants: [],
+    wants_other: "",
     ...initial,
   });
+  // A budget that isn't one of the ranges was typed in.
+  const typed = !!initial?.budget && !(BUDGETS as readonly string[]).includes(initial.budget);
+  const [budgetPick, setBudgetPick] = useState(typed ? CUSTOM : (initial?.budget ?? ""));
+  const nums = typed ? (initial!.budget!.match(/[\d,]+/g) ?? []).map((x) => x.replace(/,/g, "")) : [];
+  const [from, setFrom] = useState(nums[0] ?? "");
+  const [to, setTo] = useState(nums[1] ?? "");
+  const budget = budgetPick === CUSTOM ? budgetRange(parseRs(from), parseRs(to)) : budgetPick;
+  const qtyOf = (rateId: string) => v.wants.find((w) => w.rate_id === rateId)?.qty ?? 0;
+  const setQty = (rate: CollabRate, qty: number) =>
+    setV((x) => ({
+      ...x,
+      wants: qty <= 0 ? x.wants.filter((w) => w.rate_id !== rate.id) : x.wants.some((w) => w.rate_id === rate.id)
+        ? x.wants.map((w) => (w.rate_id === rate.id ? { ...w, qty } : w))
+        : [...x.wants, { rate_id: rate.id, name: rate.name, qty }],
+    }));
+  const rateOf = new Map(rates.map((r) => [r.id, r]));
+  const kitMin = v.wants.reduce((n, w) => n + (rateOf.get(w.rate_id)?.price ?? 0) * w.qty, 0);
+  const kitMax = v.wants.reduce((n, w) => n + ((rateOf.get(w.rate_id)?.price_max ?? rateOf.get(w.rate_id)?.price) ?? 0) * w.qty, 0);
+  const kitTotal = kitMax > kitMin ? `Rs ${money(kitMin)}–${money(kitMax)}` : `Rs ${money(kitMin)}`;
   const hasExtras = !!(initial?.link || initial?.refs || initial?.project_id || initial?.notes);
   const [more, setMore] = useState(hasExtras);
   const [pending, start] = useTransition();
@@ -43,7 +80,8 @@ export function CollabRequestForm({ id, initial, campaigns }: { id?: string; ini
       onSubmit={(e) => {
         e.preventDefault();
         start(async () => {
-          const res = await saveCollabRequest(id ?? null, v as CollabRequestInput);
+          if (!budget) return void toast.error(budgetPick === CUSTOM ? "Type the budget range." : "Pick a budget.");
+          const res = await saveCollabRequest(id ?? null, { ...v, budget } as CollabRequestInput);
           if (!res.ok) return void toast.error(res.error);
           toast.success(id ? "Brief updated." : "Sent to Content. You'll be told when the plan is ready.");
           router.push(`/collabs/${res.data!.id}`);
@@ -87,17 +125,92 @@ export function CollabRequestForm({ id, initial, campaigns }: { id?: string; ini
           })}
         </div>
       </fieldset>
+      {rates.length > 0 && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">
+            What you need <span className="font-normal text-ink-muted">from the media kit, optional: Content plans the final mix</span>
+          </legend>
+          <div className="divide-y divide-line rounded-[12px] border border-line">
+            {RATE_GROUPS.map((g) => {
+              const list = rates.filter((r) => r.grp === g.key);
+              if (!list.length) return null;
+              return (
+                <div key={g.key} className="px-3 py-2">
+                  <p className="pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{g.title}</p>
+                  {list.map((r) => {
+                    const q = qtyOf(r.id);
+                    return (
+                      <div key={r.id} className={cn("flex items-center gap-3 rounded-[8px] px-1 py-1.5", q > 0 && "bg-brand-bg")}>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-ink">{r.name}</span>
+                          <span className="block text-xs text-ink-muted">
+                            {r.price === 0 && !r.price_max ? "No charge" : `Rs ${priceText(r.price, r.price_max)}`}
+                            {r.note ? ` · ${r.note}` : ""}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`One fewer ${r.name}`}
+                            disabled={q === 0}
+                            onClick={() => setQty(r, q - 1)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white text-ink disabled:opacity-30"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="w-6 text-center text-sm font-semibold tabular-nums" aria-live="polite">
+                            {q}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`One more ${r.name}`}
+                            disabled={q >= 50}
+                            onClick={() => setQty(r, q + 1)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white text-ink"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+          {v.wants.length > 0 && (
+            <p className="text-sm text-ink">
+              Media kit total: <span className="font-semibold">{kitTotal}</span>
+            </p>
+          )}
+          <div className="space-y-1.5 pt-1">
+            <Label htmlFor="wants_other">
+              Something else <span className="font-normal text-ink-muted">not in the media kit</span>
+            </Label>
+            <Input id="wants_other" maxLength={1000} value={v.wants_other} onChange={set("wants_other")} placeholder="e.g. A giveaway post, a story series, a live session" />
+          </div>
+        </fieldset>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="budget">Budget</Label>
-          <select id="budget" required value={v.budget} onChange={set("budget")} className="field h-10 w-full px-3">
+          <select id="budget" required value={budgetPick} onChange={(e) => setBudgetPick(e.target.value)} className="field h-10 w-full px-3">
             <option value="">Pick a budget</option>
             {BUDGETS.map((b) => (
               <option key={b} value={b}>
                 {b}
               </option>
             ))}
+            <option value={CUSTOM}>Set my own range…</option>
           </select>
+          {budgetPick === CUSTOM && (
+            <div className="flex items-center gap-2">
+              <Input aria-label="Budget from (Rs)" inputMode="numeric" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="From, e.g. 150,000" />
+              <span className="text-ink-muted">–</span>
+              <Input aria-label="Budget up to (Rs)" inputMode="numeric" value={to} onChange={(e) => setTo(e.target.value)} placeholder="To, e.g. 300,000" />
+            </div>
+          )}
+          {v.wants.length > 0 && <p className="text-xs text-ink-muted">What you picked comes to {kitTotal}.</p>}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="audience">Who it&apos;s for</Label>

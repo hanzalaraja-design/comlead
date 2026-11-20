@@ -7,7 +7,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { RATE_GROUPS, money, priceText, type CollabItem, type CollabRate } from "@/lib/collabs";
+import { RATE_GROUPS, money, priceText, type CollabItem, type CollabRate, type CollabWant } from "@/lib/collabs";
 import { personName } from "@/lib/labels";
 import { sendCollabPlan } from "@/app/(app)/collabs/actions";
 
@@ -26,6 +26,7 @@ export function PlanBuilder({
   goLive,
   existing,
   requester,
+  wanted = [],
 }: {
   requestId: string;
   rates: CollabRate[];
@@ -34,13 +35,20 @@ export function PlanBuilder({
   goLive: string;
   existing: CollabItem[];
   requester: string;
+  /** What the asker picked from the media kit: the first plan starts from these. */
+  wanted?: CollabWant[];
 }) {
   const router = useRouter();
-  const [rows, setRows] = useState<Row[]>(
-    existing
+  const [rows, setRows] = useState<Row[]>(() => {
+    const planned = existing
       .filter((i) => i.rate_id)
-      .map((i) => ({ key: i.id, rate_id: i.rate_id!, qty: i.qty, idea: i.idea ?? "", owner_id: i.owner_id ?? me, due_date: i.due_date ?? goLive })),
-  );
+      .map((i) => ({ key: i.id, rate_id: i.rate_id!, qty: i.qty, idea: i.idea ?? "", owner_id: i.owner_id ?? me, due_date: i.due_date ?? goLive }));
+    if (planned.length) return planned;
+    // No plan yet: start from what was asked for (pieces still in the media kit).
+    return wanted
+      .filter((w) => rates.some((r) => r.id === w.rate_id))
+      .map((w) => ({ key: crypto.randomUUID(), rate_id: w.rate_id, qty: w.qty, idea: "", owner_id: me, due_date: goLive }));
+  });
   const [note, setNote] = useState("");
   const [adding, setAdding] = useState(rows.length === 0);
   const [pending, start] = useTransition();

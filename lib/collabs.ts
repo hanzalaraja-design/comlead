@@ -6,7 +6,27 @@
 
 export const GOALS = ["Brand awareness", "Product awareness", "Product launch", "Offer or discount", "Engagement", "Other"] as const;
 
-export const BUDGETS = ["Up to Rs 100,000", "Rs 100,000 – 250,000", "Rs 250,000 – 500,000", "Rs 500,000+"] as const;
+export const BUDGETS = [
+  "Up to Rs 50,000",
+  "Rs 50,000 – 100,000",
+  "Rs 100,000 – 250,000",
+  "Rs 250,000 – 500,000",
+  "Rs 500,000 – 1,000,000",
+  "Rs 1,000,000+",
+  "Not sure yet",
+] as const;
+
+/** "Rs 150,000 – 300,000", "From Rs 150,000", "Up to Rs 300,000" from a range someone typed. */
+export function budgetRange(from: number | null, to: number | null): string {
+  const rs = (n: number) => `Rs ${n.toLocaleString("en-US")}`;
+  if (from && to) return from === to ? rs(from) : `${rs(Math.min(from, to))} – ${rs(Math.max(from, to))}`;
+  if (from) return `From ${rs(from)}`;
+  if (to) return `Up to ${rs(to)}`;
+  return "";
+}
+
+/** A piece from the media kit the asker would like, and how many. */
+export type CollabWant = { rate_id: string; name: string; qty: number };
 
 export type CollabStatus = "requested" | "planned" | "changes" | "approved" | "live" | "reported";
 
@@ -50,6 +70,9 @@ export type CollabRequest = {
   refs: string | null;
   project_id: string | null;
   notes: string | null;
+  /** What the asker picked from the media kit, and anything else (none before the database has them). */
+  wants?: CollabWant[];
+  wants_other?: string | null;
   status: CollabStatus;
   plan_note: string | null;
   change_note: string | null;
