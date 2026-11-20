@@ -69,6 +69,8 @@ export type Placement = {
   live_on: Surface[];
   /** Where the banner goes when someone taps it (none before the database has it). */
   link?: string | null;
+  /** The project, campaign or partnership it's for (none before the database has it). */
+  project_id?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -194,3 +196,7 @@ export function emptySlots(sections: Section[], all: Placement[], date: string) 
     }))
     .filter((x) => x.positions.length > 0);
 }
+
+/** A project, campaign or partnership a booking can be linked to. */
+export type ProjectLink = { id: string; name: string; kind: "project" | "campaign" | "partnership"; slug: string };
+export const PROJECT_KIND_LABELS: Record<ProjectLink["kind"], string> = { project: "Project", campaign: "Campaign", partnership: "Partnership" };

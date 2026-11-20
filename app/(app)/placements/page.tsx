@@ -233,6 +233,9 @@ export default async function PlacementsPage({ searchParams }: { searchParams: P
         placements={shownPlacements}
         urls={urls}
         canEditLayout={canEditLayout}
+        links={(await getProjects())
+          .filter((x) => !x.archived)
+          .map((x) => ({ id: x.id, name: x.name, kind: x.kind, slug: x.slug }))}
         roles={roles.length ? roles : ["commercial"]}
         defaultRole={defaultRole}
         today={today}

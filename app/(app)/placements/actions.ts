@@ -38,6 +38,8 @@ const bookingSchema = z.object({
     .max(500)
     .optional()
     .transform((v) => (v ? (/^https?:\/\//i.test(v) ? v : `https://${v}`) : undefined)),
+  // The project, campaign or partnership it's for. Left out when never set, so bookings save before the database has links.
+  project_id: z.string().uuid().nullable().optional(),
   // Website, app or both.
   shows_on: z
     .array(z.enum(["web", "app"]))
