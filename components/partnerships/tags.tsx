@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { CATEGORY_LABELS } from "@/lib/domains";
 import type { PartnerCategory } from "@/lib/types";
-import { createPartnershipTag, setPartnershipTag, type TagColor } from "@/app/(app)/partnerships/actions";
+import { createPartnershipTag, setPartnershipLabels, setPartnershipTag, type TagColor } from "@/app/(app)/partnerships/actions";
 
 export type Tag = { id: string; name: string; color: TagColor; category: PartnerCategory };
 
@@ -130,6 +130,131 @@ export function TagPicker({
         ) : (
           <p className="p-1 text-sm text-ink-muted">Pick a category for this partnership first (Edit), then add tags.</p>
         )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Category colours on cards and in the picker. */
+export const CATEGORY_STYLE: Record<PartnerCategory, string> = {
+  associations: "bg-[#E0F4F2] text-[#0F6B63]",
+  referral: "bg-[#F6E7F8] text-[#6A0F78]",
+  fintech: "bg-[#E8F0FE] text-[#1F4FB8]",
+};
+
+/**
+ * One "+" for both: every category with its tags under it, all tickable, like
+ * a Notion multi-select. Ticking a tag ticks its category too. Type to find a
+ * tag, or create one under a category.
+ */
+export function LabelPicker({
+  projectId,
+  categories,
+  tags,
+  selectedCategories,
+  selectedTags,
+}: {
+  projectId: string;
+  categories: PartnerCategory[];
+  /** Every tag, in every category. */
+  tags: Tag[];
+  selectedCategories: PartnerCategory[];
+  selectedTags: string[];
+}) {
+  const router = useRouter();
+  const [q, setQ] = useState("");
+  const [cats, setCats] = useState(new Set(selectedCategories));
+  const [on, setOn] = useState(new Set(selectedTags));
+  const [pending, start] = useTransition();
+  const query = q.trim().toLowerCase();
+
+  const save = (nextCats: Set<PartnerCategory>, nextTags: Set<string>) => {
+    setCats(nextCats);
+    setOn(nextTags);
+    start(async () => {
+      const res = await setPartnershipLabels(projectId, [...nextCats], [...nextTags]);
+      if (!res.ok) toast.error(res.error);
+      router.refresh();
+    });
+  };
+  const toggleCat = (c: PartnerCategory) => {
+    const n = new Set(cats);
+    const t = new Set(on);
+    if (n.has(c)) {
+      n.delete(c);
+      // Its tags go with it.
+      for (const tag of tags) if (tag.category === c) t.delete(tag.id);
+    } else n.add(c);
+    save(n, t);
+  };
+  const toggleTag = (tag: Tag) => {
+    const t = new Set(on);
+    const n = new Set(cats);
+    if (t.has(tag.id)) t.delete(tag.id);
+    else {
+      t.add(tag.id);
+      n.add(tag.category);
+    }
+    save(n, t);
+  };
+  const create = (c: PartnerCategory) =>
+    start(async () => {
+      const res = await createPartnershipTag(c, q);
+      if (!res.ok) return void toast.error(res.error);
+      setQ("");
+      const t = new Set(on).add(res.data!.id);
+      save(new Set(cats).add(c), t);
+    });
+
+  return (
+    <Popover onOpenChange={() => setQ("")}>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label="Categories and tags" className="relative z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-subtle text-ink-muted hover:text-ink">
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-2">
+        <input
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search or create a tag"
+          aria-label="Search or create a tag"
+          maxLength={40}
+          className="mb-1 h-9 w-full rounded-[10px] border border-line px-2.5 text-sm"
+        />
+        <div className="max-h-80 overflow-y-auto">
+          {categories.map((c) => {
+            const list = tags.filter((t) => t.category === c && (!query || t.name.toLowerCase().includes(query)));
+            const exact = tags.some((t) => t.category === c && t.name.toLowerCase() === query);
+            return (
+              <div key={c} className="py-0.5">
+                <button type="button" disabled={pending} onClick={() => toggleCat(c)} className="flex w-full items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 text-left hover:bg-subtle">
+                  <span className={cn("inline-flex h-6 items-center rounded-full px-2.5 text-xs font-semibold", CATEGORY_STYLE[c])}>{CATEGORY_LABELS[c]}</span>
+                  {cats.has(c) && <Check className="h-4 w-4 text-success" />}
+                </button>
+                {list.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => toggleTag(t)}
+                    className="flex w-full items-center justify-between gap-2 rounded-[8px] py-1 pl-6 pr-2 text-left hover:bg-subtle"
+                  >
+                    <TagChip tag={t} />
+                    {on.has(t.id) && <Check className="h-4 w-4 text-success" />}
+                  </button>
+                ))}
+                {query && !exact && (
+                  <button type="button" disabled={pending} onClick={() => create(c)} className="flex w-full items-center gap-1.5 rounded-[8px] py-1 pl-6 pr-2 text-left text-xs text-ink-muted hover:bg-subtle">
+                    Create <TagChip tag={{ name: q.trim(), color: "gray" }} /> under {CATEGORY_LABELS[c]}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-1 border-t border-line px-1 pt-1.5 text-[11px] text-ink-muted">New tags are shared with everyone.</p>
       </PopoverContent>
     </Popover>
   );

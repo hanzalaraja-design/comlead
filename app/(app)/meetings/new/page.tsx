@@ -1,6 +1,7 @@
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { SeriesForm } from "@/components/meetings/series-form";
 import { getPeople, requireViewer } from "@/lib/auth";
+import { getProjects } from "@/lib/projects";
 import { departmentsForSetup } from "@/lib/meetings";
 import { todayPKT } from "@/lib/time";
 
@@ -8,7 +9,7 @@ export const metadata = { title: "New meeting · Highfy Tasks" };
 
 export default async function NewMeetingPage({ searchParams }: { searchParams: Promise<{ dept?: string; past?: string }> }) {
   const viewer = await requireViewer();
-  const [{ dept, past: pastParam }, departments, people] = await Promise.all([searchParams, departmentsForSetup(viewer), getPeople()]);
+  const [{ dept, past: pastParam }, departments, people, projects] = await Promise.all([searchParams, departmentsForSetup(viewer), getPeople(), getProjects()]);
   const past = pastParam === "1";
   const mine = departments.filter((d) => d.mine);
   const home = mine.find((d) => d.id === dept) ?? mine[0];
@@ -33,6 +34,7 @@ export default async function NewMeetingPage({ searchParams }: { searchParams: P
           people={people}
           canCancel={false}
           past={past}
+          projects={projects.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, kind: p.kind }))}
           initial={{
             title: "",
             department_id: home.id,
@@ -44,6 +46,7 @@ export default async function NewMeetingPage({ searchParams }: { searchParams: P
             department_ids: [home.id],
             user_ids: [],
             external_emails: [],
+            project_ids: [],
           }}
         />
       )}

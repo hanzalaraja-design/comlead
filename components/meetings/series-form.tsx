@@ -28,6 +28,8 @@ export type SeriesFormValues = {
   department_ids: string[];
   user_ids: string[];
   external_emails: string[];
+  /** Projects, campaigns and partnerships it's about. */
+  project_ids?: string[];
 };
 
 const DURATIONS = [15, 30, 45, 60, 90, 120];
@@ -72,6 +74,7 @@ export function SeriesForm({
   people,
   canCancel,
   past = false,
+  projects = [],
 }: {
   id: string | null;
   initial: SeriesFormValues;
@@ -81,6 +84,8 @@ export function SeriesForm({
   canCancel: boolean;
   /** Recording a meeting that already happened: one-off, no invite, straight to the minutes. */
   past?: boolean;
+  /** What it can be linked to (projects, campaigns and partnerships you're in). */
+  projects?: { id: string; name: string; kind: string }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -200,6 +205,21 @@ export function SeriesForm({
           />
           <p className="text-xs text-ink-muted">{past ? "Everyone in these teams is listed as an attendee." : "Everyone in these teams gets the invite."}</p>
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Linked to</Label>
+        <p className="text-xs text-ink-muted">
+          Projects, campaigns or brand partnerships it&apos;s about. Its action items go into their tasks{v.frequency !== "once" ? ", for every meeting from now on" : ""}.
+        </p>
+        <MultiSelect
+          label="Projects, campaigns, partnerships"
+          className="h-10 w-full justify-between rounded-[12px]"
+          options={projects.map((p) => ({ value: p.id, label: p.name, hint: p.kind === "partnership" ? "Brand partnership" : p.kind === "campaign" ? "Campaign" : "Project" }))}
+          value={v.project_ids ?? []}
+          onChange={(ids) => set("project_ids", ids)}
+          searchable
+        />
       </div>
 
       <div className="space-y-1.5">

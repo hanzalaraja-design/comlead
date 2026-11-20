@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { SeriesForm } from "@/components/meetings/series-form";
 import { getPeople, requireViewer } from "@/lib/auth";
+import { getProjects } from "@/lib/projects";
 import { departmentsForSetup } from "@/lib/meetings";
 import type { Frequency } from "@/lib/series";
 import { createClient } from "@/lib/supabase/server";
@@ -22,6 +23,10 @@ export default async function EditSeriesPage({ params }: { params: Promise<{ id:
     supabase.rpc("can_manage_series", { p_series_id: id }),
     departmentsForSetup(viewer),
     getPeople(),
+  ]);
+  const [projects, { data: linkRows, error: linkErr }] = await Promise.all([
+    getProjects(),
+    supabase.from("meeting_series_projects").select("project_id").eq("series_id", id),
   ]);
   const outlook = await seriesOutlookStatus(id);
   if (!s || s.archived) notFound();
@@ -53,6 +58,7 @@ export default async function EditSeriesPage({ params }: { params: Promise<{ id:
         departments={departments.map((d) => (d.id === s.department_id ? { ...d, mine: true } : d))}
         people={people}
         canCancel
+        projects={projects.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, kind: p.kind }))}
         initial={{
           title: s.title,
           department_id: s.department_id,
@@ -64,6 +70,8 @@ export default async function EditSeriesPage({ params }: { params: Promise<{ id:
           department_ids: (depts ?? []).map((d) => d.department_id as string),
           user_ids: (ppl ?? []).map((p) => p.user_id as string),
           external_emails: s.external_emails ?? [],
+          // Left out before the database has series links, so saving doesn't touch them.
+          ...(linkErr ? {} : { project_ids: ((linkRows ?? []) as { project_id: string }[]).map((r) => r.project_id) }),
         }}
       />
     </div>

@@ -51,3 +51,15 @@ export async function createPartnershipTag(
   revalidatePath("/partnerships", "layout");
   return { ok: true, data: data as { id: string; name: string; color: TagColor } };
 }
+
+/** A partnership's categories and tags, set together from the one picker. */
+export async function setPartnershipLabels(projectId: string, categories: string[], tagIds: string[]): Promise<ActionResult> {
+  await requireViewer();
+  if (!uuid.safeParse(projectId).success || !z.array(uuid).max(50).safeParse(tagIds).success) return { ok: false, error: "That isn't valid." };
+  const cats = [...new Set(categories)].filter((c) => CATEGORIES.includes(c as (typeof CATEGORIES)[number]));
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_partnership_labels", { p_project: projectId, p_categories: cats, p_tags: tagIds });
+  if (error) return { ok: false, error: friendlyError(error) };
+  revalidatePath("/partnerships", "layout");
+  return { ok: true };
+}
