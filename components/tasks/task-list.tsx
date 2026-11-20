@@ -5,8 +5,6 @@ import { CornerDownRight, ListChecks } from "lucide-react";
 import { MeetingTag, ProjectTag } from "@/components/tasks/task-badges";
 import { CollaboratorsChip, InlineDue, InlineOwner, PeopleProvider } from "@/components/tasks/inline-edit";
 import { DueExtend, MovedMark } from "@/components/tasks/due-extend";
-import { createClient } from "@/lib/supabase/server";
-import { isPushedLater } from "@/lib/tasks/due-moves";
 import { getPeople } from "@/lib/auth";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { personName } from "@/lib/labels";
@@ -43,7 +41,7 @@ export async function TaskList({
   /** Off on My tasks, where every task is yours. */
   showOwner?: boolean;
 }) {
-  const [people, moved] = await Promise.all([getPeople(), dueMoves(tasks.map((t) => t.id))]);
+  const people = await getPeople();
   const names = new Map(people.map((p) => [p.id, personName(p)]));
   // Who handed it over, when that wasn't the owner themselves.
   const byName = (t: TaskListRow) => (t.assigned_by && t.assigned_by !== t.owner_id ? names.get(t.assigned_by) : undefined);
@@ -59,7 +57,7 @@ export async function TaskList({
       </div>
       <ul className="divide-y divide-line">
         {tasks.map((t) => (
-          <TaskListItem key={t.id} task={t} selectable={selectable} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} showProject={showProject} assignedBy={byName(t)} moves={moved.get(t.id) ?? 0} />
+          <TaskListItem key={t.id} task={t} selectable={selectable} showDepartment={showDepartment} showCompleted={showCompleted} showOwner={showOwner} cols={cols} from={from} showProject={showProject} assignedBy={byName(t)} moves={t.due_moves ?? 0} />
         ))}
       </ul>
     </div>
@@ -186,26 +184,4 @@ function TaskListItem({
       </div>
     </li>
   );
-}
-
-/**
- * How often each task's deadline was pushed later, from the activity log
- * (empty for tasks whose history you can't read).
- */
-async function dueMoves(ids: string[]): Promise<Map<string, number>> {
-  const out = new Map<string, number>();
-  if (!ids.length) return out;
-  const supabase = await createClient();
-  for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await supabase
-      .from("activity_log")
-      .select("task_id, old_value, new_value")
-      .eq("action", "task.due_changed")
-      .in("task_id", ids.slice(i, i + 200))
-      .limit(5000);
-    for (const e of (data ?? []) as { task_id: string; old_value: { due_date?: string | null } | null; new_value: { due_date?: string | null } | null }[]) {
-      if (isPushedLater(e.old_value?.due_date, e.new_value?.due_date)) out.set(e.task_id, (out.get(e.task_id) ?? 0) + 1);
-    }
-  }
-  return out;
 }

@@ -9,7 +9,7 @@ import { JourneyDetail, type Journey, type JourneyPeople } from "@/components/pr
 import { getPeople } from "@/lib/auth";
 import { personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
-import { TASK_SELECT, type TaskListRow } from "@/lib/tasks/queries";
+import { withTaskSelect, type TaskListRow } from "@/lib/tasks/queries";
 import { formatPKT } from "@/lib/time";
 import type { Project } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -59,13 +59,15 @@ export async function JourneysView({
   const other = raw.view === "other";
   const selected = parts.find((p) => p.id === raw.journey) ?? parts[0] ?? null;
 
-  const { data: taskData } = await supabase
-    .from("tasks")
-    .select(`${TASK_SELECT}, part_id`)
-    .eq("project_id", project.id)
-    .is("parent_task_id", null)
-    .order("due_date", { ascending: true, nullsFirst: false })
-    .order("created_at");
+  const { data: taskData } = await withTaskSelect((select) =>
+    supabase
+      .from("tasks")
+      .select(`${select}, part_id`)
+      .eq("project_id", project.id)
+      .is("parent_task_id", null)
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("created_at"),
+  );
   const allTasks = (taskData ?? []) as unknown as (TaskListRow & { part_id: string | null })[];
   const otherTasks = allTasks.filter((t) => !t.part_id || !parts.some((p) => p.id === t.part_id));
   const moveTo = parts.map((p) => ({ id: p.id, name: p.name }));

@@ -65,6 +65,9 @@ export type Task = {
   assigned_at?: string | null;
   /** Locked: only its owner can change it. */
   locked?: boolean;
+  /** How often the deadline was pushed later, and its first deadline (kept by the database). */
+  due_moves?: number;
+  first_due_date?: string | null;
 };
 
 /** Task row with the joins used by list views. */

@@ -9,7 +9,7 @@ export const TASK_SELECT = `
   id, title, description, department_id, owner_id, status, priority,
   due_date, due_time, source, meeting_id, tags, blocked_reason, created_by,
   created_at, updated_at, completed_at, overdue, set_id, project_id, parent_task_id,
-  assigned_by, assigned_at, locked,
+  assigned_by, assigned_at, locked, due_moves, first_due_date,
   owner:profiles!tasks_owner_id_fkey(id, email, full_name, avatar_url),
   department:departments!tasks_department_id_fkey(id, name, slug),
   project:projects(id, name, slug, kind),
@@ -193,4 +193,14 @@ export async function withTaskSelect<R extends { error: { code?: string; message
   if (!isSchemaBehind(res.error)) return res;
   console.error("[tasks] database is behind the app; showing tasks without the newest fields:", res.error?.message);
   return run(TASK_SELECT_CORE);
+}
+
+/**
+ * A task's history, newest first: one access check for the whole task
+ * (falls back to the plain query if the database doesn't have it yet).
+ */
+export async function taskHistory(supabase: Awaited<ReturnType<typeof createClient>>, taskId: string, limit = 50) {
+  const res = await supabase.rpc("task_history", { p_task: taskId, p_limit: limit });
+  if (!res.error) return res;
+  return supabase.from("activity_log").select("*").eq("task_id", taskId).neq("entity_type", "meeting").order("created_at", { ascending: false }).limit(limit);
 }
