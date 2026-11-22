@@ -12,6 +12,9 @@ import { siteUrl } from "@/lib/calendar/sync";
 // answered after Meta gets its 200, so it never retries because we were slow.
 export const maxDuration = 120;
 
+/** How long to wait for the rest of a quick burst of messages before answering. */
+const BATCH_WAIT_MS = 4000;
+
 /** Meta checks the address once, with the verify token you chose. */
 export function GET(request: NextRequest) {
   const p = request.nextUrl.searchParams;
@@ -79,6 +82,7 @@ async function handle(m: WaMessage) {
   // "link 123456": connect this number to the person who made the code in My settings.
   const linkCode = /^\s*link\s+(\d{6})\s*$/i.exec(m.text?.body ?? "")?.[1];
   if (linkCode) {
+    await db.from("whatsapp_messages").update({ handled_at: new Date().toISOString() }).eq("wa_id", m.id);
     const { data: code } = await db.from("whatsapp_link_codes").select("user_id, expires_at").eq("code", linkCode).maybeSingle();
     if (!code || new Date(code.expires_at as string) < new Date()) return reply(phone, null, "That code isn't valid any more. Make a new one in My settings → WhatsApp.");
     await db.from("whatsapp_links").delete().or(`phone.eq.${phone},user_id.eq.${code.user_id}`);
@@ -109,27 +113,63 @@ async function handle(m: WaMessage) {
   }
   if (!text) return reply(phone, userId, "I can read text, voice notes and captions. Add a few words about the task and send it again.");
 
-  // The last day's conversation, so "make it Monday" knows what "it" is.
-  const { data: past } = await db
+  // Messages sent in quick succession are handled together, once: wait a moment
+  // for the rest to arrive, then take every waiting message from this number.
+  // Whichever handler takes them answers; the others find nothing and stop.
+  await new Promise((resolve) => setTimeout(resolve, BATCH_WAIT_MS));
+  const { data: taken, error: takeErr } = await db
     .from("whatsapp_messages")
-    .select("direction, body")
+    .update({ handled_at: new Date().toISOString() })
     .eq("phone", phone)
-    .neq("wa_id", m.id)
+    .eq("direction", "in")
+    .is("handled_at", null)
+    .not("body", "is", null)
+    .gte("created_at", new Date(Date.now() - 10 * 60_000).toISOString())
+    .select("wa_id, kind, body, created_at");
+  let batch: { kind: string; body: string }[];
+  if (takeErr) {
+    // The batching SQL hasn't been run yet: handle just this message.
+    console.error("[whatsapp] couldn't take waiting messages (has the WhatsApp batches SQL been run?):", takeErr.message);
+    batch = [{ kind, body: text }];
+  } else {
+    batch = ((taken ?? []) as { kind: string; body: string; created_at: string }[])
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((r) => ({ kind: r.kind, body: r.body.replace(/^🎤 /, "") }));
+    if (!batch.length) return; // another handler took them
+  }
+
+  // Earlier conversation: only what was already handled, and the replies, so
+  // "make it Monday" knows what "it" is and nothing is done twice.
+  const takenIds = new Set(((taken ?? []) as { wa_id: string }[]).map((t) => t.wa_id));
+  let pastQuery = db
+    .from("whatsapp_messages")
+    .select("wa_id, direction, body")
+    .eq("phone", phone)
     .gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString())
     .order("created_at", { ascending: false })
-    .limit(12);
-  const recent: ChatTurn[] = ((past ?? []) as { direction: string; body: string | null }[])
+    .limit(16);
+  if (!takeErr) pastQuery = pastQuery.or("direction.eq.out,handled_at.not.is.null");
+  const { data: past } = await pastQuery;
+  const recent: ChatTurn[] = ((past ?? []) as { wa_id: string | null; direction: string; body: string | null }[])
+    .filter((r) => r.body && !(r.wa_id && (takenIds.has(r.wa_id) || r.wa_id === m.id)))
     .reverse()
-    .filter((r) => r.body)
-    .map((r) => ({ role: r.direction === "in" ? "user" : "assistant", text: r.body! }));
+    // Labelled, so a reply that's still on its way can't make it look undone.
+    .map((r) => ({ role: r.direction === "in" ? "user" : "assistant", text: r.direction === "in" ? `[already handled] ${r.body}` : r.body! }));
+
+  const asText = (b: { kind: string; body: string }) => (b.kind === "audio" ? `(voice note) ${b.body}` : b.body);
+  const prompt =
+    batch.length === 1
+      ? asText(batch[0])
+      : `${batch.length} messages sent one after another. Each is a separate task unless it's clearly part of the one before:\n${batch.map((b, i) => `${i + 1}. ${asText(b)}`).join("\n")}`;
 
   let answer: string;
   try {
-    answer = await handleWhatsAppMessage(u, kind === "audio" ? `(voice note) ${text}` : text, recent);
+    answer = await handleWhatsAppMessage(u, prompt, recent);
   } catch (e) {
     console.error("[whatsapp:agent]", e);
     answer = "Something went wrong on my side. Try again in a minute.";
   }
-  await reply(phone, userId, kind === "audio" ? `🎤 “${text.slice(0, 300)}”\n\n${answer}` : answer);
+  const heard = batch.length === 1 && batch[0].kind === "audio" ? `🎤 “${batch[0].body.slice(0, 300)}”\n\n` : "";
+  await reply(phone, userId, heard + answer);
   await flushPush();
 }
