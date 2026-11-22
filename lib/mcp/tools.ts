@@ -185,7 +185,9 @@ async function createTaskFrom(u: KeyUser, a: Args): Promise<{ id: string; text: 
     if (!m) throw new UserError("No meeting with that id that you can see.");
     departmentId = m.department_id as string;
   }
-  if (!parentId && !departmentId && !project) {
+  // Private: no team and no project, only the people on it can see it (WhatsApp's default).
+  const isPrivate = a.private === true && !parentId && !departmentId && !project;
+  if (!isPrivate && !parentId && !departmentId && !project) {
     // Every task has a team: yours when there's only one, otherwise ask.
     const { data: mine } = await u.db.from("department_members").select("department:departments(id, name)").eq("user_id", u.userId);
     const teams = ((mine ?? []) as unknown as { department: { id: string; name: string } | null }[]).map((m) => m.department).filter((d) => !!d);
@@ -456,6 +458,7 @@ const WORK_TOOLS: Tool[] = [
               due_date: { type: "string" },
               team: { type: "string" },
               project: { type: "string" },
+              private: { type: "boolean" },
               collaborators: { type: "array", items: { type: "string" } },
               parent_task_id: { type: "string" },
               meeting_id: { type: "string" },
@@ -1068,7 +1071,7 @@ export const TOOLS: Tool[] = [
   {
     name: "create_task",
     description:
-      "Create a task. Every task needs a team (or a project, campaign or partnership); if you're only in one team it goes there. Give parent_task_id to make it a subtask, meeting_id to make it a meeting action item. Dates are YYYY-MM-DD.",
+      "Create a task. Give a team, or a project, campaign or partnership; with neither, set private: true for a private task (otherwise, if you're only in one team it goes there). Give parent_task_id to make it a subtask, meeting_id to make it a meeting action item. Dates are YYYY-MM-DD.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1078,6 +1081,7 @@ export const TOOLS: Tool[] = [
         due_date: { type: "string", description: "YYYY-MM-DD" },
         team: { type: "string", description: "Team name, e.g. Marketing." },
         project: { type: "string", description: "Project, campaign or partnership name." },
+        private: { type: "boolean", description: "true: a private task with no team or project (only you, the owner and collaborators see it). Ignored when a team or project is given." },
         collaborators: { type: "array", items: { type: "string" }, description: "Emails or names." },
         parent_task_id: { type: "string", description: "Make it a subtask of this task." },
         meeting_id: { type: "string", description: "Make it an action item of this meeting." },
