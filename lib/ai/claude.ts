@@ -107,8 +107,14 @@ export async function structuredCall<T>({
     });
   } catch (error) {
     console.error(`[ai:${label}]`, error);
-    if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError)
-      throw new AiError("The assistant's API key was refused. An Admin needs to check ANTHROPIC_API_KEY.");
+    // Anthropic's own reason, e.g. "invalid x-api-key" or no access to a model. Never contains the key.
+    const reason = error instanceof Anthropic.APIError ? ((error.error as { error?: { message?: string } } | undefined)?.error?.message ?? error.message) : "";
+    if (error instanceof Anthropic.AuthenticationError)
+      throw new AiError(`The assistant's API key was refused (401${reason ? `: ${reason}` : ""}). An Admin needs to check ANTHROPIC_API_KEY.`);
+    if (error instanceof Anthropic.PermissionDeniedError)
+      throw new AiError(`The key works but isn't allowed to do this (403${reason ? `: ${reason}` : ""}). Check the key's workspace and model access in the Anthropic Console.`);
+    if (error instanceof Anthropic.BadRequestError && /credit|billing|balance/i.test(reason))
+      throw new AiError(`Anthropic says: ${reason}`);
     if (error instanceof Anthropic.RateLimitError) throw new AiError("The assistant is busy. Try again in a minute.");
     if (error instanceof Anthropic.APIConnectionError) throw new AiError("Couldn't reach the assistant. Try again.");
     throw new AiError("The assistant couldn't do that just now. Try again.");
