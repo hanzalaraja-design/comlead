@@ -4,14 +4,15 @@ import { syncLater } from "@/lib/calendar/schedule";
 import { syncTask } from "@/lib/calendar/sync";
 import { DOMAINS } from "@/lib/domains";
 import { personName } from "@/lib/labels";
-import { sanitizeRichText } from "@/lib/sanitize";
 import { addDaysISO, formatDate, todayPKT } from "@/lib/time";
-import { domainHref } from "@/lib/domains";
-import { projectSlug } from "@/lib/projects";
-import { PLACEMENT_COLUMNS, slotName, surfacesText, type Placement, type Section, type Surface } from "@/lib/placements";
+import { PLACEMENT_COLUMNS, slotName, surfacesText, type Placement, type Section } from "@/lib/placements";
 import { CHANNELS, CHANNEL_LABELS, CREATIVE_COLUMNS, STATUS_LABELS, type Channel, type CreativeRequest } from "@/lib/creative";
 import { notifyPersonLater, notifyTeamLater, placementsPath, placementsUrl, requestPath, requestUrl } from "@/lib/notify";
 import type { KeyUser } from "@/lib/mcp/keys";
+import { PARTNERSHIP_TOOLS } from "@/lib/mcp/tools-partnerships";
+import { MEETING_TOOLS } from "@/lib/mcp/tools-meetings";
+import { HOMEPAGE_TOOLS } from "@/lib/mcp/tools-homepage";
+import { COLLAB_TOOLS } from "@/lib/mcp/tools-collabs";
 import type { ProjectKind } from "@/lib/types";
 
 /**
@@ -20,276 +21,271 @@ import type { ProjectKind } from "@/lib/types";
  * database's own rules decide what they can see and change.
  */
 
-type Args = Record<string, unknown>;
-type Tool = {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  annotations?: Record<string, unknown>;
-  run: (u: KeyUser, a: Args) => Promise<string>;
+import {
+  UserError,
+  OPEN,
+  STATUSES,
+  NEW_STATUSES,
+  UUID,
+  PRIORITIES,
+  SELECT,
+  link,
+  line,
+  list,
+  str,
+  date,
+  oneOf,
+  id,
+  time,
+  doneOn,
+  webLink,
+  findPart,
+  richText,
+  findPerson,
+  findTeam,
+  findProject,
+  failed,
+  setCollaborators,
+  strings,
+  createTaskFrom,
+  READ,
+  WRITE,
+  KINDS,
+  listOf,
+  idsOf,
+  projectLink,
+  surfacesOf,
+  findSection,
+  addPeopleAndTeams,
+  insertProject,
+  type Args,
+  type Tool,
+  type Row,
+} from "@/lib/mcp/helpers";
+
+// ---------------------------------------------------------------------------
+// Terms of a brand partnership: each period of the deal on its own, with a
+// stage, dates, the standard fields and a description. Add and change only.
+// ---------------------------------------------------------------------------
+
+/** Fields a new task takes, shared by create_task and create_tasks. */
+const NEW_TASK_PROPS = {
+  title: { type: "string" },
+  description: { type: "string", description: "Notes. Plain text is fine." },
+  owner: { type: "string", description: "Email or name, or 'me'. Default: me." },
+  owners: { type: "array", items: { type: "string" }, description: "Several owners: each gets their own copy, linked as a set, so each can tick it off." },
+  due_date: { type: "string", description: "YYYY-MM-DD" },
+  due_time: { type: "string", description: "HH:MM, 24-hour. Needs a due_date." },
+  status: { type: "string", enum: NEW_STATUSES, description: "Default todo." },
+  blocked_reason: { type: "string", description: "Why it's blocked (with status blocked)." },
+  done_on: { type: "string", description: "YYYY-MM-DD, today or earlier: it's already done, on that day." },
+  priority: { type: "string", enum: PRIORITIES, description: "Default medium." },
+  team: { type: "string", description: "Team name, e.g. Marketing." },
+  project: { type: "string", description: "Project, campaign or partnership name." },
+  part: { type: "string", description: "A term or journey of that project, by name or id. Needs project." },
+  private: { type: "boolean", description: "true: a private task with no team or project (only you, the owner and collaborators see it). Ignored when a team or project is given." },
+  collaborators: { type: "array", items: { type: "string" }, description: "Emails or names." },
+  parent_task_id: { type: "string", description: "Make it a subtask of this task." },
+  meeting_id: { type: "string", description: "Make it an action item of this meeting." },
 };
 
-class UserError extends Error {}
-
-const OPEN = ["todo", "in_progress", "blocked"];
-const STATUSES = ["todo", "in_progress", "blocked", "done", "cancelled"];
-const STATUS_LABEL: Record<string, string> = { todo: "To do", in_progress: "In progress", blocked: "Blocked", done: "Done", cancelled: "Cancelled" };
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const SELECT = `id, title, status, due_date, completed_at, overdue, owner_id, department_id, project_id, meeting_id, parent_task_id,
-  owner:profiles!tasks_owner_id_fkey(email, full_name),
-  department:departments!tasks_department_id_fkey(name),
-  project:projects(name, kind),
-  parent:parent_task_id(id, title)`;
-
-type Row = {
+const TERM_STAGES = ["draft", "in_talks", "agreed", "live", "ended"];
+const TERM_STAGE_LABEL: Record<string, string> = { draft: "Draft", in_talks: "In talks", agreed: "Signed / agreed", live: "Live", ended: "Ended" };
+/** The app's standard term fields, in the order the Terms panel shows them. */
+const TERM_FIELDS: [arg: string, label: string][] = [
+  ["discount", "Discount"],
+  ["commission", "Our commission"],
+  ["what_we_give", "What we give"],
+  ["what_they_give", "What they give"],
+  ["promo_code", "Promo code"],
+];
+type TermField = { label: string; value: string };
+type TermRow = {
   id: string;
-  title: string;
-  status: string;
-  due_date: string | null;
-  completed_at: string | null;
-  overdue: boolean;
-  owner: { email: string; full_name: string | null } | null;
-  department: { name: string } | null;
-  project: { name: string; kind: ProjectKind } | null;
-  parent: { id: string; title: string } | null;
+  name: string;
+  stage: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  description: string | null;
+  fields: TermField[];
+  renewed_from: string | null;
+};
+const TERM_SELECT = "id, name, stage, starts_on, ends_on, description, fields, renewed_from";
+
+const termProps = {
+  name: { type: "string", description: "e.g. Nov to Dec 2026, or 2027." },
+  stage: { type: "string", enum: TERM_STAGES },
+  start_date: { type: ["string", "null"], description: "YYYY-MM-DD" },
+  end_date: { type: ["string", "null"], description: "YYYY-MM-DD" },
+  discount: { type: "string" },
+  commission: { type: "string", description: "Our commission." },
+  what_we_give: { type: "string" },
+  what_they_give: { type: "string" },
+  promo_code: { type: "string" },
+  other_fields: {
+    type: "array",
+    description: "Any other fields, as label and value. A label that already exists is replaced.",
+    items: { type: "object", properties: { label: { type: "string" }, value: { type: "string" } }, required: ["label", "value"] },
+  },
+  description: { type: "string", description: "Anything else worth knowing. Plain text." },
 };
 
-const link = (id: string) => `${siteUrl()}/tasks/${id}`;
-
-function line(t: Row): string {
-  const bits = [
-    STATUS_LABEL[t.status] ?? t.status,
-    t.overdue ? "OVERDUE" : null,
-    t.owner ? `owner ${personName(t.owner)} <${t.owner.email}>` : "unassigned",
-    t.due_date ? `due ${formatDate(t.due_date, "EEE d MMM yyyy")}` : "no due date",
-    t.department?.name ?? null,
-    t.project ? `${DOMAINS[t.project.kind].label}: ${t.project.name}` : null,
-    t.parent ? `subtask of "${t.parent.title}"` : null,
-  ].filter(Boolean);
-  return `- ${t.title} (${bits.join(" · ")})\n  id: ${t.id} · ${link(t.id)}`;
+async function findPartnership(u: KeyUser, name: string): Promise<{ id: string; name: string; slug: string; kind: ProjectKind }> {
+  const p = await findProject(u, name);
+  if (p.kind !== "partnership") throw new UserError(`${p.name} isn't a brand partnership. Terms are only for partnerships.`);
+  const { data } = await u.db.from("projects").select("slug").eq("id", p.id).single();
+  return { ...p, slug: (data?.slug as string) ?? "" };
 }
 
-const list = (rows: Row[], empty: string) => (rows.length ? rows.map(line).join("\n") : empty);
-
-function str(a: Args, k: string, max = 300): string | undefined {
-  const v = a[k];
-  if (v === undefined || v === null || v === "") return undefined;
-  if (typeof v !== "string") throw new UserError(`"${k}" should be text.`);
-  return v.trim().slice(0, max);
+async function termsOf(u: KeyUser, projectId: string): Promise<TermRow[]> {
+  const { data, error } = await u.db.from("project_parts").select(TERM_SELECT).eq("project_id", projectId).eq("kind", "term").order("sort");
+  if (error) failed(error, "read the terms");
+  return ((data ?? []) as TermRow[]).map((t) => ({ ...t, fields: Array.isArray(t.fields) ? t.fields : [] }));
 }
 
-function date(a: Args, k: string): string | null | undefined {
-  if (a[k] === null) return null;
-  const v = str(a, k, 10);
-  if (v === undefined) return undefined;
-  if (!ISO.test(v)) throw new UserError(`"${k}" should be a date like 2026-11-05.`);
-  return v;
-}
-
-function oneOf(a: Args, k: string, allowed: string[]): string | undefined {
-  const v = str(a, k, 30);
-  if (v === undefined) return undefined;
-  const norm = v.toLowerCase().replace(/[\s-]+/g, "_");
-  if (!allowed.includes(norm)) throw new UserError(`"${k}" must be one of: ${allowed.join(", ")}.`);
-  return norm;
-}
-
-function id(a: Args, k: string): string {
-  const v = str(a, k, 60);
-  if (!v || !UUID.test(v)) throw new UserError(`"${k}" should be a task id (from a list or search).`);
-  return v;
-}
-
-/** Plain text (or simple HTML) into the app's rich text. */
-function richText(text: string): string {
-  if (/<[a-z][\s\S]*>/i.test(text)) return sanitizeRichText(text);
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return text
-    .split(/\n{2,}/)
-    .map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`)
-    .join("");
-}
-
-async function findPerson(u: KeyUser, who: string): Promise<{ id: string; label: string }> {
-  const q = who.trim().toLowerCase();
-  if (q === "me" || q === u.email.toLowerCase()) return { id: u.userId, label: "you" };
-  const { data } = await u.db.from("profiles").select("id, email, full_name").eq("status", "active").limit(500);
-  const people = (data ?? []) as { id: string; email: string; full_name: string | null }[];
-  const exact = people.filter((p) => p.email.toLowerCase() === q || (p.full_name ?? "").toLowerCase() === q);
-  const loose = exact.length ? exact : people.filter((p) => p.email.toLowerCase().startsWith(q) || (p.full_name ?? "").toLowerCase().includes(q));
-  if (loose.length === 1) return { id: loose[0].id, label: personName(loose[0]) };
-  if (!loose.length) throw new UserError(`No one called "${who}". Use list_people to find the right person.`);
-  throw new UserError(`"${who}" matches several people: ${loose.slice(0, 6).map((p) => `${personName(p)} <${p.email}>`).join(", ")}. Use their email.`);
-}
-
-async function findTeam(u: KeyUser, name: string): Promise<{ id: string; name: string }> {
-  const q = name.trim().toLowerCase();
-  const { data } = await u.db.rpc("team_directory");
-  const teams = (data ?? []) as { id: string; name: string; slug: string }[];
-  const hit = teams.find((t) => t.name.toLowerCase() === q || t.slug === q) ?? teams.filter((t) => t.name.toLowerCase().includes(q))[0];
-  if (!hit) throw new UserError(`No team called "${name}". Teams: ${teams.map((t) => t.name).join(", ")}.`);
-  return hit;
-}
-
-async function findProject(u: KeyUser, name: string): Promise<{ id: string; name: string; kind: ProjectKind }> {
-  const q = name.trim().toLowerCase();
-  const { data } = await u.db.from("projects").select("id, name, slug, kind").eq("archived", false).limit(500);
-  const all = (data ?? []) as { id: string; name: string; slug: string; kind: ProjectKind }[];
-  const exact = all.filter((p) => p.name.toLowerCase() === q || p.slug === q);
-  const loose = exact.length ? exact : all.filter((p) => p.name.toLowerCase().includes(q));
+function findTerm(terms: TermRow[], which: string): TermRow {
+  const q = which.trim().toLowerCase();
+  const hit = terms.filter((t) => t.id === q || t.name.toLowerCase() === q);
+  const loose = hit.length ? hit : terms.filter((t) => t.name.toLowerCase().includes(q));
   if (loose.length === 1) return loose[0];
-  if (!loose.length) throw new UserError(`No project, campaign or partnership called "${name}" that you're in. Use list_projects.`);
-  throw new UserError(`"${name}" matches several: ${loose.slice(0, 6).map((p) => `${p.name} (${p.kind})`).join(", ")}. Be more specific.`);
+  const names = terms.map((t) => `"${t.name}"`).join(", ") || "none yet";
+  if (!loose.length) throw new UserError(`No term called "${which}". Terms: ${names}.`);
+  throw new UserError(`"${which}" matches several terms: ${loose.map((t) => `"${t.name}" (id ${t.id})`).join(", ")}. Use the id.`);
 }
 
-function failed(e: { message?: string } | null, what: string): never {
-  const msg = e?.message ?? "";
-  if (/row-level security|permission/i.test(msg)) throw new UserError(`You don't have permission to ${what}.`);
-  throw new UserError(msg ? `Couldn't ${what}: ${msg}` : `Couldn't ${what}.`);
-}
-
-async function setCollaborators(u: KeyUser, taskId: string, add: string[], remove: string[]) {
-  for (const who of add) {
-    const p = await findPerson(u, who);
-    const { error } = await u.db.from("task_collaborators").upsert({ task_id: taskId, user_id: p.id }, { onConflict: "task_id,user_id", ignoreDuplicates: true });
-    if (error) failed(error, `add ${who} as a collaborator`);
-  }
-  for (const who of remove) {
-    const p = await findPerson(u, who);
-    const { error } = await u.db.from("task_collaborators").delete().eq("task_id", taskId).eq("user_id", p.id);
-    if (error) failed(error, `remove ${who}`);
-  }
-}
-
-const strings = (a: Args, k: string): string[] => {
-  const v = a[k];
-  if (v === undefined || v === null) return [];
-  if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) throw new UserError(`"${k}" should be a list of names or emails.`);
-  return (v as string[]).slice(0, 20);
-};
-
-/** Create one task from create_task's arguments (also used for many at once). */
-async function createTaskFrom(u: KeyUser, a: Args): Promise<{ id: string; text: string }> {
-  const title = str(a, "title");
-  if (!title) throw new UserError("A task needs a title.");
-  const owner = await findPerson(u, str(a, "owner") ?? "me");
-  const team = str(a, "team") ? await findTeam(u, str(a, "team")!) : null;
-  const project = str(a, "project") ? await findProject(u, str(a, "project")!) : null;
-  const parentId = a.parent_task_id ? id(a, "parent_task_id") : null;
-  const meetingId = a.meeting_id ? id(a, "meeting_id") : null;
-  let departmentId = team?.id ?? null;
-  if (meetingId && !departmentId) {
-    const { data: m } = await u.db.from("meetings").select("department_id").eq("id", meetingId).maybeSingle();
-    if (!m) throw new UserError("No meeting with that id that you can see.");
-    departmentId = m.department_id as string;
-  }
-  // Private: no team and no project, only the people on it can see it (WhatsApp's default).
-  const isPrivate = a.private === true && !parentId && !departmentId && !project;
-  if (!isPrivate && !parentId && !departmentId && !project) {
-    // Every task has a team: yours when there's only one, otherwise ask.
-    const { data: mine } = await u.db.from("department_members").select("department:departments(id, name)").eq("user_id", u.userId);
-    const teams = ((mine ?? []) as unknown as { department: { id: string; name: string } | null }[]).map((m) => m.department).filter((d) => !!d);
-    if (teams.length !== 1)
-      throw new UserError(`Which team is this for? Give "team"${teams.length ? `: ${teams.map((t) => t!.name).join(", ")}` : ""}.`);
-    departmentId = teams[0]!.id;
-  }
-  const description = str(a, "description", 20000);
-  const row = {
-    title,
-    description: description ? richText(description) : null,
-    owner_id: owner.id,
-    due_date: date(a, "due_date") ?? null,
-    // A subtask stays outside teams and projects; it follows its main task.
-    department_id: parentId ? null : departmentId,
-    project_id: parentId ? null : project?.id ?? null,
-    parent_task_id: parentId,
-    meeting_id: parentId ? null : meetingId,
-    source: meetingId ? "meeting" : "manual",
-    created_by: u.userId,
+/** Apply the field arguments on top of what's there; labels match without caring about case. */
+function mergeFields(current: TermField[], a: Args): TermField[] {
+  const out = current.map((f) => ({ ...f }));
+  const put = (label: string, value: string) => {
+    const at = out.findIndex((f) => f.label.trim().toLowerCase() === label.trim().toLowerCase());
+    if (at >= 0) out[at] = { label: out[at].label, value };
+    else out.push({ label, value });
   };
-  const { data, error } = await u.db.from("tasks").insert(row).select("id, title").single();
-  if (error || !data) failed(error, "create the task");
-  await setCollaborators(u, data!.id as string, strings(a, "collaborators"), []);
-  syncLater(() => syncTask(data!.id as string));
-  return {
-    id: data!.id as string,
-    text: `Created "${title}" for ${owner.label}${row.due_date ? `, due ${formatDate(row.due_date, "EEE d MMM")}` : ""}.\nid: ${data!.id} · ${link(data!.id as string)}`,
-  };
+  for (const [arg, label] of TERM_FIELDS) {
+    if (typeof a[arg] === "string") put(label, (a[arg] as string).trim().slice(0, 2000));
+    else if (a[arg] !== undefined && a[arg] !== null) throw new UserError(`"${arg}" should be text.`);
+  }
+  for (const f of listOf(a, "other_fields", 40)) {
+    const label = typeof f.label === "string" ? f.label.trim().slice(0, 80) : "";
+    if (!label || typeof f.value !== "string") throw new UserError('Each of "other_fields" needs a label and a value.');
+    put(label, f.value.trim().slice(0, 2000));
+  }
+  if (out.length > 40) throw new UserError("A term can have at most 40 fields.");
+  return out;
 }
 
-const READ = { readOnlyHint: true };
-const WRITE = { readOnlyHint: false, destructiveHint: false };
-
-// ---------------------------------------------------------------------------
-// Manual work: campaigns, many tasks, daily deals, the homepage, design
-// requests and meetings. Still nothing that deletes or cancels.
-// ---------------------------------------------------------------------------
-
-const KINDS = ["project", "campaign", "partnership"];
-const listOf = (a: Args, k: string, max = 50): Args[] => {
-  const v = a[k];
-  if (v === undefined || v === null) return [];
-  if (!Array.isArray(v) || v.some((x) => typeof x !== "object" || x === null)) throw new UserError(`"${k}" should be a list of objects.`);
-  if (v.length > max) throw new UserError(`At most ${max} in "${k}" at a time.`);
-  return v as Args[];
-};
-const idsOf = (a: Args, k: string, max = 50): string[] => {
-  const v = a[k];
-  if (!Array.isArray(v) || v.some((x) => typeof x !== "string" || !UUID.test(x))) throw new UserError(`"${k}" should be a list of ids.`);
-  if (v.length > max) throw new UserError(`At most ${max} at a time.`);
-  return v as string[];
-};
-const projectLink = (p: { slug: string; kind: ProjectKind }) => `${siteUrl()}${domainHref(p)}`;
-const surfacesOf = (a: Args): Surface[] | undefined => {
-  const v = oneOf(a, "shows_on", ["website", "app", "both"]);
-  return v === undefined ? undefined : v === "both" ? ["web", "app"] : v === "app" ? ["app"] : ["web"];
-};
-
-async function findSection(u: KeyUser, name: string): Promise<Section> {
-  const q = name.trim().toLowerCase();
-  const { data } = await u.db.from("placement_sections").select("*").eq("archived", false).order("sort");
-  const all = (data ?? []) as Section[];
-  const hit = all.find((s) => s.key === q || s.name.toLowerCase() === q) ?? all.find((s) => s.name.toLowerCase().includes(q));
-  if (!hit) throw new UserError(`No homepage section called "${name}". Sections: ${all.map((s) => s.name).join(", ")}.`);
-  return hit;
+function termText(t: TermRow): string {
+  const dates =
+    t.starts_on && t.ends_on ? `${formatDate(t.starts_on, "d MMM yyyy")} to ${formatDate(t.ends_on, "d MMM yyyy")}`
+    : t.starts_on ? `from ${formatDate(t.starts_on, "d MMM yyyy")}`
+    : t.ends_on ? `until ${formatDate(t.ends_on, "d MMM yyyy")}`
+    : "no dates yet";
+  const lines = [`- ${t.name} (${TERM_STAGE_LABEL[t.stage] ?? t.stage} · ${dates})`, `  id: ${t.id}`];
+  for (const f of t.fields) if (f.label || f.value) lines.push(`  ${f.label || "Field"}: ${f.value || "(empty)"}`);
+  if (t.description) lines.push(`  Description: ${t.description.replace(/\n+/g, " / ")}`);
+  return lines.join("\n");
 }
 
-/** The project's owners, teams and members, to copy or extend. */
-async function addPeopleAndTeams(u: KeyUser, projectId: string, owners: string[], members: string[], teams: string[]) {
-  for (const who of owners) {
-    const p = await findPerson(u, who);
-    const { error } = await u.db.from("project_members").upsert({ project_id: projectId, user_id: p.id, role: "lead" }, { onConflict: "project_id,user_id" });
-    if (error) failed(error, `make ${who} an owner`);
-  }
-  for (const who of members) {
-    const p = await findPerson(u, who);
-    const { error } = await u.db.from("project_members").upsert({ project_id: projectId, user_id: p.id, role: "member" }, { onConflict: "project_id,user_id", ignoreDuplicates: true });
-    if (error) failed(error, `add ${who}`);
-  }
-  for (const name of teams) {
-    const t = await findTeam(u, name);
-    const { error } = await u.db.from("project_teams").upsert({ project_id: projectId, department_id: t.id }, { onConflict: "project_id,department_id", ignoreDuplicates: true });
-    if (error) failed(error, `add the ${t.name} team`);
-  }
-}
-
-/** Insert a project with a free slug; the caller becomes its first owner. */
-async function insertProject(u: KeyUser, row: Record<string, unknown>): Promise<{ id: string; slug: string; kind: ProjectKind; name: string }> {
-  const base = projectSlug(String(row.name));
-  for (let i = 0; i < 6; i++) {
-    const slug = i === 0 ? base : `${base}-${i === 1 ? new Date().getFullYear() : Math.random().toString(36).slice(2, 6)}`;
-    const { data, error } = await u.db.from("projects").insert({ ...row, slug, created_by: u.userId }).select("id, slug, kind, name").single();
-    if (data) {
-      const { error: own } = await u.db.from("project_members").insert({ project_id: data.id, user_id: u.userId, role: "lead" });
-      if (own) failed(own, "make you its owner");
-      return data as { id: string; slug: string; kind: ProjectKind; name: string };
-    }
-    if (error?.code !== "23505") failed(error, "create it");
-  }
-  throw new UserError("Try a different name.");
-}
+const TERM_TOOLS: Tool[] = [
+  {
+    name: "list_terms",
+    description: "The terms of a brand partnership: each period of the deal, with its stage, dates, fields and description.",
+    inputSchema: { type: "object", properties: { partnership: { type: "string", description: "Its name, e.g. Mobilink." } }, required: ["partnership"] },
+    annotations: READ,
+    async run(u, a) {
+      const p = await findPartnership(u, str(a, "partnership") ?? "");
+      const terms = await termsOf(u, p.id);
+      const url = projectLink(p);
+      return terms.length ? `Terms for ${p.name} (${url}):\n${terms.map(termText).join("\n")}` : `${p.name} has no terms yet. ${url}`;
+    },
+  },
+  {
+    name: "add_term",
+    description:
+      "Add a term to a brand partnership: a period of the deal with its stage, dates, discount, our commission, what we give, what they give, promo code, other fields and a description. Starts as a draft unless you give a stage. renew_from copies an earlier term's fields first, for a renewal.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        partnership: { type: "string", description: "Its name, e.g. Mobilink." },
+        ...termProps,
+        renew_from: { type: "string", description: "Name or id of the term this one renews. Its fields are copied, then yours apply." },
+      },
+      required: ["partnership", "name"],
+    },
+    annotations: WRITE,
+    async run(u, a) {
+      const p = await findPartnership(u, str(a, "partnership") ?? "");
+      const name = str(a, "name", 120);
+      if (!name) throw new UserError("Give the term a name, e.g. Nov to Dec 2026.");
+      const terms = await termsOf(u, p.id);
+      const from = str(a, "renew_from") ? findTerm(terms, str(a, "renew_from")!) : null;
+      const starts = date(a, "start_date") ?? null;
+      const ends = date(a, "end_date") ?? null;
+      if (starts && ends && ends < starts) throw new UserError("It ends before it starts.");
+      const base = from ? from.fields : TERM_FIELDS.map(([, label]) => ({ label, value: "" }));
+      const description = str(a, "description", 20000);
+      const { data: last } = await u.db.from("project_parts").select("sort").eq("project_id", p.id).eq("kind", "term").order("sort", { ascending: false }).limit(1);
+      const { data, error } = await u.db
+        .from("project_parts")
+        .insert({
+          project_id: p.id,
+          kind: "term",
+          name,
+          stage: oneOf(a, "stage", TERM_STAGES) ?? "draft",
+          starts_on: starts,
+          ends_on: ends,
+          description: description || null,
+          fields: mergeFields(base, a).filter((f) => f.label || f.value),
+          extra: {},
+          sort: ((last?.[0]?.sort as number | undefined) ?? 0) + 10,
+          renewed_from: from?.id ?? null,
+        })
+        .select(TERM_SELECT)
+        .single();
+      if (error || !data) failed(error, `add a term to ${p.name} (only the people in it can)`);
+      return `Added the term to ${p.name}. ${projectLink(p)}\n${termText(data as TermRow)}`;
+    },
+  },
+  {
+    name: "update_term",
+    description:
+      "Change a term of a brand partnership: its name, stage, dates, any field or the description. Only send what changes; fields you leave out stay as they are.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        partnership: { type: "string", description: "Its name, e.g. Mobilink." },
+        term: { type: "string", description: "The term's current name or id (from list_terms)." },
+        ...termProps,
+      },
+      required: ["partnership", "term"],
+    },
+    annotations: WRITE,
+    async run(u, a) {
+      const p = await findPartnership(u, str(a, "partnership") ?? "");
+      const t = findTerm(await termsOf(u, p.id), str(a, "term") ?? "");
+      const patch: Record<string, unknown> = {};
+      const name = str(a, "name", 120);
+      if (name) patch.name = name;
+      const stage = oneOf(a, "stage", TERM_STAGES);
+      if (stage) patch.stage = stage;
+      const starts = date(a, "start_date");
+      if (starts !== undefined) patch.starts_on = starts;
+      const ends = date(a, "end_date");
+      if (ends !== undefined) patch.ends_on = ends;
+      const s = starts !== undefined ? starts : t.starts_on;
+      const e = ends !== undefined ? ends : t.ends_on;
+      if (s && e && e < s) throw new UserError("It would end before it starts.");
+      if (typeof a.description === "string") patch.description = a.description.trim().slice(0, 20000) || null;
+      const fields = mergeFields(t.fields, a);
+      if (JSON.stringify(fields) !== JSON.stringify(t.fields)) patch.fields = fields.filter((f) => f.label || f.value);
+      if (!Object.keys(patch).length) return `Nothing to change on "${t.name}".`;
+      const { data, error } = await u.db.from("project_parts").update(patch).eq("id", t.id).select(TERM_SELECT);
+      if (error) failed(error, "change the term");
+      if (!data?.length) throw new UserError(`Only the people in ${p.name} can change its terms.`);
+      return `Updated "${t.name}" on ${p.name}. ${projectLink(p)}\n${termText(data[0] as TermRow)}`;
+    },
+  },
+];
 
 const WORK_TOOLS: Tool[] = [
   {
@@ -336,17 +332,23 @@ const WORK_TOOLS: Tool[] = [
   {
     name: "update_project",
     description:
-      "Change a project, campaign or partnership: name, dates, brief, strategic/beauty, and add owners, members or teams. Only send what changes. Locked ones can only be changed by their owners.",
+      "Change a project, campaign or partnership: name, type (project, campaign or partnership), dates, brief, a partnership's categories, and add owners, members or teams. Only send what changes. add_owners also makes someone who's already a member an owner. Locked ones can only be changed by their owners.",
     inputSchema: {
       type: "object",
       properties: {
         project: { type: "string", description: "Its current name." },
         name: { type: "string" },
+        kind: { type: "string", enum: KINDS, description: "Change its type. Leaving partnership clears its categories." },
         start_date: { type: ["string", "null"] },
         end_date: { type: ["string", "null"] },
         description: { type: "string", description: "Replaces the brief." },
-        category: { type: "string", enum: ["associations", "referral", "fintech"] },
-        add_owners: { type: "array", items: { type: "string" } },
+        category: { type: "string", enum: ["associations", "referral", "fintech"], description: "Partnerships: one category. For several, use categories." },
+        categories: {
+          type: "array",
+          items: { type: "string", enum: ["associations", "referral", "fintech"] },
+          description: "Partnerships: all the categories it's in (replaces the ones it has; its tags stay).",
+        },
+        add_owners: { type: "array", items: { type: "string" }, description: "New people, or members to make owners." },
         add_members: { type: "array", items: { type: "string" } },
         add_teams: { type: "array", items: { type: "string" } },
       },
@@ -363,12 +365,31 @@ const WORK_TOOLS: Tool[] = [
       const end = date(a, "end_date");
       if (end !== undefined) patch.end_date = end;
       if (typeof a.description === "string") patch.description = a.description.trim() ? richText(a.description.slice(0, 50000)) : null;
+      const kind = (oneOf(a, "kind", KINDS) as ProjectKind | undefined) ?? found.kind;
+      if (kind !== found.kind) {
+        patch.kind = kind;
+        // As the app does: only a partnership has a category.
+        if (kind !== "partnership") patch.category = null;
+      }
       const category = oneOf(a, "category", ["associations", "referral", "fintech"]);
-      if (category && found.kind === "partnership") patch.category = category;
+      if (category && kind === "partnership") patch.category = category;
+      let categories: string[] | null = null;
+      if (Array.isArray(a.categories)) {
+        if (kind !== "partnership") throw new UserError("Only a brand partnership has categories.");
+        categories = [...new Set(strings(a, "categories").map((c) => c.trim().toLowerCase()))];
+        const bad = categories.filter((c) => !["associations", "referral", "fintech"].includes(c));
+        if (bad.length) throw new UserError(`"categories" can only be: associations, referral, fintech.`);
+      }
       if (Object.keys(patch).length) {
         const { data, error } = await u.db.from("projects").update(patch).eq("id", found.id).select("id");
         if (error) failed(error, "change it");
         if (!data?.length) throw new UserError("It's locked: only its owners can change it.");
+      }
+      if (categories) {
+        // The app sets categories and tags together; keep the tags it has.
+        const { data: tags } = await u.db.from("project_tags").select("tag_id").eq("project_id", found.id);
+        const { error } = await u.db.rpc("set_partnership_labels", { p_project: found.id, p_categories: categories, p_tags: (tags ?? []).map((t) => t.tag_id as string) });
+        if (error) failed(error, "change its categories");
       }
       await addPeopleAndTeams(u, found.id, strings(a, "add_owners"), strings(a, "add_members"), strings(a, "add_teams"));
       const { data: p } = await u.db.from("projects").select("slug, kind").eq("id", found.id).single();
@@ -449,22 +470,7 @@ const WORK_TOOLS: Tool[] = [
       properties: {
         tasks: {
           type: "array",
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string" },
-              description: { type: "string" },
-              owner: { type: "string" },
-              due_date: { type: "string" },
-              team: { type: "string" },
-              project: { type: "string" },
-              private: { type: "boolean" },
-              collaborators: { type: "array", items: { type: "string" } },
-              parent_task_id: { type: "string" },
-              meeting_id: { type: "string" },
-            },
-            required: ["title"],
-          },
+          items: { type: "object", properties: NEW_TASK_PROPS, required: ["title"] },
         },
       },
       required: ["tasks"],
@@ -643,7 +649,10 @@ const WORK_TOOLS: Tool[] = [
         slot: { type: "number", description: "Slide or tile number, default 1." },
         brand: { type: "string" },
         text: { type: "string", description: "What the banner says." },
+        products: { type: "string", description: "Which products to show (category icons ask for this)." },
         notes: { type: "string", description: "For Design." },
+        link: { type: "string", description: "Where the banner goes: a web address (http or https)." },
+        project: { type: "string", description: "The project, campaign or partnership it's for (one you're in). Adds a done task there saying what was booked." },
         start_date: { type: "string" },
         end_date: { type: ["string", "null"], description: "Leave out or null for ongoing." },
         shows_on: { type: "string", enum: ["website", "app", "both"], description: "Default both." },
@@ -661,9 +670,26 @@ const WORK_TOOLS: Tool[] = [
       const end = date(a, "end_date") ?? null;
       if (end && end < start) throw new UserError("The end date is before the start.");
       const text = str(a, "text", 300) ?? null;
+      const products = str(a, "products", 1000) ?? (s.kind === "icons" ? text : null);
+      const url = webLink(a, "link");
+      const project = str(a, "project") ? await findProject(u, str(a, "project")!) : null;
       const { data, error } = await u.db
         .from("placements")
-        .insert({ section_key: s.key, position: slot, brand, comms: s.kind === "icons" ? null : text, products: s.kind === "icons" ? text : null, notes: str(a, "notes", 2000) ?? null, starts_on: start, ends_on: end, shows_on: surfacesOf(a) ?? ["web", "app"], created_by: u.userId })
+        .insert({
+          section_key: s.key,
+          position: slot,
+          brand,
+          comms: s.kind === "icons" ? null : text,
+          products,
+          notes: str(a, "notes", 2000) ?? null,
+          starts_on: start,
+          ends_on: end,
+          shows_on: surfacesOf(a) ?? ["web", "app"],
+          // Left out when not given, as the app does.
+          ...(url ? { link: url } : {}),
+          ...(project ? { project_id: project.id } : {}),
+          created_by: u.userId,
+        })
         .select("id")
         .single();
       if (error || !data) failed(error, "book that slot");
@@ -673,19 +699,23 @@ const WORK_TOOLS: Tool[] = [
         href: placementsPath(data!.id as string),
         actorId: u.userId,
       });
-      return `Booked ${slotName(s, slot)} for ${brand} from ${formatDate(start, "d MMM")}${end ? ` to ${formatDate(end, "d MMM")}` : " (ongoing)"}. Design has been told. id ${data!.id} · ${placementsUrl(data!.id as string)}`;
+      return `Booked ${slotName(s, slot)} for ${brand} from ${formatDate(start, "d MMM")}${end ? ` to ${formatDate(end, "d MMM")}` : " (ongoing)"}${project ? `, for ${project.name}` : ""}. Design has been told. id ${data!.id} · ${placementsUrl(data!.id as string)}`;
     },
   },
   {
     name: "update_booking",
-    description: "Change a homepage booking you made (or any, if you're in Commercial): brand, banner text, notes, dates or where it shows. If the banner was already made and the text changes, Design is asked to update it.",
+    description:
+      "Change a homepage booking you made (or any, if you're in Commercial): brand, banner text, products, notes, link, the project it's for, dates or where it shows. If the banner was already made and the brand, text or products change, Design is asked to update it.",
     inputSchema: {
       type: "object",
       properties: {
         booking_id: { type: "string" },
         brand: { type: "string" },
         text: { type: "string" },
+        products: { type: "string", description: "Which products to show; empty text clears it." },
         notes: { type: "string" },
+        link: { type: "string", description: "Where the banner goes (http or https); empty text clears it." },
+        project: { type: "string", description: "The project, campaign or partnership it's for (one you're in); empty text unlinks." },
         start_date: { type: "string" },
         end_date: { type: ["string", "null"] },
         shows_on: { type: "string", enum: ["website", "app", "both"] },
@@ -702,7 +732,12 @@ const WORK_TOOLS: Tool[] = [
       const brand = str(a, "brand", 120);
       if (brand) patch.brand = brand;
       if (typeof a.text === "string") patch.comms = a.text.trim().slice(0, 300) || null;
+      if (typeof a.products === "string") patch.products = a.products.trim().slice(0, 1000) || null;
       if (typeof a.notes === "string") patch.notes = a.notes.trim().slice(0, 2000) || null;
+      if (a.link === "") patch.link = null;
+      else if (a.link !== undefined) patch.link = webLink(a, "link");
+      if (a.project === "") patch.project_id = null;
+      else if (str(a, "project")) patch.project_id = (await findProject(u, str(a, "project")!)).id;
       const start = date(a, "start_date");
       if (start) patch.starts_on = start;
       const end = date(a, "end_date");
@@ -710,7 +745,10 @@ const WORK_TOOLS: Tool[] = [
       const shows = surfacesOf(a);
       if (shows) patch.shows_on = shows;
       if (!Object.keys(patch).length) throw new UserError("Nothing to change.");
-      const textChanged = (patch.brand !== undefined && patch.brand !== p.brand) || (patch.comms !== undefined && patch.comms !== p.comms);
+      const textChanged =
+        (patch.brand !== undefined && patch.brand !== p.brand) ||
+        (patch.comms !== undefined && patch.comms !== p.comms) ||
+        (patch.products !== undefined && patch.products !== p.products);
       if (textChanged && (p.stage === "ready" || p.stage === "live") && !p.changed_from) patch.changed_from = { comms: p.comms ?? p.brand, products: p.products };
       const { data, error } = await u.db.from("placements").update(patch).eq("id", bid).select("id");
       if (error) failed(error, "change that booking");
@@ -951,6 +989,7 @@ const WORK_TOOLS: Tool[] = [
       return out.join("\n");
     },
   },
+  ...TERM_TOOLS,
 ];
 
 export const TOOLS: Tool[] = [
@@ -1071,23 +1110,8 @@ export const TOOLS: Tool[] = [
   {
     name: "create_task",
     description:
-      "Create a task. Give a team, or a project, campaign or partnership; with neither, set private: true for a private task (otherwise, if you're only in one team it goes there). Give parent_task_id to make it a subtask, meeting_id to make it a meeting action item. Dates are YYYY-MM-DD.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        description: { type: "string", description: "Notes. Plain text is fine." },
-        owner: { type: "string", description: "Email or name, or 'me'. Default: me." },
-        due_date: { type: "string", description: "YYYY-MM-DD" },
-        team: { type: "string", description: "Team name, e.g. Marketing." },
-        project: { type: "string", description: "Project, campaign or partnership name." },
-        private: { type: "boolean", description: "true: a private task with no team or project (only you, the owner and collaborators see it). Ignored when a team or project is given." },
-        collaborators: { type: "array", items: { type: "string" }, description: "Emails or names." },
-        parent_task_id: { type: "string", description: "Make it a subtask of this task." },
-        meeting_id: { type: "string", description: "Make it an action item of this meeting." },
-      },
-      required: ["title"],
-    },
+      "Create a task. Give a team, or a project, campaign or partnership; with neither, set private: true for a private task (otherwise, if you're only in one team it goes there). Give parent_task_id to make it a subtask, meeting_id to make it a meeting action item, part for a term or journey of its project. Several owners get one copy each. done_on logs something already done. Dates are YYYY-MM-DD.",
+    inputSchema: { type: "object", properties: NEW_TASK_PROPS, required: ["title"] },
     annotations: WRITE,
     async run(u, a) {
       return (await createTaskFrom(u, a)).text;
@@ -1096,18 +1120,24 @@ export const TOOLS: Tool[] = [
   {
     name: "update_task",
     description:
-      "Change a task: title, notes, status, due date (null clears it), owner, project/campaign/partnership (empty text unlinks), or collaborators. Only send what changes. Locked tasks can only be changed by their owner.",
+      "Change a task: title, notes, status, due date and time (null clears them), owner, priority, main team, project/campaign/partnership (empty text unlinks), its term or journey in that project, the meeting it came from, when it was done, or collaborators. Only send what changes. Locked tasks can only be changed by their owner.",
     inputSchema: {
       type: "object",
       properties: {
         task_id: { type: "string" },
         title: { type: "string" },
         description: { type: "string", description: "Replaces the notes." },
-        status: { type: "string", enum: STATUSES },
+        status: { type: "string", enum: NEW_STATUSES, description: "Cancelling is only done in Highfy Tasks itself." },
         blocked_reason: { type: "string", description: "Why it's blocked (with status blocked)." },
-        due_date: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear." },
+        due_date: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear (clears the time too)." },
+        due_time: { type: ["string", "null"], description: "HH:MM, 24-hour, or null to clear. Needs a due date." },
         owner: { type: "string", description: "Email or name, or 'me'." },
+        priority: { type: "string", enum: PRIORITIES },
+        team: { type: "string", description: "Its main team. For more teams, use set_task_teams." },
         project: { type: "string", description: "Project, campaign or partnership name; empty text to unlink." },
+        part: { type: ["string", "null"], description: "A term or journey of the task's project, by name or id; empty text or null to take it out." },
+        meeting_id: { type: ["string", "null"], description: "Link it to this meeting (from list_meetings); null to unlink." },
+        done_on: { type: "string", description: "YYYY-MM-DD, today or earlier: the day it was done. Marks it done if it isn't. Only the task's owner can." },
         add_collaborators: { type: "array", items: { type: "string" } },
         remove_collaborators: { type: "array", items: { type: "string" } },
       },
@@ -1116,11 +1146,13 @@ export const TOOLS: Tool[] = [
     annotations: WRITE,
     async run(u, a) {
       const taskId = id(a, "task_id");
+      const { data: cur } = await u.db.from("tasks").select("owner_id, project_id, due_date, status").eq("id", taskId).maybeSingle();
+      if (!cur) throw new UserError("No task with that id that you can see.");
       const patch: Record<string, unknown> = {};
       const title = str(a, "title");
       if (title) patch.title = title;
       if (typeof a.description === "string") patch.description = a.description.trim() ? richText(a.description.slice(0, 20000)) : null;
-      const status = oneOf(a, "status", STATUSES);
+      const status = oneOf(a, "status", NEW_STATUSES);
       if (status) {
         patch.status = status;
         if (status === "blocked") patch.blocked_reason = str(a, "blocked_reason", 1000) ?? null;
@@ -1130,10 +1162,40 @@ export const TOOLS: Tool[] = [
         patch.due_date = due;
         if (due === null) patch.due_time = null;
       }
+      const dueTime = time(a, "due_time");
+      if (dueTime !== undefined && due !== null) {
+        if (dueTime && !(due ?? cur.due_date)) throw new UserError("Give it a due date first, then a time.");
+        patch.due_time = dueTime;
+      }
       const owner = str(a, "owner");
       if (owner) patch.owner_id = (await findPerson(u, owner)).id;
+      const priority = oneOf(a, "priority", PRIORITIES);
+      if (priority) patch.priority = priority;
+      const team = str(a, "team");
+      if (team) patch.department_id = (await findTeam(u, team)).id;
       if (a.project === "") patch.project_id = null;
       else if (str(a, "project")) patch.project_id = (await findProject(u, str(a, "project")!)).id;
+      if (a.part === "" || a.part === null) patch.part_id = null;
+      else if (str(a, "part")) {
+        const projectId = patch.project_id !== undefined ? (patch.project_id as string | null) : (cur.project_id as string | null);
+        if (!projectId) throw new UserError("A term or journey belongs to a project; this task isn't in one.");
+        patch.part_id = (await findPart(u, projectId, str(a, "part")!)).id;
+      }
+      if (a.meeting_id === null || a.meeting_id === "") patch.meeting_id = null;
+      else if (a.meeting_id !== undefined) {
+        const meetingId = str(a, "meeting_id", 60);
+        if (!meetingId || !UUID.test(meetingId)) throw new UserError('"meeting_id" should be a meeting id (from list_meetings).');
+        const { data: m } = await u.db.from("meetings").select("id").eq("id", meetingId).maybeSingle();
+        if (!m) throw new UserError("No meeting with that id that you can see.");
+        patch.meeting_id = meetingId;
+      }
+      const doneAt = doneOn(a);
+      if (doneAt) {
+        if (cur.owner_id !== u.userId) throw new UserError("Only the task's owner can say when it was done.");
+        if (status && status !== "done") throw new UserError("done_on marks it done; leave out status or set it to done.");
+        patch.status = "done";
+        patch.completed_at = doneAt;
+      }
 
       if (Object.keys(patch).length) {
         const { data, error } = await u.db.from("tasks").update(patch).eq("id", taskId).select("id");
@@ -1147,17 +1209,82 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "set_task_teams",
+    description:
+      "More teams for a task, so it shows in each team's list too (besides its main team). add_teams adds to the ones it has; teams makes its extra teams exactly that list (at least one). To change its main team, use update_task.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string" },
+        add_teams: { type: "array", items: { type: "string" }, description: "Team names to add." },
+        teams: { type: "array", items: { type: "string" }, description: "The full list of extra teams it should have. At least one." },
+      },
+      required: ["task_id"],
+    },
+    annotations: WRITE,
+    async run(u, a) {
+      const taskId = id(a, "task_id");
+      const add = strings(a, "add_teams");
+      const replace = a.teams === undefined || a.teams === null ? null : strings(a, "teams");
+      if (replace && !replace.length) throw new UserError('Give at least one team in "teams", or use add_teams.');
+      if (!replace && !add.length) throw new UserError('Give "add_teams" or "teams".');
+      const { data: task } = await u.db.from("tasks").select("department_id").eq("id", taskId).maybeSingle();
+      if (!task) throw new UserError("No task with that id that you can see.");
+      const { data: current, error: readErr } = await u.db.from("task_teams").select("department_id").eq("task_id", taskId);
+      if (readErr) failed(readErr, "read its teams");
+      const have = new Set((current ?? []).map((t) => t.department_id as string));
+      const want = new Set(replace ? [] : have);
+      for (const name of [...(replace ?? []), ...add]) {
+        const t = await findTeam(u, name);
+        if (t.id !== task.department_id) want.add(t.id);
+      }
+      if (!want.size) throw new UserError("That's already its main team.");
+      const toAdd = [...want].filter((d) => !have.has(d));
+      const toRemove = [...have].filter((d) => !want.has(d));
+      if (want.size > 30) throw new UserError("At most 30 teams on a task.");
+      if (toAdd.length) {
+        const { error } = await u.db.from("task_teams").insert(toAdd.map((department_id) => ({ task_id: taskId, department_id })));
+        if (error) failed(error, "add those teams");
+      }
+      if (toRemove.length) {
+        const { error } = await u.db.from("task_teams").delete().eq("task_id", taskId).in("department_id", toRemove);
+        if (error) failed(error, "change its teams");
+      }
+      const { data: teams } = await u.db.rpc("team_directory");
+      const names = ((teams ?? []) as { id: string; name: string }[]).filter((t) => want.has(t.id)).map((t) => t.name);
+      return `Its extra teams are now: ${names.join(", ")}. ${link(taskId)}`;
+    },
+  },
+  {
     name: "add_comment",
-    description: "Add a comment to a task, as the signed-in person.",
-    inputSchema: { type: "object", properties: { task_id: { type: "string" }, text: { type: "string" } }, required: ["task_id", "text"] },
+    description: "Add a comment to a task, as the signed-in person. Mention people (names or emails) to tag them, as the app's @mentions do: they become collaborators and get it in their inbox.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string" },
+        text: { type: "string" },
+        mention: { type: "array", items: { type: "string" }, description: "People to tag, by name or email." },
+      },
+      required: ["task_id", "text"],
+    },
     annotations: WRITE,
     async run(u, a) {
       const taskId = id(a, "task_id");
       const text = str(a, "text", 10000);
       if (!text) throw new UserError("Write the comment in \"text\".");
-      const { error } = await u.db.from("task_comments").insert({ task_id: taskId, author_id: u.userId, body: text });
-      if (error) failed(error, "comment on that task");
-      return `Comment added. ${link(taskId)}#comments`;
+      const tagged: { id: string; label: string }[] = [];
+      for (const who of strings(a, "mention")) {
+        const p = await findPerson(u, who);
+        if (p.id !== u.userId && !tagged.some((t) => t.id === p.id)) tagged.push(p);
+      }
+      const { data, error } = await u.db.from("task_comments").insert({ task_id: taskId, author_id: u.userId, body: text }).select("id").single();
+      if (error || !data) failed(error, "comment on that task");
+      if (tagged.length) {
+        // Tagged people become collaborators, so they can open the task, and get it in their inbox.
+        const { error: mErr } = await u.db.rpc("add_comment_mentions", { p_comment_id: data!.id, p_user_ids: tagged.map((t) => t.id) });
+        if (mErr) failed(mErr, "tag those people (the comment was added)");
+      }
+      return `Comment added${tagged.length ? `, tagging ${tagged.map((t) => t.label).join(", ")}` : ""}. ${link(taskId)}#comments`;
     },
   },
   {
@@ -1252,6 +1379,10 @@ export const TOOLS: Tool[] = [
     },
   },
   ...WORK_TOOLS,
+  ...PARTNERSHIP_TOOLS,
+  ...MEETING_TOOLS,
+  ...HOMEPAGE_TOOLS,
+  ...COLLAB_TOOLS,
 ];
 
 /** Run a tool; problems the person can fix come back as a readable message. */
@@ -1266,3 +1397,4 @@ export async function callTool(u: KeyUser, name: string, args: Args): Promise<{ 
     return { text: "Something went wrong on the Highfy Tasks side. Try again in a moment.", isError: true };
   }
 }
+
