@@ -42,7 +42,7 @@ async function handle(msg: RpcRequest, getUser: () => Promise<KeyUser | null>) {
         serverInfo: { name: "Highfy Tasks", version: "1.0.0" },
         instructions:
           "Highfy Tasks is the team's task tracker. You act as the person who connected it, with their permissions. " +
-          "You can read, create and update tasks, add comments, and look up projects, campaigns, partnerships, meetings, people and teams. " +
+          "You can read, create and update tasks, add comments, add and change the terms of brand partnerships, and look up projects, campaigns, partnerships, meetings, people and teams. " +
           "You can't delete anything. Dates are in Pakistan time (PKT). Link to tasks with the URLs the tools give you.",
       });
     }
