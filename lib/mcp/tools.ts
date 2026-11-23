@@ -9,6 +9,10 @@ import { PLACEMENT_COLUMNS, slotName, surfacesText, type Placement, type Section
 import { CHANNELS, CHANNEL_LABELS, CREATIVE_COLUMNS, STATUS_LABELS, type Channel, type CreativeRequest } from "@/lib/creative";
 import { notifyPersonLater, notifyTeamLater, placementsPath, placementsUrl, requestPath, requestUrl } from "@/lib/notify";
 import type { KeyUser } from "@/lib/mcp/keys";
+import { PARTNERSHIP_TOOLS } from "@/lib/mcp/tools-partnerships";
+import { MEETING_TOOLS } from "@/lib/mcp/tools-meetings";
+import { HOMEPAGE_TOOLS } from "@/lib/mcp/tools-homepage";
+import { COLLAB_TOOLS } from "@/lib/mcp/tools-collabs";
 import type { ProjectKind } from "@/lib/types";
 
 /**
@@ -1123,7 +1127,7 @@ export const TOOLS: Tool[] = [
         task_id: { type: "string" },
         title: { type: "string" },
         description: { type: "string", description: "Replaces the notes." },
-        status: { type: "string", enum: STATUSES },
+        status: { type: "string", enum: NEW_STATUSES, description: "Cancelling is only done in Highfy Tasks itself." },
         blocked_reason: { type: "string", description: "Why it's blocked (with status blocked)." },
         due_date: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear (clears the time too)." },
         due_time: { type: ["string", "null"], description: "HH:MM, 24-hour, or null to clear. Needs a due date." },
@@ -1148,7 +1152,7 @@ export const TOOLS: Tool[] = [
       const title = str(a, "title");
       if (title) patch.title = title;
       if (typeof a.description === "string") patch.description = a.description.trim() ? richText(a.description.slice(0, 20000)) : null;
-      const status = oneOf(a, "status", STATUSES);
+      const status = oneOf(a, "status", NEW_STATUSES);
       if (status) {
         patch.status = status;
         if (status === "blocked") patch.blocked_reason = str(a, "blocked_reason", 1000) ?? null;
@@ -1375,6 +1379,10 @@ export const TOOLS: Tool[] = [
     },
   },
   ...WORK_TOOLS,
+  ...PARTNERSHIP_TOOLS,
+  ...MEETING_TOOLS,
+  ...HOMEPAGE_TOOLS,
+  ...COLLAB_TOOLS,
 ];
 
 /** Run a tool; problems the person can fix come back as a readable message. */
