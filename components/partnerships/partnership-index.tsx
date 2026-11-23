@@ -35,6 +35,9 @@ export async function PartnershipIndexPage({ raw }: { raw: Raw }) {
   const tagsOf = new Map<string, string[]>();
   for (const l of (linkRes.data ?? []) as { project_id: string; tag_id: string }[]) tagsOf.set(l.project_id, [...(tagsOf.get(l.project_id) ?? []), l.tag_id]);
   const tagById = new Map(tags.map((t) => [t.id, t]));
+  // How many partnerships each tag is on (for the delete warning).
+  const uses: Record<string, number> = {};
+  for (const l of (linkRes.data ?? []) as { tag_id: string }[]) uses[l.tag_id] = (uses[l.tag_id] ?? 0) + 1;
 
   const cat = typeof raw.cat === "string" && (isCategory(raw.cat) || raw.cat === "none") ? raw.cat : "all";
   const tagId = typeof raw.tag === "string" && tagById.has(raw.tag) ? raw.tag : null;
@@ -72,7 +75,7 @@ export async function PartnershipIndexPage({ raw }: { raw: Raw }) {
           {mine.map((t) => (
             <TagChip key={t.id} tag={t} />
           ))}
-          {r.can_open && <LabelPicker projectId={r.id} categories={CATEGORIES} tags={tags} selectedCategories={catsOf(r)} selectedTags={mine.map((t) => t.id)} />}
+          {r.can_open && <LabelPicker projectId={r.id} categories={CATEGORIES} tags={tags} selectedCategories={catsOf(r)} selectedTags={mine.map((t) => t.id)} uses={uses} />}
         </div>
         <p className="mt-auto text-[13px] text-ink-muted">
           {r.owner ?? "No owner"}

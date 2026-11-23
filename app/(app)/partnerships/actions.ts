@@ -63,3 +63,15 @@ export async function setPartnershipLabels(projectId: string, categories: string
   revalidatePath("/partnerships", "layout");
   return { ok: true };
 }
+
+/** Delete a tag for everyone; it comes off every partnership it was on. */
+export async function deletePartnershipTag(tagId: string): Promise<ActionResult> {
+  await requireViewer();
+  if (!uuid.safeParse(tagId).success) return { ok: false, error: "That tag isn't valid." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("partnership_tags").delete().eq("id", tagId).select("id");
+  if (error) return { ok: false, error: friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "Couldn't delete that tag. Has the latest SQL been run?" };
+  revalidatePath("/partnerships");
+  return { ok: true };
+}
