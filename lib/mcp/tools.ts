@@ -22,6 +22,7 @@ import {
   OPEN,
   STATUSES,
   NEW_STATUSES,
+  UUID,
   PRIORITIES,
   SELECT,
   link,
@@ -327,17 +328,23 @@ const WORK_TOOLS: Tool[] = [
   {
     name: "update_project",
     description:
-      "Change a project, campaign or partnership: name, dates, brief, strategic/beauty, and add owners, members or teams. Only send what changes. Locked ones can only be changed by their owners.",
+      "Change a project, campaign or partnership: name, type (project, campaign or partnership), dates, brief, a partnership's categories, and add owners, members or teams. Only send what changes. add_owners also makes someone who's already a member an owner. Locked ones can only be changed by their owners.",
     inputSchema: {
       type: "object",
       properties: {
         project: { type: "string", description: "Its current name." },
         name: { type: "string" },
+        kind: { type: "string", enum: KINDS, description: "Change its type. Leaving partnership clears its categories." },
         start_date: { type: ["string", "null"] },
         end_date: { type: ["string", "null"] },
         description: { type: "string", description: "Replaces the brief." },
-        category: { type: "string", enum: ["associations", "referral", "fintech"] },
-        add_owners: { type: "array", items: { type: "string" } },
+        category: { type: "string", enum: ["associations", "referral", "fintech"], description: "Partnerships: one category. For several, use categories." },
+        categories: {
+          type: "array",
+          items: { type: "string", enum: ["associations", "referral", "fintech"] },
+          description: "Partnerships: all the categories it's in (replaces the ones it has; its tags stay).",
+        },
+        add_owners: { type: "array", items: { type: "string" }, description: "New people, or members to make owners." },
         add_members: { type: "array", items: { type: "string" } },
         add_teams: { type: "array", items: { type: "string" } },
       },
@@ -354,12 +361,31 @@ const WORK_TOOLS: Tool[] = [
       const end = date(a, "end_date");
       if (end !== undefined) patch.end_date = end;
       if (typeof a.description === "string") patch.description = a.description.trim() ? richText(a.description.slice(0, 50000)) : null;
+      const kind = (oneOf(a, "kind", KINDS) as ProjectKind | undefined) ?? found.kind;
+      if (kind !== found.kind) {
+        patch.kind = kind;
+        // As the app does: only a partnership has a category.
+        if (kind !== "partnership") patch.category = null;
+      }
       const category = oneOf(a, "category", ["associations", "referral", "fintech"]);
-      if (category && found.kind === "partnership") patch.category = category;
+      if (category && kind === "partnership") patch.category = category;
+      let categories: string[] | null = null;
+      if (Array.isArray(a.categories)) {
+        if (kind !== "partnership") throw new UserError("Only a brand partnership has categories.");
+        categories = [...new Set(strings(a, "categories").map((c) => c.trim().toLowerCase()))];
+        const bad = categories.filter((c) => !["associations", "referral", "fintech"].includes(c));
+        if (bad.length) throw new UserError(`"categories" can only be: associations, referral, fintech.`);
+      }
       if (Object.keys(patch).length) {
         const { data, error } = await u.db.from("projects").update(patch).eq("id", found.id).select("id");
         if (error) failed(error, "change it");
         if (!data?.length) throw new UserError("It's locked: only its owners can change it.");
+      }
+      if (categories) {
+        // The app sets categories and tags together; keep the tags it has.
+        const { data: tags } = await u.db.from("project_tags").select("tag_id").eq("project_id", found.id);
+        const { error } = await u.db.rpc("set_partnership_labels", { p_project: found.id, p_categories: categories, p_tags: (tags ?? []).map((t) => t.tag_id as string) });
+        if (error) failed(error, "change its categories");
       }
       await addPeopleAndTeams(u, found.id, strings(a, "add_owners"), strings(a, "add_members"), strings(a, "add_teams"));
       const { data: p } = await u.db.from("projects").select("slug, kind").eq("id", found.id).single();
@@ -619,7 +645,10 @@ const WORK_TOOLS: Tool[] = [
         slot: { type: "number", description: "Slide or tile number, default 1." },
         brand: { type: "string" },
         text: { type: "string", description: "What the banner says." },
+        products: { type: "string", description: "Which products to show (category icons ask for this)." },
         notes: { type: "string", description: "For Design." },
+        link: { type: "string", description: "Where the banner goes: a web address (http or https)." },
+        project: { type: "string", description: "The project, campaign or partnership it's for (one you're in). Adds a done task there saying what was booked." },
         start_date: { type: "string" },
         end_date: { type: ["string", "null"], description: "Leave out or null for ongoing." },
         shows_on: { type: "string", enum: ["website", "app", "both"], description: "Default both." },
@@ -637,9 +666,26 @@ const WORK_TOOLS: Tool[] = [
       const end = date(a, "end_date") ?? null;
       if (end && end < start) throw new UserError("The end date is before the start.");
       const text = str(a, "text", 300) ?? null;
+      const products = str(a, "products", 1000) ?? (s.kind === "icons" ? text : null);
+      const url = webLink(a, "link");
+      const project = str(a, "project") ? await findProject(u, str(a, "project")!) : null;
       const { data, error } = await u.db
         .from("placements")
-        .insert({ section_key: s.key, position: slot, brand, comms: s.kind === "icons" ? null : text, products: s.kind === "icons" ? text : null, notes: str(a, "notes", 2000) ?? null, starts_on: start, ends_on: end, shows_on: surfacesOf(a) ?? ["web", "app"], created_by: u.userId })
+        .insert({
+          section_key: s.key,
+          position: slot,
+          brand,
+          comms: s.kind === "icons" ? null : text,
+          products,
+          notes: str(a, "notes", 2000) ?? null,
+          starts_on: start,
+          ends_on: end,
+          shows_on: surfacesOf(a) ?? ["web", "app"],
+          // Left out when not given, as the app does.
+          ...(url ? { link: url } : {}),
+          ...(project ? { project_id: project.id } : {}),
+          created_by: u.userId,
+        })
         .select("id")
         .single();
       if (error || !data) failed(error, "book that slot");
@@ -649,19 +695,23 @@ const WORK_TOOLS: Tool[] = [
         href: placementsPath(data!.id as string),
         actorId: u.userId,
       });
-      return `Booked ${slotName(s, slot)} for ${brand} from ${formatDate(start, "d MMM")}${end ? ` to ${formatDate(end, "d MMM")}` : " (ongoing)"}. Design has been told. id ${data!.id} · ${placementsUrl(data!.id as string)}`;
+      return `Booked ${slotName(s, slot)} for ${brand} from ${formatDate(start, "d MMM")}${end ? ` to ${formatDate(end, "d MMM")}` : " (ongoing)"}${project ? `, for ${project.name}` : ""}. Design has been told. id ${data!.id} · ${placementsUrl(data!.id as string)}`;
     },
   },
   {
     name: "update_booking",
-    description: "Change a homepage booking you made (or any, if you're in Commercial): brand, banner text, notes, dates or where it shows. If the banner was already made and the text changes, Design is asked to update it.",
+    description:
+      "Change a homepage booking you made (or any, if you're in Commercial): brand, banner text, products, notes, link, the project it's for, dates or where it shows. If the banner was already made and the brand, text or products change, Design is asked to update it.",
     inputSchema: {
       type: "object",
       properties: {
         booking_id: { type: "string" },
         brand: { type: "string" },
         text: { type: "string" },
+        products: { type: "string", description: "Which products to show; empty text clears it." },
         notes: { type: "string" },
+        link: { type: "string", description: "Where the banner goes (http or https); empty text clears it." },
+        project: { type: "string", description: "The project, campaign or partnership it's for (one you're in); empty text unlinks." },
         start_date: { type: "string" },
         end_date: { type: ["string", "null"] },
         shows_on: { type: "string", enum: ["website", "app", "both"] },
@@ -678,7 +728,12 @@ const WORK_TOOLS: Tool[] = [
       const brand = str(a, "brand", 120);
       if (brand) patch.brand = brand;
       if (typeof a.text === "string") patch.comms = a.text.trim().slice(0, 300) || null;
+      if (typeof a.products === "string") patch.products = a.products.trim().slice(0, 1000) || null;
       if (typeof a.notes === "string") patch.notes = a.notes.trim().slice(0, 2000) || null;
+      if (a.link === "") patch.link = null;
+      else if (a.link !== undefined) patch.link = webLink(a, "link");
+      if (a.project === "") patch.project_id = null;
+      else if (str(a, "project")) patch.project_id = (await findProject(u, str(a, "project")!)).id;
       const start = date(a, "start_date");
       if (start) patch.starts_on = start;
       const end = date(a, "end_date");
@@ -686,7 +741,10 @@ const WORK_TOOLS: Tool[] = [
       const shows = surfacesOf(a);
       if (shows) patch.shows_on = shows;
       if (!Object.keys(patch).length) throw new UserError("Nothing to change.");
-      const textChanged = (patch.brand !== undefined && patch.brand !== p.brand) || (patch.comms !== undefined && patch.comms !== p.comms);
+      const textChanged =
+        (patch.brand !== undefined && patch.brand !== p.brand) ||
+        (patch.comms !== undefined && patch.comms !== p.comms) ||
+        (patch.products !== undefined && patch.products !== p.products);
       if (textChanged && (p.stage === "ready" || p.stage === "live") && !p.changed_from) patch.changed_from = { comms: p.comms ?? p.brand, products: p.products };
       const { data, error } = await u.db.from("placements").update(patch).eq("id", bid).select("id");
       if (error) failed(error, "change that booking");
