@@ -5,7 +5,7 @@ import { syncTask } from "@/lib/calendar/sync";
 import { DOMAINS } from "@/lib/domains";
 import { personName } from "@/lib/labels";
 import { sanitizeRichText } from "@/lib/sanitize";
-import { formatDate } from "@/lib/time";
+import { formatDate, todayPKT } from "@/lib/time";
 import { domainHref } from "@/lib/domains";
 import { projectSlug } from "@/lib/projects";
 import { type Section, type Surface } from "@/lib/placements";
@@ -28,6 +28,9 @@ export class UserError extends Error {}
 export const OPEN = ["todo", "in_progress", "blocked"];
 export const STATUSES = ["todo", "in_progress", "blocked", "done", "cancelled"];
 export const STATUS_LABEL: Record<string, string> = { todo: "To do", in_progress: "In progress", blocked: "Blocked", done: "Done", cancelled: "Cancelled" };
+/** What a new task can start as (never cancelled). */
+export const NEW_STATUSES = ["todo", "in_progress", "blocked", "done"];
+export const PRIORITIES = ["urgent", "high", "medium", "low"];
 export const ISO = /^\d{4}-\d{2}-\d{2}$/;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -94,6 +97,46 @@ export function id(a: Args, k: string): string {
   const v = str(a, k, 60);
   if (!v || !UUID.test(v)) throw new UserError(`"${k}" should be a task id (from a list or search).`);
   return v;
+}
+
+/** A time of day, HH:MM in 24 hours; null clears it. */
+export function time(a: Args, k: string): string | null | undefined {
+  if (a[k] === null) return null;
+  const v = str(a, k, 5);
+  if (v === undefined) return undefined;
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw new UserError(`"${k}" should be a time like 14:30.`);
+  return v;
+}
+
+/** "The day it was done": a past day (or today), stored as midday Pakistan time like the app does. */
+export function doneOn(a: Args, k = "done_on"): string | undefined {
+  const d = date(a, k);
+  if (!d) return undefined;
+  if (d > todayPKT()) throw new UserError("That day hasn't happened yet.");
+  return new Date(`${d}T12:00:00+05:00`).toISOString();
+}
+
+/** A web address for a booking: http or https, up to 500 characters. Without one, https:// is added. */
+export function webLink(a: Args, k: string): string | undefined {
+  const v = str(a, k, 600);
+  if (v === undefined) return undefined;
+  if (v.length > 500) throw new UserError(`"${k}" is too long (500 characters at most).`);
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v) && !/^https?:\/\//i.test(v)) throw new UserError(`"${k}" should be a web address starting with http:// or https://.`);
+  return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+}
+
+/** A term or journey of a project, by name or id. */
+export async function findPart(u: KeyUser, projectId: string, which: string): Promise<{ id: string; name: string; kind: string }> {
+  const q = which.trim().toLowerCase();
+  const { data, error } = await u.db.from("project_parts").select("id, name, kind").eq("project_id", projectId).in("kind", ["term", "journey"]).order("sort");
+  if (error) failed(error, "read its terms and journeys");
+  const all = (data ?? []) as { id: string; name: string; kind: string }[];
+  const exact = all.filter((p) => p.id === q || p.name.toLowerCase() === q);
+  const loose = exact.length ? exact : all.filter((p) => p.name.toLowerCase().includes(q));
+  if (loose.length === 1) return loose[0];
+  const names = all.map((p) => `"${p.name}" (${p.kind})`).join(", ") || "none";
+  if (!loose.length) throw new UserError(`No term or journey called "${which}" in that project. It has: ${names}.`);
+  throw new UserError(`"${which}" matches several: ${loose.map((p) => `"${p.name}" (${p.kind}, id ${p.id})`).join(", ")}. Use the id.`);
 }
 
 /** Plain text (or simple HTML) into the app's rich text. */
@@ -164,14 +207,20 @@ export const strings = (a: Args, k: string): string[] => {
   return (v as string[]).slice(0, 20);
 };
 
-/** Create one task from create_task's arguments (also used for many at once). */
+/** Create one task from create_task's arguments (also used for many at once). Several owners: one copy each, linked as a set. */
 export async function createTaskFrom(u: KeyUser, a: Args): Promise<{ id: string; text: string }> {
   const title = str(a, "title");
   if (!title) throw new UserError("A task needs a title.");
-  const owner = await findPerson(u, str(a, "owner") ?? "me");
+  const named = [...(str(a, "owner") ? [str(a, "owner")!] : []), ...strings(a, "owners")];
+  const owners: { id: string; label: string }[] = [];
+  for (const who of named.length ? named : ["me"]) {
+    const p = await findPerson(u, who);
+    if (!owners.some((o) => o.id === p.id)) owners.push(p);
+  }
   const team = str(a, "team") ? await findTeam(u, str(a, "team")!) : null;
   const project = str(a, "project") ? await findProject(u, str(a, "project")!) : null;
   const parentId = a.parent_task_id ? id(a, "parent_task_id") : null;
+  if (parentId && owners.length > 1) throw new UserError("A subtask has one owner.");
   const meetingId = a.meeting_id ? id(a, "meeting_id") : null;
   let departmentId = team?.id ?? null;
   if (meetingId && !departmentId) {
@@ -189,27 +238,62 @@ export async function createTaskFrom(u: KeyUser, a: Args): Promise<{ id: string;
       throw new UserError(`Which team is this for? Give "team"${teams.length ? `: ${teams.map((t) => t!.name).join(", ")}` : ""}.`);
     departmentId = teams[0]!.id;
   }
+  const part = str(a, "part");
+  if (part && (parentId || !project)) throw new UserError('A term or journey ("part") needs the project it belongs to, and can\'t be on a subtask.');
+  const partRow = part ? await findPart(u, project!.id, part) : null;
+  const dueDate = date(a, "due_date") ?? null;
+  const dueTime = time(a, "due_time") ?? null;
+  if (dueTime && !dueDate) throw new UserError("Give a due_date to go with the due_time.");
+  const doneAt = doneOn(a);
+  const asked = oneOf(a, "status", NEW_STATUSES);
+  if (doneAt && asked && asked !== "done") throw new UserError("A task with done_on is done; leave out status or set it to done.");
+  const status = doneAt ? "done" : (asked ?? "todo");
   const description = str(a, "description", 20000);
   const row = {
     title,
     description: description ? richText(description) : null,
-    owner_id: owner.id,
-    due_date: date(a, "due_date") ?? null,
+    due_date: dueDate,
+    due_time: dueTime,
+    status,
+    completed_at: doneAt ?? null,
+    blocked_reason: status === "blocked" ? (str(a, "blocked_reason", 1000) ?? null) : null,
+    priority: oneOf(a, "priority", PRIORITIES) ?? "medium",
     // A subtask stays outside teams and projects; it follows its main task.
     department_id: parentId ? null : departmentId,
     project_id: parentId ? null : project?.id ?? null,
+    part_id: partRow?.id ?? null,
     parent_task_id: parentId,
     meeting_id: parentId ? null : meetingId,
     source: meetingId ? "meeting" : "manual",
     created_by: u.userId,
+    set_id: owners.length > 1 ? crypto.randomUUID() : null,
   };
-  const { data, error } = await u.db.from("tasks").insert(row).select("id, title").single();
-  if (error || !data) failed(error, "create the task");
-  await setCollaborators(u, data!.id as string, strings(a, "collaborators"), []);
-  syncLater(() => syncTask(data!.id as string));
+  const { data, error } = await u.db
+    .from("tasks")
+    .insert(owners.map((o) => ({ ...row, owner_id: o.id })))
+    .select("id, owner_id");
+  if (error || !data?.length) failed(error, "create the task");
+  const made = data as { id: string; owner_id: string }[];
+  const collaborators = strings(a, "collaborators");
+  for (const t of made) {
+    if (collaborators.length) {
+      const others: string[] = [];
+      for (const who of collaborators) if ((await findPerson(u, who)).id !== t.owner_id) others.push(who);
+      await setCollaborators(u, t.id, others, []);
+    }
+    syncLater(() => syncTask(t.id));
+  }
+  const who = owners.map((o) => o.label).join(", ");
+  const extras = [
+    row.due_date ? `due ${formatDate(row.due_date, "EEE d MMM")}${row.due_time ? ` at ${row.due_time}` : ""}` : null,
+    status !== "todo" ? (doneAt ? `done on ${formatDate(date(a, "done_on")!, "EEE d MMM")}` : status.replace("_", " ")) : null,
+    row.priority !== "medium" ? `${row.priority} priority` : null,
+    partRow ? `in ${partRow.name}` : null,
+  ].filter(Boolean);
+  const ids = made.map((t) => `id: ${t.id} · ${link(t.id)}`).join("\n");
   return {
-    id: data!.id as string,
-    text: `Created "${title}" for ${owner.label}${row.due_date ? `, due ${formatDate(row.due_date, "EEE d MMM")}` : ""}.\nid: ${data!.id} · ${link(data!.id as string)}`,
+    id: made[0].id,
+    text: `Created "${title}" for ${who}${made.length > 1 ? ` (one copy each, ${made.length} tasks)` : ""}${extras.length ? `, ${extras.join(", ")}` : ""}.\n${ids}`,
   };
 }
 

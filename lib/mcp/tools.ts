@@ -21,6 +21,8 @@ import {
   UserError,
   OPEN,
   STATUSES,
+  NEW_STATUSES,
+  PRIORITIES,
   SELECT,
   link,
   line,
@@ -29,6 +31,10 @@ import {
   date,
   oneOf,
   id,
+  time,
+  doneOn,
+  webLink,
+  findPart,
   richText,
   findPerson,
   findTeam,
@@ -56,6 +62,27 @@ import {
 // Terms of a brand partnership: each period of the deal on its own, with a
 // stage, dates, the standard fields and a description. Add and change only.
 // ---------------------------------------------------------------------------
+
+/** Fields a new task takes, shared by create_task and create_tasks. */
+const NEW_TASK_PROPS = {
+  title: { type: "string" },
+  description: { type: "string", description: "Notes. Plain text is fine." },
+  owner: { type: "string", description: "Email or name, or 'me'. Default: me." },
+  owners: { type: "array", items: { type: "string" }, description: "Several owners: each gets their own copy, linked as a set, so each can tick it off." },
+  due_date: { type: "string", description: "YYYY-MM-DD" },
+  due_time: { type: "string", description: "HH:MM, 24-hour. Needs a due_date." },
+  status: { type: "string", enum: NEW_STATUSES, description: "Default todo." },
+  blocked_reason: { type: "string", description: "Why it's blocked (with status blocked)." },
+  done_on: { type: "string", description: "YYYY-MM-DD, today or earlier: it's already done, on that day." },
+  priority: { type: "string", enum: PRIORITIES, description: "Default medium." },
+  team: { type: "string", description: "Team name, e.g. Marketing." },
+  project: { type: "string", description: "Project, campaign or partnership name." },
+  part: { type: "string", description: "A term or journey of that project, by name or id. Needs project." },
+  private: { type: "boolean", description: "true: a private task with no team or project (only you, the owner and collaborators see it). Ignored when a team or project is given." },
+  collaborators: { type: "array", items: { type: "string" }, description: "Emails or names." },
+  parent_task_id: { type: "string", description: "Make it a subtask of this task." },
+  meeting_id: { type: "string", description: "Make it an action item of this meeting." },
+};
 
 const TERM_STAGES = ["draft", "in_talks", "agreed", "live", "ended"];
 const TERM_STAGE_LABEL: Record<string, string> = { draft: "Draft", in_talks: "In talks", agreed: "Signed / agreed", live: "Live", ended: "Ended" };
@@ -413,22 +440,7 @@ const WORK_TOOLS: Tool[] = [
       properties: {
         tasks: {
           type: "array",
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string" },
-              description: { type: "string" },
-              owner: { type: "string" },
-              due_date: { type: "string" },
-              team: { type: "string" },
-              project: { type: "string" },
-              private: { type: "boolean" },
-              collaborators: { type: "array", items: { type: "string" } },
-              parent_task_id: { type: "string" },
-              meeting_id: { type: "string" },
-            },
-            required: ["title"],
-          },
+          items: { type: "object", properties: NEW_TASK_PROPS, required: ["title"] },
         },
       },
       required: ["tasks"],
@@ -1036,23 +1048,8 @@ export const TOOLS: Tool[] = [
   {
     name: "create_task",
     description:
-      "Create a task. Give a team, or a project, campaign or partnership; with neither, set private: true for a private task (otherwise, if you're only in one team it goes there). Give parent_task_id to make it a subtask, meeting_id to make it a meeting action item. Dates are YYYY-MM-DD.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        description: { type: "string", description: "Notes. Plain text is fine." },
-        owner: { type: "string", description: "Email or name, or 'me'. Default: me." },
-        due_date: { type: "string", description: "YYYY-MM-DD" },
-        team: { type: "string", description: "Team name, e.g. Marketing." },
-        project: { type: "string", description: "Project, campaign or partnership name." },
-        private: { type: "boolean", description: "true: a private task with no team or project (only you, the owner and collaborators see it). Ignored when a team or project is given." },
-        collaborators: { type: "array", items: { type: "string" }, description: "Emails or names." },
-        parent_task_id: { type: "string", description: "Make it a subtask of this task." },
-        meeting_id: { type: "string", description: "Make it an action item of this meeting." },
-      },
-      required: ["title"],
-    },
+      "Create a task. Give a team, or a project, campaign or partnership; with neither, set private: true for a private task (otherwise, if you're only in one team it goes there). Give parent_task_id to make it a subtask, meeting_id to make it a meeting action item, part for a term or journey of its project. Several owners get one copy each. done_on logs something already done. Dates are YYYY-MM-DD.",
+    inputSchema: { type: "object", properties: NEW_TASK_PROPS, required: ["title"] },
     annotations: WRITE,
     async run(u, a) {
       return (await createTaskFrom(u, a)).text;
@@ -1061,7 +1058,7 @@ export const TOOLS: Tool[] = [
   {
     name: "update_task",
     description:
-      "Change a task: title, notes, status, due date (null clears it), owner, project/campaign/partnership (empty text unlinks), or collaborators. Only send what changes. Locked tasks can only be changed by their owner.",
+      "Change a task: title, notes, status, due date and time (null clears them), owner, priority, main team, project/campaign/partnership (empty text unlinks), its term or journey in that project, the meeting it came from, when it was done, or collaborators. Only send what changes. Locked tasks can only be changed by their owner.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1070,9 +1067,15 @@ export const TOOLS: Tool[] = [
         description: { type: "string", description: "Replaces the notes." },
         status: { type: "string", enum: STATUSES },
         blocked_reason: { type: "string", description: "Why it's blocked (with status blocked)." },
-        due_date: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear." },
+        due_date: { type: ["string", "null"], description: "YYYY-MM-DD, or null to clear (clears the time too)." },
+        due_time: { type: ["string", "null"], description: "HH:MM, 24-hour, or null to clear. Needs a due date." },
         owner: { type: "string", description: "Email or name, or 'me'." },
+        priority: { type: "string", enum: PRIORITIES },
+        team: { type: "string", description: "Its main team. For more teams, use set_task_teams." },
         project: { type: "string", description: "Project, campaign or partnership name; empty text to unlink." },
+        part: { type: ["string", "null"], description: "A term or journey of the task's project, by name or id; empty text or null to take it out." },
+        meeting_id: { type: ["string", "null"], description: "Link it to this meeting (from list_meetings); null to unlink." },
+        done_on: { type: "string", description: "YYYY-MM-DD, today or earlier: the day it was done. Marks it done if it isn't. Only the task's owner can." },
         add_collaborators: { type: "array", items: { type: "string" } },
         remove_collaborators: { type: "array", items: { type: "string" } },
       },
@@ -1081,6 +1084,8 @@ export const TOOLS: Tool[] = [
     annotations: WRITE,
     async run(u, a) {
       const taskId = id(a, "task_id");
+      const { data: cur } = await u.db.from("tasks").select("owner_id, project_id, due_date, status").eq("id", taskId).maybeSingle();
+      if (!cur) throw new UserError("No task with that id that you can see.");
       const patch: Record<string, unknown> = {};
       const title = str(a, "title");
       if (title) patch.title = title;
@@ -1095,10 +1100,40 @@ export const TOOLS: Tool[] = [
         patch.due_date = due;
         if (due === null) patch.due_time = null;
       }
+      const dueTime = time(a, "due_time");
+      if (dueTime !== undefined && due !== null) {
+        if (dueTime && !(due ?? cur.due_date)) throw new UserError("Give it a due date first, then a time.");
+        patch.due_time = dueTime;
+      }
       const owner = str(a, "owner");
       if (owner) patch.owner_id = (await findPerson(u, owner)).id;
+      const priority = oneOf(a, "priority", PRIORITIES);
+      if (priority) patch.priority = priority;
+      const team = str(a, "team");
+      if (team) patch.department_id = (await findTeam(u, team)).id;
       if (a.project === "") patch.project_id = null;
       else if (str(a, "project")) patch.project_id = (await findProject(u, str(a, "project")!)).id;
+      if (a.part === "" || a.part === null) patch.part_id = null;
+      else if (str(a, "part")) {
+        const projectId = patch.project_id !== undefined ? (patch.project_id as string | null) : (cur.project_id as string | null);
+        if (!projectId) throw new UserError("A term or journey belongs to a project; this task isn't in one.");
+        patch.part_id = (await findPart(u, projectId, str(a, "part")!)).id;
+      }
+      if (a.meeting_id === null || a.meeting_id === "") patch.meeting_id = null;
+      else if (a.meeting_id !== undefined) {
+        const meetingId = str(a, "meeting_id", 60);
+        if (!meetingId || !UUID.test(meetingId)) throw new UserError('"meeting_id" should be a meeting id (from list_meetings).');
+        const { data: m } = await u.db.from("meetings").select("id").eq("id", meetingId).maybeSingle();
+        if (!m) throw new UserError("No meeting with that id that you can see.");
+        patch.meeting_id = meetingId;
+      }
+      const doneAt = doneOn(a);
+      if (doneAt) {
+        if (cur.owner_id !== u.userId) throw new UserError("Only the task's owner can say when it was done.");
+        if (status && status !== "done") throw new UserError("done_on marks it done; leave out status or set it to done.");
+        patch.status = "done";
+        patch.completed_at = doneAt;
+      }
 
       if (Object.keys(patch).length) {
         const { data, error } = await u.db.from("tasks").update(patch).eq("id", taskId).select("id");
@@ -1112,17 +1147,82 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "set_task_teams",
+    description:
+      "More teams for a task, so it shows in each team's list too (besides its main team). add_teams adds to the ones it has; teams makes its extra teams exactly that list (at least one). To change its main team, use update_task.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string" },
+        add_teams: { type: "array", items: { type: "string" }, description: "Team names to add." },
+        teams: { type: "array", items: { type: "string" }, description: "The full list of extra teams it should have. At least one." },
+      },
+      required: ["task_id"],
+    },
+    annotations: WRITE,
+    async run(u, a) {
+      const taskId = id(a, "task_id");
+      const add = strings(a, "add_teams");
+      const replace = a.teams === undefined || a.teams === null ? null : strings(a, "teams");
+      if (replace && !replace.length) throw new UserError('Give at least one team in "teams", or use add_teams.');
+      if (!replace && !add.length) throw new UserError('Give "add_teams" or "teams".');
+      const { data: task } = await u.db.from("tasks").select("department_id").eq("id", taskId).maybeSingle();
+      if (!task) throw new UserError("No task with that id that you can see.");
+      const { data: current, error: readErr } = await u.db.from("task_teams").select("department_id").eq("task_id", taskId);
+      if (readErr) failed(readErr, "read its teams");
+      const have = new Set((current ?? []).map((t) => t.department_id as string));
+      const want = new Set(replace ? [] : have);
+      for (const name of [...(replace ?? []), ...add]) {
+        const t = await findTeam(u, name);
+        if (t.id !== task.department_id) want.add(t.id);
+      }
+      if (!want.size) throw new UserError("That's already its main team.");
+      const toAdd = [...want].filter((d) => !have.has(d));
+      const toRemove = [...have].filter((d) => !want.has(d));
+      if (want.size > 30) throw new UserError("At most 30 teams on a task.");
+      if (toAdd.length) {
+        const { error } = await u.db.from("task_teams").insert(toAdd.map((department_id) => ({ task_id: taskId, department_id })));
+        if (error) failed(error, "add those teams");
+      }
+      if (toRemove.length) {
+        const { error } = await u.db.from("task_teams").delete().eq("task_id", taskId).in("department_id", toRemove);
+        if (error) failed(error, "change its teams");
+      }
+      const { data: teams } = await u.db.rpc("team_directory");
+      const names = ((teams ?? []) as { id: string; name: string }[]).filter((t) => want.has(t.id)).map((t) => t.name);
+      return `Its extra teams are now: ${names.join(", ")}. ${link(taskId)}`;
+    },
+  },
+  {
     name: "add_comment",
-    description: "Add a comment to a task, as the signed-in person.",
-    inputSchema: { type: "object", properties: { task_id: { type: "string" }, text: { type: "string" } }, required: ["task_id", "text"] },
+    description: "Add a comment to a task, as the signed-in person. Mention people (names or emails) to tag them, as the app's @mentions do: they become collaborators and get it in their inbox.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string" },
+        text: { type: "string" },
+        mention: { type: "array", items: { type: "string" }, description: "People to tag, by name or email." },
+      },
+      required: ["task_id", "text"],
+    },
     annotations: WRITE,
     async run(u, a) {
       const taskId = id(a, "task_id");
       const text = str(a, "text", 10000);
       if (!text) throw new UserError("Write the comment in \"text\".");
-      const { error } = await u.db.from("task_comments").insert({ task_id: taskId, author_id: u.userId, body: text });
-      if (error) failed(error, "comment on that task");
-      return `Comment added. ${link(taskId)}#comments`;
+      const tagged: { id: string; label: string }[] = [];
+      for (const who of strings(a, "mention")) {
+        const p = await findPerson(u, who);
+        if (p.id !== u.userId && !tagged.some((t) => t.id === p.id)) tagged.push(p);
+      }
+      const { data, error } = await u.db.from("task_comments").insert({ task_id: taskId, author_id: u.userId, body: text }).select("id").single();
+      if (error || !data) failed(error, "comment on that task");
+      if (tagged.length) {
+        // Tagged people become collaborators, so they can open the task, and get it in their inbox.
+        const { error: mErr } = await u.db.rpc("add_comment_mentions", { p_comment_id: data!.id, p_user_ids: tagged.map((t) => t.id) });
+        if (mErr) failed(mErr, "tag those people (the comment was added)");
+      }
+      return `Comment added${tagged.length ? `, tagging ${tagged.map((t) => t.label).join(", ")}` : ""}. ${link(taskId)}#comments`;
     },
   },
   {
