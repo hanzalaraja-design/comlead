@@ -3,12 +3,12 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, Plus } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { CATEGORY_LABELS } from "@/lib/domains";
 import type { PartnerCategory } from "@/lib/types";
-import { createPartnershipTag, setPartnershipLabels, setPartnershipTag, type TagColor } from "@/app/(app)/partnerships/actions";
+import { createPartnershipTag, deletePartnershipTag, setPartnershipLabels, setPartnershipTag, type TagColor } from "@/app/(app)/partnerships/actions";
 
 export type Tag = { id: string; name: string; color: TagColor; category: PartnerCategory };
 
@@ -125,7 +125,7 @@ export function TagPicker({
               )}
               {!shown.length && !query && <p className="px-2 py-1.5 text-sm text-ink-muted">No tags yet. Type one to create it.</p>}
             </div>
-            <p className="mt-1 border-t border-line px-1 pt-1.5 text-[11px] text-ink-muted">New tags are shared with everyone.</p>
+            <p className="mt-1 border-t border-line px-1 pt-1.5 text-[11px] text-ink-muted">Tags are shared with everyone. Type to create one; the bin deletes one everywhere.</p>
           </>
         ) : (
           <p className="p-1 text-sm text-ink-muted">Pick a category for this partnership first (Edit), then add tags.</p>
@@ -153,6 +153,7 @@ export function LabelPicker({
   tags,
   selectedCategories,
   selectedTags,
+  uses = {},
 }: {
   projectId: string;
   categories: PartnerCategory[];
@@ -160,6 +161,8 @@ export function LabelPicker({
   tags: Tag[];
   selectedCategories: PartnerCategory[];
   selectedTags: string[];
+  /** How many partnerships each tag is on, for the delete warning. */
+  uses?: Record<string, number>;
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -206,6 +209,22 @@ export function LabelPicker({
       save(new Set(cats).add(c), t);
     });
 
+  const remove = (tag: Tag) => {
+    const n = uses[tag.id] ?? 0;
+    if (!window.confirm(`Delete the tag "${tag.name}" for everyone?${n ? ` It comes off ${n} partnership${n === 1 ? "" : "s"}.` : ""}`)) return;
+    start(async () => {
+      const res = await deletePartnershipTag(tag.id);
+      if (!res.ok) return void toast.error(res.error);
+      setOn((x) => {
+        const t = new Set(x);
+        t.delete(tag.id);
+        return t;
+      });
+      toast.success(`Deleted "${tag.name}".`);
+      router.refresh();
+    });
+  };
+
   return (
     <Popover onOpenChange={() => setQ("")}>
       <PopoverTrigger asChild>
@@ -234,16 +253,27 @@ export function LabelPicker({
                   {cats.has(c) && <Check className="h-4 w-4 text-success" />}
                 </button>
                 {list.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    disabled={pending}
-                    onClick={() => toggleTag(t)}
-                    className="flex w-full items-center justify-between gap-2 rounded-[8px] py-1 pl-6 pr-2 text-left hover:bg-subtle"
-                  >
-                    <TagChip tag={t} />
-                    {on.has(t.id) && <Check className="h-4 w-4 text-success" />}
-                  </button>
+                  <div key={t.id} className="group/tag flex items-center rounded-[8px] hover:bg-subtle">
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => toggleTag(t)}
+                      className="flex min-w-0 flex-1 items-center justify-between gap-2 py-1 pl-6 pr-1 text-left"
+                    >
+                      <TagChip tag={t} />
+                      {on.has(t.id) && <Check className="h-4 w-4 text-success" />}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => remove(t)}
+                      aria-label={`Delete the tag ${t.name}`}
+                      title="Delete this tag for everyone"
+                      className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-ink-muted hover:bg-danger-soft hover:text-danger-ink md:opacity-0 md:focus-visible:opacity-100 md:group-hover/tag:opacity-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 ))}
                 {query && !exact && (
                   <button type="button" disabled={pending} onClick={() => create(c)} className="flex w-full items-center gap-1.5 rounded-[8px] py-1 pl-6 pr-2 text-left text-xs text-ink-muted hover:bg-subtle">
@@ -254,7 +284,7 @@ export function LabelPicker({
             );
           })}
         </div>
-        <p className="mt-1 border-t border-line px-1 pt-1.5 text-[11px] text-ink-muted">New tags are shared with everyone.</p>
+        <p className="mt-1 border-t border-line px-1 pt-1.5 text-[11px] text-ink-muted">Tags are shared with everyone. Type to create one; the bin deletes one everywhere.</p>
       </PopoverContent>
     </Popover>
   );
