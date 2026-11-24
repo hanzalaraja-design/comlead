@@ -65,6 +65,20 @@ export function MultiSelect({
           </div>
         )}
         <ul className="max-h-72 overflow-y-auto p-1">
+          {shown.length > 1 && shown.some((o) => !value.includes(o.value)) && (
+            <li>
+              <button
+                type="button"
+                onClick={() => onChange([...new Set([...value, ...shown.map((o) => o.value)])])}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-semibold text-brand-primary hover:bg-accent"
+              >
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-brand-primary">
+                  <Check className="h-3 w-3 opacity-40" />
+                </span>
+                {query.trim() ? `Select all ${shown.length} matching` : `Select all ${shown.length}`}
+              </button>
+            </li>
+          )}
           {shown.map((o) => {
             const on = value.includes(o.value);
             return (

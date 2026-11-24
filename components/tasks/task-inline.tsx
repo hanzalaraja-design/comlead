@@ -177,6 +177,22 @@ function ChipField({
               <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" className="h-8 w-full rounded-md bg-muted px-2 text-sm outline-none" />
             </div>
             <ul className="max-h-72 overflow-y-auto p-1">
+              {shown.length > 1 && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      setQuery("");
+                      save([...ids, ...shown.map((c) => c.id)]);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-semibold text-brand-primary hover:bg-subtle"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {query.trim() ? `Add all ${shown.length} matching` : `Add all ${shown.length}`}
+                  </button>
+                </li>
+              )}
               {shown.map((c) => (
                 <li key={c.id}>
                   <button
