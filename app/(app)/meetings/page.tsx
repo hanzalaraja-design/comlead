@@ -33,7 +33,7 @@ export default async function MeetingsPage({
   let query = supabase
     .from("meetings")
     .select(
-      "id, title, meeting_date, meeting_time, minutes, department_id, attendees:meeting_attendees(user_id), items:tasks!tasks_meeting_id_fkey(id, status)",
+      "id, title, meeting_date, meeting_time, minutes, department_id, series_id, attendees:meeting_attendees(user_id), items:tasks!tasks_meeting_id_fkey(id, status)",
     )
     .order("meeting_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -49,14 +49,24 @@ export default async function MeetingsPage({
     query = query.in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
   }
 
-  const [{ data, error }, { data: seriesData }] = await Promise.all([
+  const [{ data, error }, { data: seriesData }, { data: followData }] = await Promise.all([
     query,
     supabase
       .from("meeting_series")
       .select("id, title, department_id, kind, frequency, start_date, meeting_time, created_by")
       .eq("archived", false)
       .order("meeting_time"),
+    // Follow-ups and the meeting each follows (none before the database has them).
+    supabase
+      .from("meeting_series")
+      .select("id, title, start_date, meeting_time, follow_up_of")
+      .not("follow_up_of", "is", null)
+      .eq("archived", false)
+      .order("start_date")
+      .then((r) => (r.error ? { data: [] } : r)),
   ]);
+  const follows = (followData ?? []) as { id: string; title: string; start_date: string; meeting_time: string; follow_up_of: string }[];
+  const parentOfSeries = new Map(follows.map((f) => [f.id, f.follow_up_of]));
   const today = todayPKT();
   const deptName = new Map(departments.map((d) => [d.id, d.name]));
   const upcoming = ((seriesData ?? []) as {
@@ -80,9 +90,22 @@ export default async function MeetingsPage({
     meeting_time: string | null;
     minutes: string | null;
     department_id: string;
+    series_id: string | null;
     attendees: { user_id: string }[];
     items: { id: string; status: string }[];
   }[];
+  // Follow-ups sit under their main meeting: opened ones as meetings, upcoming ones as plans.
+  const inList = new Set(meetings.map((m) => m.id));
+  const nestedUnder = (m: (typeof meetings)[number]) => (m.series_id ? parentOfSeries.get(m.series_id) : undefined);
+  const openedSeries = new Set(meetings.filter((m) => m.series_id && parentOfSeries.has(m.series_id)).map((m) => m.series_id!));
+  const followUpRows = (parentId: string) => [
+    ...meetings.filter((m) => nestedUnder(m) === parentId),
+    ...follows.filter((f) => f.follow_up_of === parentId && !openedSeries.has(f.id)),
+  ];
+  const topLevel = meetings.filter((m) => {
+    const parent = nestedUnder(m);
+    return !parent || !inList.has(parent);
+  });
   const canCreate = viewer.isAdmin || viewer.memberDeptIds.length > 0;
 
   return (
@@ -170,13 +193,14 @@ export default async function MeetingsPage({
         <EmptyState>{sp.q ? "No minutes match that search." : "No meetings recorded yet."}</EmptyState>
       ) : (
         <ul className="divide-y divide-line surface">
-          {meetings.map((m) => {
+          {topLevel.flatMap((top) => {
+            const row = (m: (typeof meetings)[number], nested: boolean) => {
             const open = m.items.filter((i) => i.status !== "done" && i.status !== "cancelled").length;
             return (
-              <li key={m.id}>
+              <li key={m.id} className={nested ? "bg-brand-bg/30 pl-6" : undefined}>
                 <Link href={`/meetings/${m.id}`} className="block px-4 py-3 hover:bg-muted/40">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                    <h2 className="font-medium">{m.title || `${deptName.get(m.department_id) ?? ""} weekly meeting`}</h2>
+                    <h2 className="font-medium">{nested && <span className="mr-1 text-brand-primary">↳</span>}{m.title || `${deptName.get(m.department_id) ?? ""} weekly meeting`}</h2>
                     <span className="text-xs text-muted-foreground">
                       {formatDate(m.meeting_date, "EEE d MMM yyyy")}
                       {m.meeting_time && ` · ${formatTime(m.meeting_time)}`}
@@ -197,6 +221,30 @@ export default async function MeetingsPage({
                 </Link>
               </li>
             );
+            };
+            return [
+              row(top, false),
+              ...followUpRows(top.id).map((f) =>
+                "follow_up_of" in f ? (
+                  <li key={f.id} className="bg-brand-bg/30 pl-6">
+                    <Link href={`/meetings/series/${f.id}?date=${f.start_date}`} className="block px-4 py-3 hover:bg-muted/40">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                        <h2 className="font-medium">
+                          <span className="mr-1 text-brand-primary">↳</span>
+                          {f.title}
+                        </h2>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(f.start_date, "EEE d MMM yyyy")} · {formatTime(f.meeting_time)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">Follow-up · {f.start_date >= today ? "coming up" : "not opened"}</p>
+                    </Link>
+                  </li>
+                ) : (
+                  row(f, true)
+                ),
+              ),
+            ];
           })}
         </ul>
       )}
