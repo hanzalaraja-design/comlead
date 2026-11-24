@@ -43,7 +43,6 @@ export default async function NewTaskPage({
           membersByProject={data.membersByProject}
           defaultDepartmentId={defaultDept}
           defaultProjectId={defaultProject?.id}
-          defaultOwnerId={viewer.id}
           canReassign
           canMove
         />

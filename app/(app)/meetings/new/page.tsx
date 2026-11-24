@@ -43,7 +43,8 @@ export default async function NewMeetingPage({ searchParams }: { searchParams: P
             start_date: todayPKT(),
             meeting_time: "11:00",
             duration_minutes: 60,
-            department_ids: [home.id],
+            // Nobody is invited until picked.
+            department_ids: [],
             user_ids: [],
             external_emails: [],
             project_ids: [],
