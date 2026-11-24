@@ -240,7 +240,7 @@ export async function ProjectHeader({
           <TaskTabs scope="projects" view={view} search={search} base={base} />
           {view === "list" && !project.archived && (
             <div className="mb-4">
-              <QuickAdd departments={[]} defaultDepartmentId={quickDept} projectId={project.id} />
+              <QuickAdd departments={[]} defaultDepartmentId={quickDept} projectId={project.id} people={people.map((p) => ({ id: p.id, name: personName(p) }))} viewerId={viewer.id} />
             </div>
           )}
           <TaskFilterBar

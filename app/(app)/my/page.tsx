@@ -5,8 +5,8 @@ import { cookies } from "next/headers";
 import { RememberRole } from "@/components/tasks/remember-role";
 import { QuickAdd } from "@/components/tasks/quick-add";
 import { CelebrateWhenCleared } from "@/components/progress/celebrate";
-import { getDepartments, isMemberOf, requireViewer, viewerId } from "@/lib/auth";
-import { OPEN_STATUSES } from "@/lib/labels";
+import { getDepartments, getPeople, isMemberOf, requireViewer, viewerId } from "@/lib/auth";
+import { OPEN_STATUSES, personName } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { countActiveFilters, filtersToSearch, parseFilters, type TaskFilters } from "@/lib/tasks/filters";
 import { getFilterOptions } from "@/lib/tasks/filter-options";
@@ -35,7 +35,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
 
   // Everything at once: no query here waits for another.
   const monthStart = `${today.slice(0, 7)}-01`;
-  const [viewer, departments, owned, collabRes, options, monthDone] = await Promise.all([
+  const [viewer, departments, owned, collabRes, options, monthDone, people] = await Promise.all([
     requireViewer(),
     getDepartments(),
     loadPeriodTasks(filters, period, id),
@@ -61,6 +61,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       .not("due_date", "is", null)
       .gte("completed_at", startOfDayPKT(monthStart))
       .limit(1000),
+    getPeople(),
   ]);
   const scored = ((monthDone.data ?? []) as { due_date: string; completed_at: string }[]).map((t) => onTimeStatus(t.due_date, t.completed_at)).filter((x) => !!x);
   const onTimeCount = scored.filter((x) => x!.onTime).length;
@@ -136,7 +137,7 @@ export default async function MyTasksPage({ searchParams }: { searchParams: Prom
       {!filtered && <CelebrateWhenCleared remaining={overdue + dueToday} line={clearedLine(today + viewer.id)} />}
 
       <div className="mb-6">
-        <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} mine />
+        <QuickAdd departments={myDepartments.map((d) => ({ id: d.id, name: d.name }))} mine people={people.map((p) => ({ id: p.id, name: personName(p) }))} viewerId={viewer.id} />
       </div>
 
       <TaskFilterBar filters={filters} options={options} hide={["owner", "sort", "when"]} preserve={{ role, ...(period.key !== "today" ? { period: period.key } : {}) }} />

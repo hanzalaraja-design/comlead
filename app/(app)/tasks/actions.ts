@@ -310,8 +310,11 @@ export async function quickAddTask(
   mine = false,
   /** Added inside a journey: it belongs to it. */
   partId?: string,
+  /** Picked in "For": who it's for. Nobody picked keeps the usual (you, or the team's admin). */
+  forId?: string | null,
 ): Promise<ActionResult<{ id: string; owner: string | null; done: boolean }>> {
   const viewer = await requireViewer();
+  if (forId && !uuid.safeParse(forId).success) return { ok: false, error: "Pick someone from the list." };
   let title = input.trim().replace(/\s+/g, " ");
   const dept = departmentId || null;
   if (dept && !uuid.safeParse(dept).success) return { ok: false, error: "Pick a team for this task." };
@@ -347,7 +350,13 @@ export async function quickAddTask(
   let ownerName: string | null = null;
   // In a project, what you add is yours.
   // Something you already did is yours, too.
-  if (dept && !project && !mine && !tick && !viewer.leadDeptIds.includes(dept)) {
+  if (forId && forId !== viewer.id) {
+    owner = forId;
+    const { data: p } = await supabase.from("profiles").select("full_name, email").eq("id", forId).maybeSingle();
+    ownerName = p ? personName(p as { full_name: string | null; email: string }) : "them";
+  } else if (forId) {
+    owner = viewer.id;
+  } else if (dept && !project && !mine && !tick && !viewer.leadDeptIds.includes(dept)) {
     const { data: lead } = await supabase
       .from("department_members")
       .select("user_id, profile:profiles(full_name, email)")

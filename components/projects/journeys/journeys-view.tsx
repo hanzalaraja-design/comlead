@@ -89,7 +89,7 @@ export async function JourneysView({
       {other ? (
         <section className="space-y-3">
           <p className="text-sm text-ink-muted">Work that isn&apos;t part of one journey, like setup, tools and integrations. Tick tasks and use Journey to move them into one.</p>
-          {canEdit && <QuickAdd departments={[]} defaultDepartmentId={quickDept} projectId={project.id} />}
+          {canEdit && <QuickAdd departments={[]} defaultDepartmentId={quickDept} projectId={project.id} people={people.map((p) => ({ id: p.id, name: personName(p) }))} viewerId={viewerId} />}
           {otherTasks.length ? (
             <SelectableTasks ids={otherTasks.map((t) => t.id)} parts={moveTo}>
               <TaskList tasks={otherTasks} selectable showProject={false} from="project" />
@@ -184,7 +184,7 @@ async function SelectedJourney({
         <h2 className="text-[15px] font-semibold text-ink">
           Tasks for {part.name} <span className="font-normal text-ink-muted">· {tasks.length}</span>
         </h2>
-        {canEdit && <QuickAdd departments={[]} defaultDepartmentId={quickDept} projectId={project.id} partId={part.id} />}
+        {canEdit && <QuickAdd departments={[]} defaultDepartmentId={quickDept} projectId={project.id} partId={part.id} people={everyone.map((p) => ({ id: p.id, name: personName(p) }))} viewerId={viewerId} />}
         {tasks.length ? (
           <SelectableTasks ids={tasks.map((t) => t.id)} parts={moveTo}>
             <TaskList tasks={tasks} selectable showProject={false} from="project" />
