@@ -75,3 +75,22 @@ export async function deletePartnershipTag(tagId: string): Promise<ActionResult>
   revalidatePath("/partnerships");
   return { ok: true };
 }
+
+/** Rename a tag or change its colour (for everyone). */
+export async function updatePartnershipTag(tagId: string, patch: { name?: string; color?: TagColor }): Promise<ActionResult> {
+  await requireViewer();
+  if (!uuid.safeParse(tagId).success) return { ok: false, error: "That tag isn't valid." };
+  const name = patch.name?.trim().replace(/\s+/g, " ");
+  if (patch.name !== undefined && (!name || name.length > 40)) return { ok: false, error: "Tags are 1 to 40 characters." };
+  if (patch.color !== undefined && !COLORS.includes(patch.color)) return { ok: false, error: "Pick a colour from the list." };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("partnership_tags")
+    .update({ ...(name ? { name } : {}), ...(patch.color ? { color: patch.color } : {}) })
+    .eq("id", tagId)
+    .select("id");
+  if (error) return { ok: false, error: error.code === "23505" ? "There's already a tag with that name." : friendlyError(error) };
+  if (!data?.length) return { ok: false, error: "Couldn't change that tag. Has the latest SQL been run?" };
+  revalidatePath("/partnerships");
+  return { ok: true };
+}
