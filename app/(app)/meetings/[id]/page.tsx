@@ -6,7 +6,7 @@ import type { ProjectKind } from "@/lib/types";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
-import { History, Pencil } from "lucide-react";
+import { History, Pencil, CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
@@ -123,6 +123,13 @@ export default async function MeetingPage({
             "Edit",
           ]}
           title="Edit minutes"
+          actions={
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/meetings/new?followup=${id}`}>
+                <CalendarPlus className="h-4 w-4" /> Add a follow-up meeting
+              </Link>
+            </Button>
+          }
           description={
             <MeetingLinks
               meetingId={id}
@@ -201,13 +208,20 @@ export default async function MeetingPage({
           </>
         }
         actions={
-          canEdit && (
-            <Button asChild size="sm">
-              <Link href={`/meetings/${id}?edit=1`}>
-                <Pencil className="h-4 w-4" /> Edit minutes
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/meetings/new?followup=${id}`}>
+                <CalendarPlus className="h-4 w-4" /> Add a follow-up meeting
               </Link>
             </Button>
-          )
+            {canEdit && (
+              <Button asChild size="sm">
+                <Link href={`/meetings/${id}?edit=1`}>
+                  <Pencil className="h-4 w-4" /> Edit minutes
+                </Link>
+              </Button>
+            )}
+          </div>
         }
       />
 
