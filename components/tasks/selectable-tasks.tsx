@@ -22,8 +22,8 @@ export async function SelectableTasks({
 }) {
   const [people, projects] = await Promise.all([getPeople(), getProjects()]);
   return (
-    <BulkProvider ids={ids}>
-      {selectAll && ids.length > 1 && (
+    <BulkProvider ids={ids} selectMode>
+      {selectAll && ids.length > 0 && (
         <div className="mb-2 flex justify-end">
           <SelectAll />
         </div>

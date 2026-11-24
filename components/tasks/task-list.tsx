@@ -110,7 +110,7 @@ function TaskListItem({
             <span className={t.status === "cancelled" ? "line-through opacity-60" : undefined}>{t.title}</span>
           </Link>
         </div>
-        <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", selectable && "pl-[26px]")}>
+        <div className={cn("mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground", selectable && "group-data-[selecting=true]/bulk:pl-[26px]")}>
           {showProject && t.project && <ProjectTag name={t.project.name} kind={t.project.kind} />}
           {t.meeting && <MeetingTag title={t.meeting.title} date={t.meeting.meeting_date} />}
           {showDepartment && t.department && <span>{t.department.name}</span>}
@@ -135,7 +135,7 @@ function TaskListItem({
       </div>
 
       {/* Phone: one compact row, with the status pill to change it. */}
-      <div className={cn("mt-2 flex flex-wrap items-center gap-2 md:hidden", selectable && "pl-[26px]")}>
+      <div className={cn("mt-2 flex flex-wrap items-center gap-2 md:hidden", selectable && "group-data-[selecting=true]/bulk:pl-[26px]")}>
         <StatusSelect key={t.status} taskId={t.id} status={t.status} dueByToday={dueByToday} className="relative z-10" />
         {onTime ? (
           <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", ON_TIME_STYLES[onTime.tone])}>{onTime.label}</span>

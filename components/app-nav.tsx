@@ -18,6 +18,8 @@ import {
   Sparkles,
   CalendarSync,
   Images,
+  PanelLeftClose,
+  PanelLeftOpen,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -85,11 +87,14 @@ function NavLinks({
   pathname,
   onNavigate,
   badges = {},
+  collapsed = false,
 }: {
   items: NavItem[];
   pathname: string;
   onNavigate?: () => void;
   badges?: Badges;
+  /** Icons only (the folded sidebar); the name shows on hover. */
+  collapsed?: boolean;
 }) {
   return (
     <ul className="space-y-0.5">
@@ -99,8 +104,11 @@ function NavLinks({
             href={item.href}
             prefetch
             onClick={onNavigate}
+            title={collapsed ? item.label : undefined}
+            aria-label={collapsed ? item.label : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-[12px] px-3 py-2 text-[15px] font-medium transition-colors",
+              "relative flex items-center gap-3 rounded-[12px] py-2 text-[15px] font-medium transition-colors",
+              collapsed ? "justify-center px-0" : "px-3",
               isActive(pathname, item.href)
                 ? "bg-brand-primary font-semibold text-white"
                 : "text-ink-muted hover:bg-subtle hover:text-ink",
@@ -113,8 +121,14 @@ function NavLinks({
             ) : (
               <item.icon className="h-4 w-4 shrink-0" />
             )}
-            <span className="flex-1">{item.label}</span>
-            {item.href === "/my" && !!badges["/overdue"] && (
+            {collapsed ? (
+              (!!badges[item.href] || (item.href === "/my" && !!badges["/overdue"])) && (
+                <span aria-hidden className={cn("absolute right-2 top-1.5 h-2 w-2 rounded-full", item.href === "/my" ? "bg-danger" : "bg-brand-primary", isActive(pathname, item.href) && "bg-white")} />
+              )
+            ) : (
+              <span className="flex-1">{item.label}</span>
+            )}
+            {!collapsed && item.href === "/my" && !!badges["/overdue"] && (
               <span
                 className={cn(
                   "min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5",
@@ -125,7 +139,7 @@ function NavLinks({
                 {badges["/overdue"]}
               </span>
             )}
-            {!!badges[item.href] && (
+            {!collapsed && !!badges[item.href] && (
               <span
                 className={cn(
                   "min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5",
@@ -152,6 +166,7 @@ function NavBody({
   pathname,
   onNavigate,
   badges,
+  collapsed = false,
 }: {
   isAdmin: boolean;
   placements: boolean;
@@ -161,43 +176,55 @@ function NavBody({
   pathname: string;
   onNavigate?: () => void;
   badges?: Badges;
+  collapsed?: boolean;
 }) {
+  const heading = (text: string) =>
+    collapsed ? <div className="mx-2 mb-1 border-t border-line" aria-hidden /> : <p className="mb-1 px-3 text-xs font-medium text-ink-muted">{text}</p>;
   return (
-    <div className="flex h-full flex-col gap-6">
+    <div className="flex h-full flex-col gap-6 overflow-y-auto">
       <div className="space-y-4">
-        <NavLinks items={MAIN} pathname={pathname} onNavigate={onNavigate} badges={badges} />
+        <NavLinks items={MAIN} pathname={pathname} onNavigate={onNavigate} badges={badges} collapsed={collapsed} />
         <div>
-          <p className="mb-1 px-3 text-xs font-medium text-ink-muted">Domains</p>
-          <NavLinks items={[...DOMAIN_ITEMS, ...(placements ? [PLACEMENTS] : []), ...(collabs ? [COLLABS] : [])]} pathname={pathname} onNavigate={onNavigate} badges={badges} />
+          {heading("Domains")}
+          <NavLinks items={[...DOMAIN_ITEMS, ...(placements ? [PLACEMENTS] : []), ...(collabs ? [COLLABS] : [])]} pathname={pathname} onNavigate={onNavigate} badges={badges} collapsed={collapsed} />
         </div>
         <div className="border-t border-line pt-4">
-          <NavLinks items={FOOT} pathname={pathname} onNavigate={onNavigate} badges={badges} />
+          <NavLinks items={FOOT} pathname={pathname} onNavigate={onNavigate} badges={badges} collapsed={collapsed} />
         </div>
       </div>
       {isAdmin && (
         <div>
-          <p className="mb-1 px-3 text-xs font-medium text-ink-muted">Admin</p>
-          <NavLinks items={ADMIN} pathname={pathname} onNavigate={onNavigate} />
+          {heading("Admin")}
+          <NavLinks items={ADMIN} pathname={pathname} onNavigate={onNavigate} collapsed={collapsed} />
         </div>
       )}
       <div className="mt-auto space-y-2 border-t border-line pt-4">
-        <div className="px-3">
-          <p className="truncate text-sm font-semibold text-ink">{name}</p>
-          <p className="truncate text-xs text-muted-foreground">{email}</p>
-        </div>
+        {!collapsed && (
+          <div className="px-3">
+            <p className="truncate text-sm font-semibold text-ink">{name}</p>
+            <p className="truncate text-xs text-muted-foreground">{email}</p>
+          </div>
+        )}
         <Link
           href="/settings"
           onClick={onNavigate}
-          className="flex items-center gap-2 rounded-[12px] px-3 py-1.5 text-sm font-medium text-ink-muted hover:bg-subtle hover:text-ink"
+          title={collapsed ? "My settings" : undefined}
+          aria-label={collapsed ? "My settings" : undefined}
+          className={cn(
+            "flex items-center gap-2 rounded-[12px] py-1.5 text-sm font-medium text-ink-muted hover:bg-subtle hover:text-ink",
+            collapsed ? "justify-center px-0" : "px-3",
+          )}
         >
-          <Settings className="h-4 w-4" /> My settings
+          <Settings className="h-4 w-4" /> {!collapsed && "My settings"}
         </Link>
-        <form action="/auth/signout" method="post" className="px-1">
+        <form action="/auth/signout" method="post" className={collapsed ? "" : "px-1"}>
           <button
             type="submit"
-            className="flex items-center gap-2 rounded-[12px] px-2 py-1.5 text-sm font-medium text-ink hover:bg-subtle"
+            title={collapsed ? "Sign out" : undefined}
+            aria-label={collapsed ? "Sign out" : undefined}
+            className={cn("flex items-center gap-2 rounded-[12px] py-1.5 text-sm font-medium text-ink hover:bg-subtle", collapsed ? "w-full justify-center px-0" : "px-2")}
           >
-            <LogOut className="h-4 w-4" /> Sign out
+            <LogOut className="h-4 w-4" /> {!collapsed && "Sign out"}
           </button>
         </form>
       </div>
@@ -212,6 +239,7 @@ export function AppNav({
   name,
   email,
   badges,
+  startCollapsed = false,
 }: {
   isAdmin: boolean;
   placements?: boolean;
@@ -219,19 +247,40 @@ export function AppNav({
   name: string;
   email: string;
   badges?: Badges;
+  /** The folded sidebar, as the person last left it (a cookie, so there's no flicker). */
+  startCollapsed?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(startCollapsed);
+  const fold = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    document.cookie = `nav_collapsed=${next ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`;
+  };
 
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-line bg-white p-4 md:flex">
-        <Link href="/my" className="mb-6 flex items-end gap-2 px-3" aria-label="Highfy Tasks home">
-          <HighfyLogo className="w-24" />
-          <span className="pb-1 text-sm font-semibold text-ink-muted">Tasks</span>
-        </Link>
-        <NavBody isAdmin={isAdmin} placements={placements} collabs={collabs} name={name} email={email} pathname={pathname} badges={badges} />
+      <aside className={cn("sticky top-0 hidden h-svh shrink-0 flex-col border-r border-line bg-white md:flex", collapsed ? "w-16 px-2 py-4" : "w-60 p-4")}>
+        <div className={cn("mb-6 flex items-center", collapsed ? "justify-center" : "justify-between")}>
+          {!collapsed && (
+            <Link href="/my" className="flex items-end gap-2 px-3" aria-label="Highfy Tasks home">
+              <HighfyLogo className="w-24" />
+              <span className="pb-1 text-sm font-semibold text-ink-muted">Tasks</span>
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={fold}
+            aria-label={collapsed ? "Open the sidebar" : "Collapse the sidebar"}
+            title={collapsed ? "Open the sidebar" : "Collapse the sidebar"}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-ink-muted hover:bg-subtle hover:text-ink"
+          >
+            {collapsed ? <PanelLeftOpen className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
+          </button>
+        </div>
+        <NavBody isAdmin={isAdmin} placements={placements} collabs={collabs} name={name} email={email} pathname={pathname} badges={badges} collapsed={collapsed} />
       </aside>
 
       {/* Phone top bar */}

@@ -9,13 +9,25 @@ import { cn } from "@/lib/utils";
  * bottom. Used by task lists and placements; each passes its own actions.
  */
 
-type Ctx = { selected: Set<string>; toggle: (id: string) => void; ids: string[]; setAll: (on: boolean) => void; clear: () => void };
+type Ctx = {
+  selected: Set<string>;
+  toggle: (id: string) => void;
+  ids: string[];
+  setAll: (on: boolean) => void;
+  clear: () => void;
+  /** Tick boxes are on screen (always, unless the list hides them until Select is pressed). */
+  showing: boolean;
+  setSelecting: (on: boolean) => void;
+  selectMode: boolean;
+};
 const BulkContext = createContext<Ctx | null>(null);
 
 export const useBulk = () => useContext(BulkContext);
 
-export function BulkProvider({ ids, children }: { ids: string[]; children: React.ReactNode }) {
+export function BulkProvider({ ids, children, selectMode = false }: { ids: string[]; children: React.ReactNode; selectMode?: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // With selectMode the tick boxes stay hidden until "Select" is pressed.
+  const [selecting, setSelecting] = useState(false);
   // Rows that left the page (done, deleted) drop out of the selection.
   const live = useMemo(() => new Set([...selected].filter((id) => ids.includes(id))), [selected, ids]);
   const value: Ctx = {
@@ -29,15 +41,43 @@ export function BulkProvider({ ids, children }: { ids: string[]; children: React
         return n;
       }),
     setAll: (on) => setSelected(on ? new Set(ids) : new Set()),
-    clear: () => setSelected(new Set()),
+    clear: () => {
+      setSelected(new Set());
+      setSelecting(false);
+    },
+    showing: !selectMode || selecting || live.size > 0,
+    setSelecting,
+    selectMode,
   };
-  return <BulkContext.Provider value={value}>{children}</BulkContext.Provider>;
+  return (
+    <BulkContext.Provider value={value}>
+      {/* Lets rows make room for the tick box only while it shows. */}
+      <div className="group/bulk" data-selecting={value.showing ? "true" : "false"}>
+        {children}
+      </div>
+    </BulkContext.Provider>
+  );
+}
+
+/** "Select" to show the tick boxes, "Cancel" to hide them again (lists that hide them). */
+export function SelectToggle({ className }: { className?: string }) {
+  const ctx = useBulk();
+  if (!ctx || !ctx.selectMode || !ctx.ids.length) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => (ctx.showing ? ctx.clear() : ctx.setSelecting(true))}
+      className={cn("inline-flex h-8 items-center rounded-[10px] border border-line bg-white px-3 text-sm font-semibold text-ink hover:bg-subtle", className)}
+    >
+      {ctx.showing ? "Cancel" : "Select"}
+    </button>
+  );
 }
 
 /** A row's tick box; nothing outside a BulkProvider. */
 export function RowCheck({ id, label, className }: { id: string; label: string; className?: string }) {
   const ctx = useBulk();
-  if (!ctx) return null;
+  if (!ctx || !ctx.showing) return null;
   return (
     <input
       type="checkbox"
@@ -55,7 +95,10 @@ export function SelectAll({ noun = "tasks" }: { noun?: string }) {
   const ctx = useBulk();
   if (!ctx || !ctx.ids.length) return null;
   const all = ctx.selected.size === ctx.ids.length;
+  // Lists that hide the boxes: just "Select" until it's pressed.
+  if (!ctx.showing) return <SelectToggle />;
   return (
+    <span className="inline-flex items-center gap-3">
     <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-ink">
       <input
         type="checkbox"
@@ -68,6 +111,8 @@ export function SelectAll({ noun = "tasks" }: { noun?: string }) {
       />
       {all ? "Unselect all" : `Select all ${ctx.ids.length} ${noun}`}
     </label>
+    <SelectToggle />
+    </span>
   );
 }
 

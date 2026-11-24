@@ -8,7 +8,7 @@ import { Check, ChevronDown, Plus, TriangleAlert, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
-import { BulkProvider, RowCheck, useBulk } from "@/components/bulk-select";
+import { BulkProvider, RowCheck, SelectToggle, useBulk } from "@/components/bulk-select";
 import { BulkTasksBar } from "@/components/tasks/bulk-tasks";
 import { StatusSelect } from "@/components/tasks/status-select";
 import { DueExtend } from "@/components/tasks/due-extend";
@@ -235,8 +235,11 @@ export function SubtaskSection({
 
   if (!subtasks.length && !canAdd) return null;
   // Narrow, fixed columns (in px, so they don't grow with the text size); the subtask gets the rest.
-  const COLS = "md:grid md:grid-cols-[16px_minmax(0,1fr)_112px_104px_128px] md:items-center md:gap-x-3";
+  // The tick-box column is there only while selecting.
+  const COLS =
+    "md:grid md:grid-cols-[minmax(0,1fr)_112px_104px_128px] md:group-data-[selecting=true]/bulk:grid-cols-[16px_minmax(0,1fr)_112px_104px_128px] md:items-center md:gap-x-3";
   return (
+    <BulkProvider ids={subtasks.map((s) => s.id)} selectMode>
     <section className="surface overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3.5 md:px-5">
         <div className="min-w-0">
@@ -255,11 +258,14 @@ export function SubtaskSection({
             </p>
           )}
         </div>
-        {canAdd && !draft && (
-          <Button size="sm" variant="outline" onClick={() => setDraft(blank())} className="text-brand-primary">
-            <Plus className="h-4 w-4" /> Add a subtask
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {subtasks.length > 1 && <SelectToggle />}
+          {canAdd && !draft && (
+            <Button size="sm" variant="outline" onClick={() => setDraft(blank())} className="text-brand-primary">
+              <Plus className="h-4 w-4" /> Add a subtask
+            </Button>
+          )}
+        </div>
       </div>
 
       {canAdd && draft && (
@@ -278,7 +284,7 @@ export function SubtaskSection({
 
       {subtasks.length > 0 && (
         <PeopleProvider people={people}>
-          <BulkProvider ids={subtasks.map((s) => s.id)}>
+          <>
             <div className={cn("hidden h-9 border-t border-line bg-[#F7F6F4] px-4 text-xs font-semibold text-ink-muted md:px-5", COLS)}>
               <HeaderCheck />
               <span>Subtask</span>
@@ -324,17 +330,19 @@ export function SubtaskSection({
               })}
             </ul>
             <BulkTasksBar people={people} />
-          </BulkProvider>
+          </>
         </PeopleProvider>
       )}
     </section>
+    </BulkProvider>
   );
 }
 
 /** "Select all" as the tick box in the table's header row. */
 function HeaderCheck() {
   const ctx = useBulk();
-  if (!ctx || ctx.ids.length < 2) return <span />;
+  if (!ctx || !ctx.showing) return null;
+  if (ctx.ids.length < 2) return <span />;
   const all = ctx.selected.size === ctx.ids.length;
   return (
     <input
