@@ -308,9 +308,9 @@ export async function DomainEditPage({ kind, params }: { kind: ProjectKind; para
   );
 }
 
-export async function DomainNewPage({ kind, searchParams }: { kind: ProjectKind; searchParams: Promise<Raw> }) {
+export async function DomainNewPage({ kind }: { kind: ProjectKind; searchParams?: Promise<Raw> }) {
   const d = DOMAINS[kind];
-  const [viewer, teams, people, raw] = await Promise.all([requireViewer(), getTeamDirectory(), getPeople(), searchParams]);
+  const [viewer, teams, people] = await Promise.all([requireViewer(), getTeamDirectory(), getPeople()]);
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader breadcrumb={[{ label: d.plural, href: d.path }, `New ${d.label.toLowerCase()}`]} title={`New ${d.label.toLowerCase()}`} />
@@ -320,7 +320,8 @@ export async function DomainNewPage({ kind, searchParams }: { kind: ProjectKind;
           people={people}
           viewerId={viewer.id}
           defaultKind={kind}
-          defaultTeamIds={teams.filter((t) => t.slug === raw.team).map((t) => t.id)}
+          // No teams until picked.
+          defaultTeamIds={[]}
         />
       </div>
     </div>

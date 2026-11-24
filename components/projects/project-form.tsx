@@ -23,7 +23,6 @@ export function ProjectForm({
   memberIds = [],
   departments,
   people,
-  viewerId,
   defaultKind = "project",
   defaultTeamIds = [],
   canPickOwners = true,
@@ -36,7 +35,7 @@ export function ProjectForm({
   /** Every team: any of them can be brought in. */
   departments: { id: string; name: string }[];
   people: PersonRef[];
-  viewerId: string;
+  viewerId?: string;
   defaultKind?: ProjectKind;
   defaultTeamIds?: string[];
   /** Only owners change who the owners are. */
@@ -46,7 +45,8 @@ export function ProjectForm({
   const [pending, startTransition] = useTransition();
   const [kind, setKind] = useState<ProjectKind>(project?.kind ?? defaultKind);
   const [category, setCategory] = useState<PartnerCategory | null>(project?.category ?? null);
-  const [owners, setOwners] = useState<string[]>(project ? ownerIds : [viewerId]);
+  // Nobody is added until picked (not even you).
+  const [owners, setOwners] = useState<string[]>(project ? ownerIds : []);
   const [teams, setTeams] = useState<string[]>(project ? project.team_ids : defaultTeamIds);
   const [start, setStart] = useState(project?.start_date ?? "");
   const [members, setMembers] = useState<string[]>(memberIds.filter((m) => !ownerIds.includes(m)));
