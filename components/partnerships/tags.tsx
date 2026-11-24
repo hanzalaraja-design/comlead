@@ -266,10 +266,57 @@ export function ManageTags({ tags, uses, categories }: { tags: Tag[]; uses: Reco
 
 /** Category colours on cards and in the picker. */
 export const CATEGORY_STYLE: Record<PartnerCategory, string> = {
-  associations: "bg-[#E0F4F2] text-[#0F6B63]",
-  referral: "bg-[#F6E7F8] text-[#6A0F78]",
+  associations: "bg-[#F6E7F8] text-[#6A0F78]",
+  referral: "bg-[#FEF4DC] text-[#8F5600]",
   fintech: "bg-[#E8F0FE] text-[#1F4FB8]",
 };
+
+/** A main tag (category) on a partnership row: coloured, with a cross to take it (and its sub-tags) off. */
+export function CategoryChip({
+  projectId,
+  category,
+  categories,
+  tagIds,
+  tags,
+  removable,
+}: {
+  projectId: string;
+  category: PartnerCategory;
+  /** All its categories now. */
+  categories: PartnerCategory[];
+  /** Its sub-tags now. */
+  tagIds: string[];
+  tags: Tag[];
+  removable: boolean;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <span className={cn("relative z-10 inline-flex h-6 items-center whitespace-nowrap rounded-full pl-2.5 text-xs font-semibold", removable ? "pr-1" : "pr-2.5", CATEGORY_STYLE[category])}>
+      {CATEGORY_LABELS[category]}
+      {removable && (
+        <button
+          type="button"
+          disabled={pending}
+          aria-label={`Take ${CATEGORY_LABELS[category]} off`}
+          title="Take this off (and its sub-tags)"
+          onClick={() =>
+            start(async () => {
+              const keep = categories.filter((c) => c !== category);
+              const keepTags = tagIds.filter((id) => tags.find((t) => t.id === id)?.category !== category);
+              const res = await setPartnershipLabels(projectId, keep, keepTags);
+              if (!res.ok) toast.error(res.error);
+              router.refresh();
+            })
+          }
+          className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full opacity-50 hover:bg-black/10 hover:opacity-100"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </span>
+  );
+}
 
 /**
  * One "+" for both: every category with its tags under it, all tickable, like
@@ -357,7 +404,7 @@ export function LabelPicker({
   return (
     <Popover onOpenChange={() => setQ("")}>
       <PopoverTrigger asChild>
-        <button type="button" aria-label="Categories and tags" className="relative z-10 inline-flex h-6 w-6 items-center justify-center rounded-full bg-subtle text-ink-muted hover:text-ink">
+        <button type="button" aria-label="Categories and tags" title="Add a tag" className="relative z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-line text-ink-muted hover:border-brand-primary hover:text-brand-primary">
           <Plus className="h-3.5 w-3.5" />
         </button>
       </PopoverTrigger>

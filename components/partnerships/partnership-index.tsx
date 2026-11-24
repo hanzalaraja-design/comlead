@@ -2,7 +2,7 @@ import Link from "next/link";
 import { FolderKanban, Lock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/page-header";
-import { LabelPicker, ManageTags, RemovableTag, TagPicker, type Tag } from "@/components/partnerships/tags";
+import { CategoryChip, LabelPicker, ManageTags, RemovableTag, type Tag } from "@/components/partnerships/tags";
 import { PartnershipFilters } from "@/components/partnerships/partnership-filters";
 import { addDaysISO, formatDate, todayPKT } from "@/lib/time";
 import { requireViewer } from "@/lib/auth";
@@ -136,11 +136,9 @@ export async function PartnershipIndexPage({ raw }: { raw: Raw }) {
             <span className="truncate">{r.name}</span>
             {!r.can_open && <Lock className="h-3.5 w-3.5 shrink-0 text-ink-muted" aria-label="No access" />}
           </Link>
-          <p className="truncate text-xs text-ink-muted">
-            {catsOf(r).map((c) => CATEGORY_LABELS[c]).join(", ") || "No category yet"}
-            {!r.can_open && " · ask for access"}
-            {r.locked && " · locked"}
-          </p>
+          {(!r.can_open || r.locked) && (
+            <p className="truncate text-xs text-ink-muted">{[!r.can_open && "Ask for access", r.locked && "Locked"].filter(Boolean).join(" · ")}</p>
+          )}
         </div>
         <span>
           <span className={cn("inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold", st.pill)}>
@@ -165,15 +163,16 @@ export async function PartnershipIndexPage({ raw }: { raw: Raw }) {
           )}
         </span>
         <span className="flex min-w-0 flex-wrap items-center gap-1">
+          {/* Main tags (categories) first, then sub-tags. */}
+          {catsOf(r).map((c) => (
+            <CategoryChip key={c} projectId={r.id} category={c} categories={catsOf(r)} tagIds={mine.map((t) => t.id)} tags={tags} removable={r.can_open} />
+          ))}
           {mine.map((t) => (
             <RemovableTag key={t.id} projectId={r.id} tag={t} removable={r.can_open} />
           ))}
-          {r.can_open &&
-            (catsOf(r).length ? (
-              <TagPicker projectId={r.id} categories={catsOf(r)} tags={tags} selected={mine.map((t) => t.id)} uses={uses} />
-            ) : (
-              <LabelPicker projectId={r.id} categories={CATEGORIES} tags={tags} selectedCategories={catsOf(r)} selectedTags={mine.map((t) => t.id)} uses={uses} />
-            ))}
+          {r.can_open && (
+            <LabelPicker projectId={r.id} categories={CATEGORIES} tags={tags} selectedCategories={catsOf(r)} selectedTags={mine.map((t) => t.id)} uses={uses} />
+          )}
         </span>
         <span
           title={r.owner ?? "No owner"}
