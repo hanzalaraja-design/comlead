@@ -6,13 +6,15 @@ import { CornerDownLeft, Plus } from "lucide-react";
 import { quickAddTask } from "@/app/(app)/tasks/actions";
 import { cn } from "@/lib/utils";
 
-/** Type, press Enter, done. From My tasks it's yours; elsewhere team tasks go to the team's admin. */
+/** Type, press Enter, done. It's for you unless you pick someone in "For". */
 export function QuickAdd({
   departments,
   defaultDepartmentId = null,
   mine = false,
   projectId,
   partId,
+  people = [],
+  viewerId,
 }: {
   departments: { id: string; name: string }[];
   defaultDepartmentId?: string | null;
@@ -22,7 +24,11 @@ export function QuickAdd({
   projectId?: string;
   /** Inside a journey: new tasks belong to it. */
   partId?: string;
+  /** People for "For": pick who it's for; nobody picked means you. */
+  people?: { id: string; name: string }[];
+  viewerId?: string;
 }) {
+  const [forId, setForId] = useState("");
   const [title, setTitle] = useState("");
   const [dept, setDept] = useState<string>(defaultDepartmentId ?? departments[0]?.id ?? "");
   const [pending, startTransition] = useTransition();
@@ -33,10 +39,14 @@ export function QuickAdd({
     const value = title;
     setTitle("");
     startTransition(async () => {
-      const res = await quickAddTask(value, dept || null, projectId, mine, partId);
+      // "For" left as Me: yours (on a team page with nobody picked, the usual team rule).
+      const pickedFor = forId || (people.length && viewerId ? viewerId : null);
+      const res = await quickAddTask(value, dept || null, projectId, mine, partId, pickedFor);
       if (res.ok)
         toast.success(
-          res.data!.done
+          forId && res.data!.owner && res.data!.owner !== "you"
+            ? `Added for ${res.data!.owner}.`
+            : res.data!.done
             ? "Logged as done."
             : projectId
             ? "Added to the project. It's yours."
@@ -90,6 +100,21 @@ export function QuickAdd({
               </option>
             ))}
           </select>
+        )}
+        {people.length > 0 && (
+          <label className="flex items-center gap-1.5 text-sm text-ink-muted">
+            For
+            <select aria-label="Who it's for" value={forId} onChange={(e) => setForId(e.target.value)} className="h-9 field max-w-[11rem] px-2 text-sm text-ink">
+              <option value="">Me</option>
+              {people
+                .filter((p) => p.id !== viewerId)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+          </label>
         )}
         <button
           type="submit"
