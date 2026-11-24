@@ -202,9 +202,18 @@ function DealCell({ day, slot, booking, today, label }: { day: string; slot: Dea
       {booking ? (
         <>
           <span className="block text-ink">{text}</span>
-          <span className={cn("mt-0.5 inline-block rounded-full px-1.5 text-[10.5px] font-semibold", STATUS_CHIP[statusOf(booking, today)])}>
-            {statusText(statusOf(booking, today), booking, today)}
-          </span>
+          {(() => {
+            // Daily deals are for their day only, so "ending" means nothing here:
+            // a deal that's on is just Live, and a past one needs no label.
+            const k = statusOf(booking, today);
+            if (k === "ending" && booking.ends_on && booking.ends_on < today) return null;
+            const shown = k === "ending" ? "live" : k;
+            return (
+              <span className={cn("mt-0.5 inline-block rounded-full px-1.5 text-[10.5px] font-semibold", STATUS_CHIP[shown])}>
+                {statusText(shown, booking, today)}
+              </span>
+            );
+          })()}
         </>
       ) : (
         <span className="text-[13px]">{pending ? "Saving…" : "—"}</span>
