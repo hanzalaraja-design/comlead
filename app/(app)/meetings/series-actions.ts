@@ -23,6 +23,8 @@ const seriesSchema = z.object({
   external_emails: z.array(z.string().trim().toLowerCase().email("One of the email addresses isn't valid.")).max(100),
   // What it's about; left out = leave the links as they are.
   project_ids: z.array(uuid).max(20).optional(),
+  // A follow-up to this meeting (only when setting one up).
+  follow_up_of: uuid.optional(),
 });
 
 export type SeriesInput = z.input<typeof seriesSchema>;
@@ -33,7 +35,7 @@ export async function saveSeries(id: string | null, input: SeriesInput): Promise
   if (id && !uuid.safeParse(id).success) return { ok: false, error: "Meeting not found." };
   const parsed = seriesSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Some values aren't valid." };
-  const { department_ids, user_ids, project_ids, ...fields } = parsed.data;
+  const { department_ids, user_ids, project_ids, follow_up_of, ...fields } = parsed.data;
   const row = { ...fields, external_emails: fields.kind === "external" ? [...new Set(fields.external_emails)] : [] };
   const supabase = await createClient();
 
@@ -43,11 +45,15 @@ export async function saveSeries(id: string | null, input: SeriesInput): Promise
     if (error) return { ok: false, error: friendlyError(error) };
     if (!data?.length) return { ok: false, error: "Only whoever set this meeting up, or a department admin, can change it." };
   } else {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("meeting_series")
-      .insert({ ...row, created_by: viewer.id })
+      .insert({ ...row, created_by: viewer.id, ...(follow_up_of ? { follow_up_of } : {}) })
       .select("id")
       .single();
+    // Before the database has follow-ups: set it up as a plain meeting.
+    if (error && follow_up_of && /follow_up_of/.test(error.message ?? "")) {
+      ({ data, error } = await supabase.from("meeting_series").insert({ ...row, created_by: viewer.id }).select("id").single());
+    }
     if (error || !data) return { ok: false, error: friendlyError(error) };
     seriesId = data.id as string;
   }

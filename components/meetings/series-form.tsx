@@ -30,6 +30,8 @@ export type SeriesFormValues = {
   external_emails: string[];
   /** Projects, campaigns and partnerships it's about. */
   project_ids?: string[];
+  /** Set up as a follow-up to this meeting. */
+  follow_up_of?: string;
 };
 
 const DURATIONS = [15, 30, 45, 60, 90, 120];

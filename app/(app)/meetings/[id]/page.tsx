@@ -6,7 +6,7 @@ import type { ProjectKind } from "@/lib/types";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { notFound } from "next/navigation";
-import { History, Pencil } from "lucide-react";
+import { CalendarPlus, History, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/person-avatar";
 import { RichTextView } from "@/components/rich-text-view";
@@ -37,7 +37,7 @@ export default async function MeetingPage({
   if (!meetingData) notFound();
   const meeting = meetingData as Meeting;
 
-  const [departments, people, members, attendeesRes, itemsRes, prevRes, linksRes, allProjects, logRes] = await Promise.all([
+  const [departments, people, members, attendeesRes, itemsRes, prevRes, linksRes, allProjects, logRes, seriesRes, followRes] = await Promise.all([
     getDepartments(),
     getPeople(),
     getDepartmentMembers(),
@@ -62,7 +62,25 @@ export default async function MeetingPage({
     getProjects(),
     // Who wrote and edited the minutes.
     supabase.rpc("meeting_minutes_log", { p_meeting_id: id }).then((r) => (r.error ? { data: [] } : r)),
+    // Is this a follow-up, and to what (nothing before the database has follow-ups)?
+    meeting.series_id
+      ? supabase.from("meeting_series").select("follow_up_of").eq("id", meeting.series_id).maybeSingle().then((r) => (r.error ? { data: null } : r))
+      : Promise.resolve({ data: null }),
+    // Its own follow-ups.
+    supabase
+      .from("meeting_series")
+      .select("id, title, start_date, meeting_time, archived")
+      .eq("follow_up_of", id)
+      .eq("archived", false)
+      .order("start_date")
+      .then((r) => (r.error ? { data: [] } : r)),
   ]);
+  const followUps = (followRes.data ?? []) as { id: string; title: string; start_date: string; meeting_time: string }[];
+  const parentId = (seriesRes.data as { follow_up_of?: string | null } | null)?.follow_up_of ?? null;
+  const { data: parentData } = parentId
+    ? await supabase.from("meetings").select("id, title, meeting_date").eq("id", parentId).maybeSingle()
+    : { data: null };
+  const parent = parentData as { id: string; title: string | null; meeting_date: string } | null;
   const linked = ((linksRes.data ?? []) as unknown as { project: { id: string; name: string; slug: string; kind: ProjectKind } | null }[])
     .map((r) => r.project)
     .filter((p): p is { id: string; name: string; slug: string; kind: ProjectKind } => !!p);
@@ -71,7 +89,8 @@ export default async function MeetingPage({
   const peopleById = new Map(people.map((p) => [p.id, p]));
   const attendeeIds = (attendeesRes.data ?? []).map((a) => a.user_id as string);
   const items = (itemsRes.data ?? []) as unknown as TaskListRow[];
-  const prev = prevRes.data as { id: string; title: string | null; meeting_date: string } | null;
+  // A follow-up carries forward its main meeting's action items; otherwise the previous meeting's.
+  const prev = parent ?? (prevRes.data as { id: string; title: string | null; meeting_date: string } | null);
 
   let prevItems: TaskListRow[] = [];
   if (prev) {
@@ -95,7 +114,7 @@ export default async function MeetingPage({
   const carryForward = prev && (
     <section className="surface bg-muted/30 p-4">
       <h2 className="kicker mb-1 flex items-center gap-2 text-ink">
-        <History className="h-4 w-4" /> Last time&apos;s action items
+        <History className="h-4 w-4" /> {parent ? "Action items from the main meeting" : <>Last time&apos;s action items</>}
       </h2>
       <p className="mb-3 text-xs text-muted-foreground">
         From{" "}
@@ -138,7 +157,7 @@ export default async function MeetingPage({
         {prev && (
           <details className="surface p-4 md:hidden">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-ink">
-              <History className="h-4 w-4" /> Last time&apos;s action items
+              <History className="h-4 w-4" /> {parent ? "Action items from the main meeting" : <>Last time&apos;s action items</>}
               <span className="rounded-full bg-subtle px-2 text-xs font-normal text-ink-muted">{prevItems.length}</span>
             </summary>
             <div className="mt-3">
@@ -198,16 +217,31 @@ export default async function MeetingPage({
               unlinkedItems={items.filter((t) => !t.project_id && !t.parent_task_id).length}
               recurring={!!meeting.series_id}
             />
+            {parent && (
+              <span className="mt-1 block text-sm">
+                Follow-up to{" "}
+                <Link href={`/meetings/${parent.id}`} className="font-semibold text-brand-primary hover:underline">
+                  {parent.title || "the main meeting"} · {formatDate(parent.meeting_date, "EEE d MMM")}
+                </Link>
+              </span>
+            )}
           </>
         }
         actions={
-          canEdit && (
-            <Button asChild size="sm">
-              <Link href={`/meetings/${id}?edit=1`}>
-                <Pencil className="h-4 w-4" /> Edit minutes
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/meetings/new?follow_up=${id}`}>
+                <CalendarPlus className="h-4 w-4" /> Follow-up meeting
               </Link>
             </Button>
-          )
+            {canEdit && (
+              <Button asChild size="sm">
+                <Link href={`/meetings/${id}?edit=1`}>
+                  <Pencil className="h-4 w-4" /> Edit minutes
+                </Link>
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -274,6 +308,27 @@ export default async function MeetingPage({
           editable={canEdit}
         />
       </section>
+
+      {followUps.length > 0 && (
+        <section className="surface border-brand-primary/20 bg-brand-bg/40 p-4 md:p-6">
+          <h2 className="kicker mb-2 text-ink">Follow-ups</h2>
+          <ul className="space-y-2">
+            {followUps.map((f) => (
+              <li key={f.id}>
+                <Link href={`/meetings/series/${f.id}?date=${f.start_date}`} className="flex flex-wrap items-baseline gap-x-2 text-[15px] hover:underline">
+                  <span className="text-brand-primary" aria-hidden>
+                    ↳
+                  </span>
+                  <span className="font-semibold text-ink">{f.title}</span>
+                  <span className="text-sm text-ink-muted">
+                    {formatDate(f.start_date, "EEE d MMM")} · {formatTime(f.meeting_time)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <p className="text-xs text-muted-foreground">Last updated {formatPKT(meeting.updated_at)}</p>
     </div>
