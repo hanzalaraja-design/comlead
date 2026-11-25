@@ -231,8 +231,8 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
             {(
               [
                 [null, "All"],
-                ["sale", "Sales"],
-                ["theme", "Brand themes"],
+                ["sale", "Sale"],
+                ["theme", "Theme"],
               ] as const
             ).map(([k, label]) => {
               const n = mine.filter((p) => !p.archived && tab.test(p, today) && (!k || (k === "theme" ? isTheme(p) : !isTheme(p)))).length;
