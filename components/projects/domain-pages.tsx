@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FolderKanban, LayoutGrid, List, Lock, Plus } from "lucide-react";
+import { ChevronDown, FolderKanban, LayoutGrid, List, Lock, Plus } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -224,7 +225,75 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
           </Button>
         }
       />
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      {kind === "campaign" ? (
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-line">
+          <nav aria-label="Type" className="flex gap-6">
+            {(
+              [
+                [null, "All"],
+                ["sale", "Sales"],
+                ["theme", "Brand themes"],
+              ] as const
+            ).map(([k, label]) => {
+              const n = mine.filter((p) => !p.archived && tab.test(p, today) && (!k || (k === "theme" ? isTheme(p) : !isTheme(p)))).length;
+              return (
+                <Link
+                  key={label}
+                  href={linkTo({ type: k })}
+                  aria-current={ctype === k ? "page" : undefined}
+                  className={cn(
+                    "-mb-px border-b-2 px-0.5 pb-3 text-[15px] font-semibold",
+                    ctype === k ? "border-ink text-ink" : "border-transparent text-ink-muted hover:text-ink",
+                  )}
+                >
+                  {label}
+                  <span className="ml-1 font-medium text-ink-muted/70">{n}</span>
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="flex items-center gap-2 pb-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-line bg-white px-3 text-sm font-semibold text-ink hover:bg-subtle">
+                {tab.label} <ChevronDown className="h-4 w-4 text-ink-muted" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {tabs.map((t) => (
+                  <DropdownMenuItem key={t.key} asChild>
+                    <Link href={linkTo({ tab: t.key })} className="flex justify-between">
+                      <span className={cn(t === tab && "font-semibold")}>{t.label}</span>
+                      <span className="text-ink-muted">{mine.filter((p) => !p.archived && t.test(p, today) && ofType(p)).length}</span>
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <span className="inline-flex gap-0.5 rounded-[10px] bg-subtle p-0.5" role="group" aria-label="View">
+              {(
+                [
+                  [false, "Cards", LayoutGrid],
+                  [true, "List", List],
+                ] as const
+              ).map(([l, label, Icon]) => (
+                <Link
+                  key={label}
+                  href={linkTo({ list: l })}
+                  title={label}
+                  aria-label={label}
+                  aria-current={asList === l ? "page" : undefined}
+                  className={cn(
+                    "inline-flex h-7 w-8 items-center justify-center rounded-[8px]",
+                    asList === l ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </Link>
+              ))}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4">
       <nav aria-label={`${d.plural} filter`} className="inline-flex gap-1 rounded-[12px] bg-white p-1 shadow-sm">
         {tabs.map((t) => {
           const n = mine.filter((p) => !p.archived && t.test(p, today) && ofType(p)).length;
@@ -243,54 +312,8 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
           );
         })}
       </nav>
-      {kind === "campaign" && (
-        <nav aria-label="Type" className="inline-flex gap-1 rounded-[12px] bg-white p-1 shadow-sm">
-          {(
-            [
-              [null, "All"],
-              ["sale", "Sales"],
-              ["theme", "Brand themes"],
-            ] as const
-          ).map(([k, label]) => {
-            return (
-              <Link
-                key={label}
-                href={linkTo({ type: k })}
-                aria-current={ctype === k ? "page" : undefined}
-                className={cn(
-                  "inline-flex h-9 items-center rounded-[9px] px-4 text-sm font-semibold",
-                  ctype === k ? (k === "theme" ? "bg-[#F3E6F6] text-[#6A1578]" : k === "sale" ? "bg-[#FEF1E6] text-[#8A4A12]" : "bg-ink text-white") : "text-ink-muted hover:text-ink",
-                )}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
+        </div>
       )}
-      {kind === "campaign" && (
-        <nav aria-label="View" className="inline-flex gap-1 rounded-[12px] bg-white p-1 shadow-sm sm:ml-auto">
-          {(
-            [
-              [false, "Cards", LayoutGrid],
-              [true, "List", List],
-            ] as const
-          ).map(([l, label, Icon]) => (
-            <Link
-              key={label}
-              href={linkTo({ list: l })}
-              aria-current={asList === l ? "page" : undefined}
-              className={cn(
-                "inline-flex h-9 items-center gap-1.5 rounded-[9px] px-3 text-sm font-semibold",
-                asList === l ? "bg-ink text-white" : "text-ink-muted hover:text-ink",
-              )}
-            >
-              <Icon className="h-4 w-4" /> {label}
-            </Link>
-          ))}
-        </nav>
-      )}
-      </div>
       {live.length ? (
         asList ? (
           table(live)
