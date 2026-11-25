@@ -48,7 +48,11 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
   const mine = all.filter((p) => p.kind === kind);
   const tabs = TABS[kind];
   const tab = tabs.find((t) => t.key === raw.tab) ?? tabs[0];
-  const live = mine.filter((p) => !p.archived && tab.test(p, today));
+  // Campaigns: all, sales or brand themes.
+  const ctype = kind === "campaign" && (raw.type === "sale" || raw.type === "theme") ? raw.type : null;
+  const isTheme = (p: Project) => p.campaign_type === "theme";
+  const ofType = (p: Project) => !ctype || (ctype === "theme" ? isTheme(p) : !isTheme(p));
+  const live = mine.filter((p) => !p.archived && tab.test(p, today) && ofType(p));
   const archived = mine.filter((p) => p.archived);
 
   const ids = mine.map((p) => p.id);
@@ -98,6 +102,12 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
               <span className="shrink-0 rounded-md bg-[#F3E6F6] px-2 py-0.5 text-[11px] font-bold text-[#6A1578]">
                 {p.team_ids.length ? "Team project" : "Individual"}
               </span>
+            ) : kind === "campaign" ? (
+              isTheme(p) ? (
+                <span className="shrink-0 rounded-md bg-[#F3E6F6] px-2 py-0.5 text-[11px] font-bold text-[#6A1578]">Brand theme</span>
+              ) : (
+                <span className="shrink-0 rounded-md bg-[#FEF1E6] px-2 py-0.5 text-[11px] font-bold text-[#8A4A12]">Sale</span>
+              )
             ) : null}
           </div>
           {dates && <p className="text-[13px] font-semibold text-brand-primary">{dates}</p>}
@@ -142,19 +152,23 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
         description={d.blurb}
         actions={
           <Button asChild size="sm">
-            <Link href={`${d.path}/new`}>
-              <Plus className="h-4 w-4" /> New {d.label.toLowerCase()}
+            <Link href={`${d.path}/new${ctype === "theme" ? "?type=theme" : ""}`}>
+              <Plus className="h-4 w-4" /> {ctype === "theme" ? "New brand theme" : `New ${d.label.toLowerCase()}`}
             </Link>
           </Button>
         }
       />
-      <nav aria-label={`${d.plural} filter`} className="mb-4 inline-flex gap-1 rounded-[12px] bg-white p-1 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <nav aria-label={`${d.plural} filter`} className="inline-flex gap-1 rounded-[12px] bg-white p-1 shadow-sm">
         {tabs.map((t) => {
-          const n = mine.filter((p) => !p.archived && t.test(p, today)).length;
+          const n = mine.filter((p) => !p.archived && t.test(p, today) && ofType(p)).length;
+          const q = new URLSearchParams();
+          if (t !== tabs[0]) q.set("tab", t.key);
+          if (ctype) q.set("type", ctype);
           return (
             <Link
               key={t.key}
-              href={t === tabs[0] ? d.path : `${d.path}?tab=${t.key}`}
+              href={q.toString() ? `${d.path}?${q}` : d.path}
               aria-current={t === tab ? "page" : undefined}
               className={cn(
                 "inline-flex h-9 items-center rounded-[9px] px-4 text-sm font-semibold",
@@ -166,6 +180,35 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
           );
         })}
       </nav>
+      {kind === "campaign" && (
+        <nav aria-label="Type" className="inline-flex gap-1 rounded-[12px] bg-white p-1 shadow-sm">
+          {(
+            [
+              [null, "All"],
+              ["sale", "Sales"],
+              ["theme", "Brand themes"],
+            ] as const
+          ).map(([k, label]) => {
+            const q = new URLSearchParams();
+            if (tab !== tabs[0]) q.set("tab", tab.key);
+            if (k) q.set("type", k);
+            return (
+              <Link
+                key={label}
+                href={q.toString() ? `${d.path}?${q}` : d.path}
+                aria-current={ctype === k ? "page" : undefined}
+                className={cn(
+                  "inline-flex h-9 items-center rounded-[9px] px-4 text-sm font-semibold",
+                  ctype === k ? (k === "theme" ? "bg-[#F3E6F6] text-[#6A1578]" : k === "sale" ? "bg-[#FEF1E6] text-[#8A4A12]" : "bg-ink text-white") : "text-ink-muted hover:text-ink",
+                )}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+      </div>
       {live.length ? (
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{live.map(card)}</ul>
       ) : (
@@ -308,7 +351,8 @@ export async function DomainEditPage({ kind, params }: { kind: ProjectKind; para
   );
 }
 
-export async function DomainNewPage({ kind }: { kind: ProjectKind; searchParams?: Promise<Raw> }) {
+export async function DomainNewPage({ kind, searchParams }: { kind: ProjectKind; searchParams?: Promise<Raw> }) {
+  const raw = searchParams ? await searchParams : {};
   const d = DOMAINS[kind];
   const [viewer, teams, people] = await Promise.all([requireViewer(), getTeamDirectory(), getPeople()]);
   return (
@@ -320,6 +364,7 @@ export async function DomainNewPage({ kind }: { kind: ProjectKind; searchParams?
           people={people}
           viewerId={viewer.id}
           defaultKind={kind}
+          defaultCampaignType={raw.type === "theme" ? "theme" : undefined}
           // No teams until picked.
           defaultTeamIds={[]}
         />

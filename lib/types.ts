@@ -96,6 +96,8 @@ export type Project = {
   kind: ProjectKind;
   /** Brand partnerships only: Associations, Referral or Fintech (or none yet). */
   category: PartnerCategory | null;
+  /** Campaigns only: a sale or a brand theme (none = a sale, or before the database has it). */
+  campaign_type?: "sale" | "theme" | null;
   /** Locked: only its owners can change it. */
   locked: boolean;
   start_date: string | null;

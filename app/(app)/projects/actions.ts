@@ -23,6 +23,11 @@ const projectSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v === "associations" || v === "referral" || v === "fintech" ? v : null)),
+  // Campaigns only: a sale or a brand theme.
+  campaign_type: z
+    .string()
+    .optional()
+    .transform((v) => (v === "theme" ? "theme" : v === "sale" ? "sale" : null)),
   // Picked owners: they can lock it. At least one.
   owners: z.array(uuid).min(1, "Pick at least one owner").max(20),
   start_date: isoDate,
@@ -42,6 +47,7 @@ function readProjectForm(formData: FormData) {
     name: formData.get("name") ?? "",
     kind: formData.get("kind") ?? "project",
     category: formData.get("category") ?? undefined,
+    campaign_type: formData.get("campaign_type") ?? undefined,
     owners: formData.getAll("owners").map(String).filter(Boolean),
     start_date: formData.get("start_date") ?? undefined,
     end_date: formData.get("end_date") ?? undefined,
@@ -124,6 +130,7 @@ export async function createProject(formData: FormData): Promise<ActionResult<{ 
         slug,
         kind: v.kind,
         category: v.kind === "partnership" ? v.category : null,
+        ...(v.kind === "campaign" && v.campaign_type === "theme" ? { campaign_type: "theme" } : {}),
         start_date: v.start_date,
         end_date: v.end_date,
         description: v.description,
@@ -164,6 +171,8 @@ export async function updateProject(projectId: string, formData: FormData): Prom
       name: v.name,
       kind: v.kind,
       category: v.kind === "partnership" ? v.category : null,
+      // Only sent when it's set, so saving works before the database has types.
+      ...(v.kind === "campaign" && v.campaign_type ? { campaign_type: v.campaign_type } : {}),
       start_date: v.start_date,
       end_date: v.end_date,
       description: v.description,

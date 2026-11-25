@@ -38,7 +38,13 @@ export async function loadProject(slug: string, raw: Raw, kind?: ProjectKind, re
   const supabase = await createClient();
   const [viewer, { data }, named, departments, people] = await Promise.all([
     requireViewer(),
-    supabase.from("projects").select(PROJECT_COLUMNS).eq("slug", slug).maybeSingle(),
+    // With the campaign type once the database has it.
+    supabase
+      .from("projects")
+      .select(`${PROJECT_COLUMNS}, campaign_type`)
+      .eq("slug", slug)
+      .maybeSingle()
+      .then(async (r) => (r.error ? await supabase.from("projects").select(PROJECT_COLUMNS).eq("slug", slug).maybeSingle() : r)),
     getProjectMembers(),
     getTeamNames(),
     getPeople(),
@@ -136,7 +142,7 @@ export async function ProjectHeader({
         description={
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="rounded-full bg-subtle px-2 py-0.5 text-xs font-semibold text-ink">
-              {project.category ? CATEGORY_LABELS[project.category] : d.label}
+              {project.category ? CATEGORY_LABELS[project.category] : project.kind === "campaign" && project.campaign_type === "theme" ? "Brand theme" : d.label}
             </span>
             {project.archived && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-ink">Archived</span>}
             {dates && <span className="font-semibold text-brand-primary">{dates}</span>}
