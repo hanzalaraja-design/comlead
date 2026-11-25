@@ -17,7 +17,9 @@ export { CATEGORY_LABELS, DOMAINS, KIND_LABELS, domainHref, isProjectKind } from
 /** Projects the viewer is in (RLS decides; Admins see all). Cached per request. */
 export const getProjects = cache(async (): Promise<Project[]> => {
   const supabase = await createClient();
-  const { data } = await supabase.from("projects").select(PROJECT_COLUMNS).order("archived").order("name");
+  // With the campaign type once the database has it.
+  const withType = await supabase.from("projects").select(`${PROJECT_COLUMNS}, campaign_type`).order("archived").order("name");
+  const data = withType.error ? (await supabase.from("projects").select(PROJECT_COLUMNS).order("archived").order("name")).data : withType.data;
   return ((data ?? []) as unknown as ProjectRow[]).map(toProject);
 });
 

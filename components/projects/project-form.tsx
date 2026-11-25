@@ -24,6 +24,7 @@ export function ProjectForm({
   departments,
   people,
   defaultKind = "project",
+  defaultCampaignType,
   defaultTeamIds = [],
   canPickOwners = true,
 }: {
@@ -37,6 +38,8 @@ export function ProjectForm({
   people: PersonRef[];
   viewerId?: string;
   defaultKind?: ProjectKind;
+  /** New campaign started from the Brand themes view: a brand theme. */
+  defaultCampaignType?: "sale" | "theme";
   defaultTeamIds?: string[];
   /** Only owners change who the owners are. */
   canPickOwners?: boolean;
@@ -45,6 +48,7 @@ export function ProjectForm({
   const [pending, startTransition] = useTransition();
   const [kind, setKind] = useState<ProjectKind>(project?.kind ?? defaultKind);
   const [category, setCategory] = useState<PartnerCategory | null>(project?.category ?? null);
+  const [campaignType, setCampaignType] = useState<"sale" | "theme">(project?.campaign_type === "theme" ? "theme" : defaultCampaignType ?? "sale");
   // Nobody is added until picked (not even you).
   const [owners, setOwners] = useState<string[]>(project ? ownerIds : []);
   const [teams, setTeams] = useState<string[]>(project ? project.team_ids : defaultTeamIds);
@@ -58,6 +62,7 @@ export function ProjectForm({
     for (const o of owners) formData.append("owners", o);
     for (const t of teams) formData.append("teams", t);
     if (category) formData.set("category", category);
+    if (kind === "campaign") formData.set("campaign_type", campaignType);
     startTransition(async () => {
       const res = project ? await updateProject(project.id, formData) : await createProject(formData);
       if (res.ok && res.data) {
@@ -105,6 +110,33 @@ export function ProjectForm({
         </div>
       </div>
       <p className="-mt-2 text-xs text-ink-muted">{d.blurb}</p>
+
+      {kind === "campaign" && (
+        <fieldset className="space-y-1.5">
+          <legend className="mb-1.5 text-sm font-medium">Type</legend>
+          <div className="inline-flex gap-1 rounded-[12px] bg-subtle p-1">
+            {(
+              [
+                ["sale", "Sale"],
+                ["theme", "Brand theme"],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={campaignType === k}
+                onClick={() => setCampaignType(k)}
+                className={cn("h-9 rounded-[9px] px-4 text-sm font-semibold", campaignType === k ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-ink-muted">
+            {campaignType === "theme" ? "What Highfy stands for over a season, like Glow up for winter. Sales can run under it." : "A sale or deal with dates, like 11.11 or Blessed Friday."}
+          </p>
+        </fieldset>
+      )}
 
       {kind === "partnership" && (
         <fieldset className="space-y-1.5">
