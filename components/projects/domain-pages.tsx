@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FolderKanban, Lock, Plus } from "lucide-react";
+import { FolderKanban, LayoutGrid, List, Lock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { PersonAvatar } from "@/components/person-avatar";
@@ -54,6 +54,17 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
   const ofType = (p: Project) => !ctype || (ctype === "theme" ? isTheme(p) : !isTheme(p));
   const live = mine.filter((p) => !p.archived && tab.test(p, today) && ofType(p));
   const archived = mine.filter((p) => p.archived);
+  // Campaigns: cards (default) or a compact list.
+  const asList = kind === "campaign" && raw.view === "list";
+  const linkTo = (o: { tab?: string; type?: string | null; list?: boolean }) => {
+    const q = new URLSearchParams();
+    const t = o.tab ?? tab.key;
+    if (t !== tabs[0].key) q.set("tab", t);
+    const ty = o.type === undefined ? ctype : o.type;
+    if (ty) q.set("type", ty);
+    if (o.list ?? asList) q.set("view", "list");
+    return q.toString() ? `${d.path}?${q}` : d.path;
+  };
 
   const ids = mine.map((p) => p.id);
   const { data: rows } = ids.length
@@ -144,6 +155,61 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
     );
   };
 
+  // List view: one row per campaign, same facts as the card.
+  const COLS = "md:grid md:grid-cols-[minmax(0,1.6fr)_120px_230px_minmax(0,1.1fr)_84px] md:items-center md:gap-x-4";
+  const row = (p: Project) => {
+    const c = counts.get(p.id) ?? { open: 0, done: 0, overdue: 0, onTime: 0, dueDone: 0 };
+    const total = c.open + c.done;
+    const pct = total ? Math.round((c.done / total) * 100) : 0;
+    const owners = ownersOf(named, p.id).map((id) => personById.get(id)).filter((x) => !!x);
+    const dates = datesText(p, today);
+    return (
+      <li key={p.id} className={cn("relative flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line px-4 py-3 first:border-t-0 hover:bg-canvas/60 md:px-5", COLS)}>
+        <div className="min-w-0 basis-full md:basis-auto">
+          <Link href={domainHref(p)} className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-ink after:absolute after:inset-0">
+            <span className="truncate">{p.name}</span>
+            {p.locked && <Lock className="h-3.5 w-3.5 shrink-0 text-ink-muted" aria-label="Locked" />}
+          </Link>
+          <p className="truncate text-xs text-ink-muted">{teamsText(p.team_ids.map((id) => teamName.get(id) ?? "Team"))}</p>
+        </div>
+        <span>
+          {isTheme(p) ? (
+            <span className="rounded-md bg-[#F3E6F6] px-2 py-0.5 text-[11px] font-bold text-[#6A1578]">Brand theme</span>
+          ) : (
+            <span className="rounded-md bg-[#FEF1E6] px-2 py-0.5 text-[11px] font-bold text-[#8A4A12]">Sale</span>
+          )}
+        </span>
+        <span className="min-w-0 text-sm font-semibold text-brand-primary">{dates || <span className="font-normal text-ink-muted">No dates yet</span>}</span>
+        <span className="flex min-w-0 basis-full flex-col gap-1 md:basis-auto">
+          <span className="h-1.5 overflow-hidden rounded-full bg-subtle" aria-label={`${pct}% done`}>
+            <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
+          </span>
+          <span className="text-xs text-ink-muted">
+            {c.open} open · {c.done} done
+            {c.overdue > 0 && <span className="font-semibold text-danger"> · {c.overdue} overdue</span>}
+          </span>
+        </span>
+        <span className="hidden -space-x-1.5 md:flex" title={owners.length ? `Owners: ${owners.map((o) => o!.full_name || o!.email).join(", ")}` : "No owner"}>
+          {owners.slice(0, 3).map((m) => (
+            <PersonAvatar key={m!.id} person={m} className="h-6 w-6 ring-2 ring-white" />
+          ))}
+        </span>
+      </li>
+    );
+  };
+  const table = (list: Project[]) => (
+    <div className="surface overflow-hidden">
+      <div className={cn("hidden h-10 bg-[#F7F6F4] px-5 text-xs font-semibold uppercase tracking-wide text-ink-muted", COLS)}>
+        <span>Campaign</span>
+        <span>Type</span>
+        <span>Dates</span>
+        <span>Progress</span>
+        <span>Owners</span>
+      </div>
+      <ul>{list.map(row)}</ul>
+    </div>
+  );
+
   return (
     <>
       <PageHeader
@@ -162,13 +228,10 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
       <nav aria-label={`${d.plural} filter`} className="inline-flex gap-1 rounded-[12px] bg-white p-1 shadow-sm">
         {tabs.map((t) => {
           const n = mine.filter((p) => !p.archived && t.test(p, today) && ofType(p)).length;
-          const q = new URLSearchParams();
-          if (t !== tabs[0]) q.set("tab", t.key);
-          if (ctype) q.set("type", ctype);
           return (
             <Link
               key={t.key}
-              href={q.toString() ? `${d.path}?${q}` : d.path}
+              href={linkTo({ tab: t.key })}
               aria-current={t === tab ? "page" : undefined}
               className={cn(
                 "inline-flex h-9 items-center rounded-[9px] px-4 text-sm font-semibold",
@@ -189,13 +252,10 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
               ["theme", "Brand themes"],
             ] as const
           ).map(([k, label]) => {
-            const q = new URLSearchParams();
-            if (tab !== tabs[0]) q.set("tab", tab.key);
-            if (k) q.set("type", k);
             return (
               <Link
                 key={label}
-                href={q.toString() ? `${d.path}?${q}` : d.path}
+                href={linkTo({ type: k })}
                 aria-current={ctype === k ? "page" : undefined}
                 className={cn(
                   "inline-flex h-9 items-center rounded-[9px] px-4 text-sm font-semibold",
@@ -208,9 +268,35 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
           })}
         </nav>
       )}
+      {kind === "campaign" && (
+        <nav aria-label="View" className="inline-flex gap-1 rounded-[12px] bg-white p-1 shadow-sm sm:ml-auto">
+          {(
+            [
+              [false, "Cards", LayoutGrid],
+              [true, "List", List],
+            ] as const
+          ).map(([l, label, Icon]) => (
+            <Link
+              key={label}
+              href={linkTo({ list: l })}
+              aria-current={asList === l ? "page" : undefined}
+              className={cn(
+                "inline-flex h-9 items-center gap-1.5 rounded-[9px] px-3 text-sm font-semibold",
+                asList === l ? "bg-ink text-white" : "text-ink-muted hover:text-ink",
+              )}
+            >
+              <Icon className="h-4 w-4" /> {label}
+            </Link>
+          ))}
+        </nav>
+      )}
       </div>
       {live.length ? (
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{live.map(card)}</ul>
+        asList ? (
+          table(live)
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{live.map(card)}</ul>
+        )
       ) : (
         <EmptyState>
           <span className="flex flex-col items-center gap-2">
@@ -222,7 +308,11 @@ export async function DomainIndexPage({ kind, raw }: { kind: ProjectKind; raw: R
       {archived.length > 0 && (
         <details className="mt-8">
           <summary className="kicker cursor-pointer text-ink">Archived · {archived.length}</summary>
-          <ul className="mt-3 grid gap-3 opacity-80 sm:grid-cols-2 xl:grid-cols-3">{archived.map(card)}</ul>
+          {asList ? (
+            <div className="mt-3 opacity-80">{table(archived)}</div>
+          ) : (
+            <ul className="mt-3 grid gap-3 opacity-80 sm:grid-cols-2 xl:grid-cols-3">{archived.map(card)}</ul>
+          )}
         </details>
       )}
     </>
